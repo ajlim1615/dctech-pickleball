@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
@@ -61,7 +62,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Navbar />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 pb-16 md:pb-0">{children}</main>
+          <MobileBottomNav />
           <PWAInstallBanner />
           <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-[#070a10] py-6 text-center text-xs text-slate-500 dark:text-slate-400">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
