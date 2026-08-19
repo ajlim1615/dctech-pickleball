@@ -72,32 +72,6 @@ export function LoginForm() {
       </CardHeader>
 
       <CardContent className="pt-6 space-y-5">
-        {/* Mode Selector Tabs (Sign In & Sign Up) */}
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 font-mono text-xs shadow-inner">
-          <button
-            type="button"
-            onClick={() => { setMode("signin"); setMessage(null); }}
-            className={`rounded-md py-2 font-medium transition-all ${
-              mode === "signin"
-                ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm font-bold"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode("signup"); setMessage(null); }}
-            className={`rounded-md py-2 font-medium transition-all ${
-              mode === "signup"
-                ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm font-bold"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
-
         {/* Status Message Alert */}
         {message && (
           <div
