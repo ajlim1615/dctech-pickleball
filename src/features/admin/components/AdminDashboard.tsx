@@ -20,6 +20,9 @@ import {
   UserCheck,
   Lock,
   Layers,
+  Search,
+  Filter,
+  Mail,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,13 +45,21 @@ export function AdminDashboard({
   initialCourts = [],
 }: AdminDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide">("sessions");
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"courts" | "sessions" | "players" | "guide">("courts");
+  const [notification, setNotification] = useState<string | null>(null);
+
+  // Fast-Add Walk In State
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [walkInName, setWalkInName] = useState("");
   const [walkInType, setWalkInType] = useState<"guest" | "employee">("guest");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
+
+  // Player Tier Category Filter State
+  const [playerTierFilter, setPlayerTierFilter] = useState<"all" | "intermediate" | "novice" | "beginner">("all");
+  const [playerSearch, setPlayerSearch] = useState<string>("");
+
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const [courts, setCourts] = useState<
     { id: string; name: string; status: CourtStatus; surface: string; assignedStaffId?: string | null }[]
@@ -65,6 +76,27 @@ export function AdminDashboard({
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const activeSession = sessions.find((s) => s.status === "active");
   const employees: Profile[] = initialEmployees;
+
+  const intermediateCount = employees.filter((e) => e.skill_rating >= 3.50).length;
+  const noviceCount = employees.filter((e) => e.skill_rating >= 2.75 && e.skill_rating < 3.50).length;
+  const beginnerCount = employees.filter((e) => e.skill_rating < 2.75).length;
+
+  function getPlayerTier(rating: number) {
+    if (rating >= 3.50) return { label: "Intermediate (3.50+)", badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40" };
+    if (rating >= 2.75) return { label: "Adv. Beginner / Novice (2.75)", badge: "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40" };
+    return { label: "Beginner (2.25)", badge: "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" };
+  }
+
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch = (emp.full_name || emp.display_name || "").toLowerCase().includes(playerSearch.toLowerCase()) ||
+                          (emp.email || "").toLowerCase().includes(playerSearch.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (playerTierFilter === "intermediate") return emp.skill_rating >= 3.50;
+    if (playerTierFilter === "novice") return emp.skill_rating >= 2.75 && emp.skill_rating < 3.50;
+    if (playerTierFilter === "beginner") return emp.skill_rating < 2.75;
+    return true;
+  });
 
   useEffect(() => {
     setCourts(
@@ -677,101 +709,196 @@ export function AdminDashboard({
           )}
 
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-row items-center justify-between">
+            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  Employee Role & DUPR Skill Adjustments ({employees.length})
+                  Player & Staff Directory ({employees.length} Players)
                 </CardTitle>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Manage coworker ratings, roles, and open-play eligibility.
+                  Manage coworker ratings, roles, and open-play eligibility by skill categories.
                 </p>
               </div>
               <Button
                 variant="volt"
                 size="sm"
                 onClick={() => setIsAddingPlayer(true)}
-                className="font-bold text-xs"
+                className="font-bold text-xs shrink-0 w-full sm:w-auto"
               >
                 <UserPlus className="h-3.5 w-3.5 mr-1" />
                 + Add Walk-In / Guest Player
               </Button>
             </CardHeader>
-          <CardContent className="p-0">
-            {employees.length === 0 ? (
-              <div className="py-12 text-center font-mono text-xs text-slate-400 space-y-2">
-                <Users className="h-7 w-7 text-slate-400 dark:text-slate-600 mx-auto" />
-                <p className="text-slate-900 dark:text-slate-200 font-semibold">No Registered Players Found</p>
-                <p className="text-slate-500 text-[11px]">
-                  When employees sign up or log in, their profiles will automatically appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                {employees.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+
+            {/* Category Filter Tabs & Search Bar */}
+            <div className="p-4 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800/60 space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                {/* Category Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPlayerTierFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs ${
+                      playerTierFilter === "all"
+                        ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 border-transparent shadow-xs"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">
-                        {emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                            {emp.full_name || emp.display_name}
-                          </h4>
-                          <Badge
-                            variant={emp.role === "admin" ? "volt" : "secondary"}
-                            className="text-[10px] uppercase font-mono"
-                          >
-                            {emp.role}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                          Rating: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRating(emp.skill_rating)}</span>
-                        </p>
-                      </div>
-                    </div>
+                    All Players ({employees.length})
+                  </button>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                      {/* Rating Incrementer */}
-                      <div className="flex items-center gap-1 font-mono text-xs bg-slate-50 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => handleRatingChange(emp.id, -0.1)}
-                          className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-bold"
-                        >
-                          -0.1
-                        </button>
-                        <span className="px-1 text-slate-900 dark:text-slate-300 font-bold">
-                          {formatRating(emp.skill_rating)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRatingChange(emp.id, 0.1)}
-                          className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold"
-                        >
-                          +0.1
-                        </button>
-                      </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlayerTierFilter("intermediate")}
+                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
+                      playerTierFilter === "intermediate"
+                        ? "bg-emerald-500 text-slate-950 border-emerald-500 font-extrabold shadow-xs"
+                        : "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/60"
+                    }`}
+                  >
+                    <span>Intermediate (3.50+)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-600 text-white dark:bg-emerald-400 dark:text-slate-950">
+                      {intermediateCount}
+                    </span>
+                  </button>
 
-                      {/* Role Selector */}
-                      <select
-                        defaultValue={emp.role}
-                        onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
-                        className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1 text-xs text-slate-900 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
-                      >
-                        <option value="player">Player</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setPlayerTierFilter("novice")}
+                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
+                      playerTierFilter === "novice"
+                        ? "bg-sky-500 text-slate-950 border-sky-500 font-extrabold shadow-xs"
+                        : "border-sky-500/30 bg-sky-50/50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/60"
+                    }`}
+                  >
+                    <span>Adv. Beginner / Novice (2.75)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-600 text-white dark:bg-sky-400 dark:text-slate-950">
+                      {noviceCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPlayerTierFilter("beginner")}
+                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
+                      playerTierFilter === "beginner"
+                        ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow-xs"
+                        : "border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                    }`}
+                  >
+                    <span>Beginner (2.25)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-600 text-white dark:bg-amber-400 dark:text-slate-950">
+                      {beginnerCount}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full lg:w-64">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={playerSearch}
+                    onChange={(e) => setPlayerSearch(e.target.value)}
+                    placeholder="Search player or email..."
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-emerald-500 focus:outline-none shadow-2xs font-mono"
+                  />
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+
+            <CardContent className="p-0">
+              {filteredEmployees.length === 0 ? (
+                <div className="py-12 text-center font-mono text-xs text-slate-400 space-y-2">
+                  <Users className="h-7 w-7 text-slate-400 dark:text-slate-600 mx-auto" />
+                  <p className="text-slate-900 dark:text-slate-200 font-semibold">No Players Match this Category/Search</p>
+                  <p className="text-slate-500 text-[11px]">
+                    Try choosing a different skill tier or clearing the search bar.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200 dark:divide-slate-800/60">
+                  {filteredEmployees.map((emp) => {
+                    const tierInfo = getPlayerTier(emp.skill_rating);
+                    return (
+                      <div
+                        key={emp.id}
+                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0">
+                            {emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"}
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                                {emp.full_name || emp.display_name}
+                              </h4>
+                              <Badge
+                                variant={emp.role === "admin" ? "volt" : "secondary"}
+                                className="text-[10px] uppercase font-mono"
+                              >
+                                {emp.role}
+                              </Badge>
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${tierInfo.badge}`}>
+                                {tierInfo.label}
+                              </span>
+                            </div>
+
+                            {/* Email Subtitle & DUPR Rating */}
+                            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono flex flex-wrap items-center gap-2 pt-1">
+                              {emp.email ? (
+                                <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+                                  <Mail className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                                  {emp.email}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">No email linked</span>
+                              )}
+                              <span className="text-slate-300 dark:text-slate-700">•</span>
+                              <span>DUPR: <strong className="text-emerald-600 dark:text-emerald-400">{formatRating(emp.skill_rating)}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Rating Incrementer */}
+                          <div className="flex items-center gap-1 font-mono text-xs bg-slate-50 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => handleRatingChange(emp.id, -0.1)}
+                              className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-bold"
+                            >
+                              -0.1
+                            </button>
+                            <span className="px-1 text-slate-900 dark:text-slate-300 font-bold">
+                              {formatRating(emp.skill_rating)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRatingChange(emp.id, 0.1)}
+                              className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold"
+                            >
+                              +0.1
+                            </button>
+                          </div>
+
+                          {/* Role Selector */}
+                          <select
+                            defaultValue={emp.role}
+                            onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
+                            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1 text-xs text-slate-900 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
+                          >
+                            <option value="player">Player</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
 
