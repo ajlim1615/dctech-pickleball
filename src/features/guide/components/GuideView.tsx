@@ -13,12 +13,15 @@ import {
   Volume2,
   Layers,
   PlusCircle,
+  ShieldCheck,
+  Zap,
+  PlayCircle,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export function GuideView() {
-  const [activeTab, setActiveTab] = useState<"player" | "matchstyles" | "rules" | "faq">("player");
+  const [activeTab, setActiveTab] = useState<"player" | "matchstyles" | "rules" | "faq" | "admin">("player");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
@@ -27,7 +30,7 @@ export function GuideView() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge variant="volt" className="text-xs font-mono font-bold">
-              PLAYER HANDBOOK & RULES
+              PLAYER & ADMIN HANDBOOK
             </Badge>
             <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
               DCTECH Recreation Committee
@@ -35,10 +38,10 @@ export function GuideView() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <BookOpen className="h-7 w-7 text-emerald-500 dark:text-emerald-400" />
-            Pickleball Player & Rules Guide
+            Pickleball Operations & Rules Guide
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
-            Everything you need to know to participate in open play, queue up with colleagues, learn pickleball scoring rules, and climb the company DUPR leaderboard.
+            Everything you need to know to participate in open play, queue up with colleagues, umpire matches courtside, and manage sessions as an administrator.
           </p>
         </div>
       </div>
@@ -92,6 +95,18 @@ export function GuideView() {
         >
           <HelpCircle className="h-4 w-4" />
           4. Player FAQs
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("admin")}
+          className={`px-4 py-3 font-bold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            activeTab === "admin"
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20"
+              : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          5. Admin & Umpire Manual
         </button>
       </div>
 
@@ -237,7 +252,7 @@ export function GuideView() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 space-y-2 shadow-sm">
               <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -265,6 +280,16 @@ export function GuideView() {
               </h4>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 You cannot step inside the 7ft Non-Volley Zone and hit a ball out of the air. You may only enter the kitchen if the ball bounces first.
+              </p>
+            </Card>
+
+            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 space-y-2 shadow-sm">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <Trophy className="h-4 w-4 text-emerald-600 dark:text-[#d4e938]" />
+                4. Win by 2 (To 11)
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Standard games are played to 11 points. A team must win by at least 2 points (e.g. 11–9, 12–10, 13–11) to finalize the match.
               </p>
             </Card>
           </div>
@@ -302,6 +327,79 @@ export function GuideView() {
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
               To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your DUPR rating on the leaderboard.
             </p>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 space-y-2 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-emerald-500" />
+              Can I use this app on my iPhone, Android, or iPad at the venue?
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
+              Yes! The app is 100% mobile-friendly with a native bottom bar. You can also tap <strong>&quot;Add to Home Screen&quot;</strong> in your mobile browser (Safari / Chrome) to install it as a standalone full-screen app.
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 5: Admin & Umpire Manual */}
+      {activeTab === "admin" && (
+        <div className="space-y-6">
+          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                Administrator & Referee Playbook
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
+              Quick reference for tournament managers and referees running live open play and recording match results courtside.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {/* Feature 1 */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                  <PlayCircle className="h-4 w-4" />
+                  1. Creating & Scaling Sessions
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Go to <strong>Sessions</strong> or <strong>Admin</strong>. When creating a session, select the number of courts (e.g. 3, 4, 5+). The system automatically provisions and initializes all courts.
+                </p>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                  <Zap className="h-4 w-4" />
+                  2. 1-Click Automated Queue Call
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  On the home page, session board, or score recorder, tap <strong>&quot;⚡ Call Next Up on Court X&quot;</strong>. The system automatically pulls the top 4 waiting players from the queue and balances teams by DUPR rating.
+                </p>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                  <Activity className="h-4 w-4" />
+                  3. Live Courtside Refereeing
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Open <strong>/courts/[id]/monitor</strong> on any phone or iPad. Use giant <strong>+ / -</strong> buttons with haptic feedback to score points. Tap <strong>Side Out</strong> to rotate servers (Server 1 → Server 2 → Turnover).
+                </p>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                  <Trophy className="h-4 w-4" />
+                  4. Game Victory & Rating Updates
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  When a team hits 11+ points (win by 2), the system pulses a <strong>&quot;🏆 Finalize Victory&quot;</strong> button. Finalizing instantly updates employee DUPR ratings and frees the court for the next rotation.
+                </p>
+              </div>
+            </div>
           </Card>
         </div>
       )}
