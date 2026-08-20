@@ -90,9 +90,6 @@ export function Navbar() {
               <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 DCTECH <span className="text-emerald-500 dark:text-emerald-400 font-normal">|</span> Pickleball
               </span>
-              <Badge variant="volt" className="text-[10px] px-1.5 py-0">
-                PROD
-              </Badge>
             </div>
             <span className="text-[11px] font-medium tracking-wide text-slate-500 dark:text-slate-400 font-mono">
               OPEN PLAY & RATINGS

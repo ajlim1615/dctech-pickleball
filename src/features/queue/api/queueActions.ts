@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
+import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
+import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -43,6 +44,11 @@ export async function joinQueue(params: {
 
   if (!user) {
     return { error: "Authentication required to join queue." };
+  }
+
+  // Guard: Root system admin cannot join the player queue
+  if (user.email?.toLowerCase() === "admin@dctechmicro.com") {
+    return { error: "The System Admin account (admin@dctechmicro.com) is an administrative profile and cannot join the paddle queue." };
   }
 
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
@@ -157,6 +163,11 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     return { error: "Please select at least one employee." };
   }
 
+  // Exclude system admin from bulk queue
+  const { data: profiles } = await supabase.from("profiles").select("id, email").in("id", playerIds);
+  const adminIds = new Set(profiles?.filter((p) => p.email?.toLowerCase() === "admin@dctechmicro.com").map((p) => p.id) || []);
+  const validPlayerIds = playerIds.filter((id) => !adminIds.has(id));
+
   // Get currently active queue entries to avoid duplicates
   const { data: currentEntries } = await supabase
     .from("queue_entries")
@@ -165,7 +176,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     .in("status", ["waiting", "called", "playing"]);
 
   const alreadyQueued = new Set(currentEntries?.map((e) => e.player_id) || []);
-  const toAdd = playerIds.filter((id) => !alreadyQueued.has(id));
+  const toAdd = validPlayerIds.filter((id) => !alreadyQueued.has(id));
 
   if (toAdd.length === 0) {
     return { success: true, count: 0, message: "All selected employees are already queued." };
@@ -454,12 +465,23 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     })
     .in("id", entryIds);
 
-  // 3. Balance teams for doubles match (or singles)
+  // 3. Determine matching style from session configuration
+  const { data: sessionData } = await supabase
+    .from("sessions")
+    .select("description")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  const modeMatch = sessionData?.description?.match(/\[matching_mode:([a-z_]+)\]/i);
+  const matchingStyle = (modeMatch ? modeMatch[1] : "balanced") as MatchingStyle;
+
+  const profiles: Profile[] = nextEntries.map((e) => ((e.player || e) as unknown) as Profile);
+
   let teamA: string[] = [];
   let teamB: string[] = [];
 
   if (players.length >= 4) {
-    // Check if there is a paired group
+    // Check if there is a locked paired group (Coworker doubles pair)
     const groups: { [gid: string]: string[] } = {};
     players.forEach((p) => {
       if (p.groupId) {
@@ -474,10 +496,10 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
       teamA = pairedGroup;
       teamB = players.filter((p) => !teamA.includes(p.id)).map((p) => p.id).slice(0, 2);
     } else {
-      // Balanced DUPR pairing: Sort 1, 2, 3, 4 -> Team 1: [P1, P4], Team 2: [P2, P3]
-      const sorted = [...players].sort((a, b) => b.skill_rating - a.skill_rating);
-      teamA = [sorted[0].id, sorted[3]?.id || sorted[2].id];
-      teamB = [sorted[1].id, sorted[2]?.id || sorted[3].id];
+      // Execute the algorithm for the assigned MatchingStyle
+      const matchup = createMatchupFromPod(profiles, matchingStyle);
+      teamA = matchup.teamA.map((p) => p.id);
+      teamB = matchup.teamB.map((p) => p.id);
     }
   } else if (players.length === 2) {
     teamA = [players[0].id];

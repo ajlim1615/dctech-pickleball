@@ -9,6 +9,7 @@ import { getCourts } from "@/features/courts/api/courtActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { cleanSessionDescription } from "@/lib/utils";
 
 export default async function HomePage() {
   const [courts, sessions, authData] = await Promise.all([
@@ -17,7 +18,9 @@ export default async function HomePage() {
     getCurrentUser(),
   ]);
 
-  const isAdmin = authData?.profile?.role === "admin";
+  const userEmail = authData?.user?.email || authData?.profile?.email;
+  const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
+  const isAdmin = authData?.profile?.role === "admin" || isSystemAdmin;
   const activeSession = sessions.find((s) => s.status === "active");
   const upcomingSessions = sessions.filter((s) => s.status === "scheduled");
   const activeCourtsCount = courts.filter((c) => c.status === "occupied").length;
@@ -36,6 +39,8 @@ export default async function HomePage() {
       waitTime: `~${minsAgo}m wait`,
     };
   });
+
+  const activeDescription = cleanSessionDescription(activeSession?.description);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-8">
@@ -59,13 +64,20 @@ export default async function HomePage() {
               {activeSession ? activeSession.title : "DCTECH Open Play Arena"}
             </h1>
             <p className="text-sm text-slate-400 max-w-2xl">
-              {activeSession?.description ||
+              {activeDescription ||
                 "Real-time court rotations and paddle queue activate as soon as an Administrator starts an Open-Play Session."}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {activeSession ? (
+            {isSystemAdmin ? (
+              <Link href="/admin">
+                <Button variant="volt" size="lg" className="shadow-lg shadow-[#d4e938]/10 font-bold">
+                  <Zap className="h-4 w-4 mr-1.5" />
+                  {activeSession ? "Manage Session in Admin Panel" : "Start Session in Admin Panel"}
+                </Button>
+              </Link>
+            ) : activeSession ? (
               <Link href={`/sessions/${activeSession.id}`}>
                 <Button variant="volt" size="lg" className="shadow-lg shadow-[#d4e938]/10 font-bold">
                   <PlayCircle className="h-4 w-4 mr-1" />
@@ -150,7 +162,7 @@ export default async function HomePage() {
             />
           </div>
           <div className="space-y-6">
-            <LiveQueueRail queue={formattedQueue} />
+            <LiveQueueRail queue={formattedQueue} userEmail={userEmail || ""} />
           </div>
         </div>
       ) : (

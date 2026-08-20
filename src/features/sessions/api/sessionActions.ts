@@ -50,30 +50,47 @@ export async function getSessionById(id: string) {
   };
 }
 
+import { requireAdminUser } from "@/lib/security/authGuard";
+import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
+import { sanitizeString } from "@/lib/security/validation";
+
 export async function createSession(formData: FormData) {
-  const supabase = await createClient();
-  const title = formData.get("title") as string;
-  const description = formData.get("description") as string;
-  const location = (formData.get("location") as string) || "DCTECH Sports Arena";
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const rawTitle = formData.get("title") as string;
+  const rawDescription = formData.get("description") as string;
+  const rawLocation = (formData.get("location") as string) || "DCTECH Sports Arena";
   const startTime = formData.get("startTime") as string;
   const endTime = formData.get("endTime") as string;
   const maxPlayersStr = formData.get("maxPlayers") as string;
   const courtCountStr = formData.get("courtCount") as string;
   const courtCount = courtCountStr ? parseInt(courtCountStr, 10) : 4;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: "Authentication required." };
+  if (!rawTitle || !startTime || !endTime) {
+    return { error: "Session title, start time, and end time are required." };
   }
+
+  const title = sanitizeString(rawTitle);
+  const location = sanitizeString(rawLocation);
+  const matchingStyle = sanitizeString((formData.get("matchingStyle") as string) || "balanced");
+  const userDesc = sanitizeString(rawDescription || "");
+  const finalDescription = userDesc
+    ? `${userDesc} [matching_mode:${matchingStyle}]`
+    : `[matching_mode:${matchingStyle}]`;
+
+  const supabase = await createClient();
+  const userId = auth.context?.userId || "";
 
   const { error } = await supabase.from("sessions").insert({
     title,
-    description: description || null,
+    description: finalDescription,
     location,
     start_time: new Date(startTime).toISOString(),
     end_time: new Date(endTime).toISOString(),
-    max_players: maxPlayersStr ? parseInt(maxPlayersStr, 10) : null,
-    created_by: user.id,
+    max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
+    created_by: userId,
     status: "scheduled",
   });
 
@@ -106,7 +123,7 @@ export async function createSession(formData: FormData) {
       }));
       const { error: courtInsertError } = await supabase.from("courts").insert(courtsToInsert);
       if (courtInsertError) {
-        console.error("Failed to provision additional courts:", courtInsertError.message);
+        console.error("Failed to add courts:", courtInsertError.message);
       }
     }
   }
@@ -118,7 +135,28 @@ export async function createSession(formData: FormData) {
 }
 
 export async function updateSessionStatus(sessionId: string, status: SessionStatus) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
+
+  // If activating a session, deactivate any other active sessions to maintain single active session clarity
+  if (status === "active") {
+    await supabase
+      .from("sessions")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("status", "active")
+      .neq("id", sessionId);
+
+    // Free all courts for the incoming session
+    await supabase
+      .from("courts")
+      .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  // Update target session
   const { error } = await supabase
     .from("sessions")
     .update({ status, updated_at: new Date().toISOString() })
@@ -126,7 +164,23 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 
   if (error) return { error: error.message };
 
-  // If activating a session, ensure baseline courts exist in database
+  // If completing or cancelling a session, clear its active queue and free courts
+  if (status === "completed" || status === "cancelled") {
+    // Clear lingering waiting/called queue entries
+    await supabase
+      .from("queue_entries")
+      .update({ status: "left" })
+      .eq("session_id", sessionId)
+      .in("status", ["waiting", "called"]);
+
+    // Free courts
+    await supabase
+      .from("courts")
+      .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  // Ensure baseline courts exist
   if (status === "active") {
     const { data: existingCourts } = await supabase.from("courts").select("id");
     if (!existingCourts || existingCourts.length === 0) {
@@ -143,6 +197,9 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   revalidatePath("/sessions");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/admin");
+  revalidatePath("/queue");
+  revalidatePath("/matches");
+  revalidatePath("/matches/new");
   revalidatePath("/");
   return { success: true };
 }
@@ -155,6 +212,12 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "Authentication required to check in." };
     targetPlayerId = user.id;
+  }
+
+  // Guard: Root system admin cannot check in to play
+  const { data: profile } = await supabase.from("profiles").select("email").eq("id", targetPlayerId).single();
+  if (profile?.email?.toLowerCase() === "admin@dctechmicro.com") {
+    return { error: "The System Admin account (admin@dctechmicro.com) is a non-playing administrator and cannot check in to play." };
   }
 
   const { error } = await supabase.from("session_checkins").upsert(

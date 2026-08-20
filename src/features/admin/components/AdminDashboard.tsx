@@ -23,6 +23,10 @@ import {
   Search,
   Filter,
   Mail,
+  Trophy,
+  ChevronDown,
+  ChevronUp,
+  Star,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +49,7 @@ export function AdminDashboard({
   initialCourts = [],
 }: AdminDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"courts" | "sessions" | "players" | "guide">("courts");
+  const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide">("sessions");
   const [notification, setNotification] = useState<string | null>(null);
 
   // Fast-Add Walk In State
@@ -54,12 +58,16 @@ export function AdminDashboard({
   const [walkInType, setWalkInType] = useState<"guest" | "employee">("guest");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
 
-  // Player Tier Category Filter State
-  const [playerTierFilter, setPlayerTierFilter] = useState<"all" | "intermediate" | "novice" | "beginner">("all");
+  // Player Tier Category Filter State (Combobox)
+  const [playerTierFilter, setPlayerTierFilter] = useState<string>("all");
   const [playerSearch, setPlayerSearch] = useState<string>("");
 
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // Matching Mode State (Pickleq Style)
+  const [selectedMatchingMode, setSelectedMatchingMode] = useState<string>("balanced");
+  const [showMoreMatchingModes, setShowMoreMatchingModes] = useState<boolean>(false);
 
   const [courts, setCourts] = useState<
     { id: string; name: string; status: CourtStatus; surface: string; assignedStaffId?: string | null }[]
@@ -75,16 +83,44 @@ export function AdminDashboard({
 
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const activeSession = sessions.find((s) => s.status === "active");
-  const employees: Profile[] = initialEmployees;
+  const [employees, setEmployees] = useState<Profile[]>(initialEmployees);
 
-  const intermediateCount = employees.filter((e) => e.skill_rating >= 3.50).length;
-  const noviceCount = employees.filter((e) => e.skill_rating >= 2.75 && e.skill_rating < 3.50).length;
-  const beginnerCount = employees.filter((e) => e.skill_rating < 2.75).length;
+  // 6-Star Skill Tiers (Exact Mapping)
+  const SKILL_STAR_TIERS = [
+    { stars: 0, label: "Set skill", dupr: 2.0 },
+    { stars: 1, label: "Beginner (~2.0 DUPR)", dupr: 2.0 },
+    { stars: 2, label: "Adv. Beginner (~2.5 DUPR)", dupr: 2.5 },
+    { stars: 3, label: "Intermediate (~3.0 DUPR)", dupr: 3.0 },
+    { stars: 4, label: "Adv. Intermediate (~3.5 DUPR)", dupr: 3.5 },
+    { stars: 5, label: "Advanced (~4.0 DUPR)", dupr: 4.0 },
+    { stars: 6, label: "Expert (~4.5+ DUPR)", dupr: 4.5 },
+  ];
+
+  function getStarSkillInfo(rating?: number | null) {
+    const r = Number(rating || 0);
+    if (r <= 0) return { stars: 0, label: "Set skill", dupr: 2.0 };
+    if (r < 2.25) return { stars: 1, label: "Beginner (~2.0 DUPR)", dupr: 2.0 };
+    if (r < 2.75) return { stars: 2, label: "Adv. Beginner (~2.5 DUPR)", dupr: 2.5 };
+    if (r < 3.25) return { stars: 3, label: "Intermediate (~3.0 DUPR)", dupr: 3.0 };
+    if (r < 3.75) return { stars: 4, label: "Adv. Intermediate (~3.5 DUPR)", dupr: 3.5 };
+    if (r < 4.25) return { stars: 5, label: "Advanced (~4.0 DUPR)", dupr: 4.0 };
+    return { stars: 6, label: "Expert (~4.5+ DUPR)", dupr: 4.5 };
+  }
+
+  // Skill Tier Counts for Combobox
+  const count6 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 6).length;
+  const count5 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 5).length;
+  const count4 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 4).length;
+  const count3 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 3).length;
+  const count2 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 2).length;
+  const count1 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 1).length;
 
   function getPlayerTier(rating: number) {
-    if (rating >= 3.50) return { label: "Intermediate (3.50+)", badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40" };
-    if (rating >= 2.75) return { label: "Adv. Beginner / Novice (2.75)", badge: "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40" };
-    return { label: "Beginner (2.25)", badge: "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" };
+    const info = getStarSkillInfo(rating);
+    if (info.stars >= 4) return { label: info.label, badge: "border-purple-500/40 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40" };
+    if (info.stars === 3) return { label: info.label, badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40" };
+    if (info.stars === 2) return { label: info.label, badge: "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40" };
+    return { label: info.label, badge: "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" };
   }
 
   const filteredEmployees = employees.filter((emp) => {
@@ -92,10 +128,9 @@ export function AdminDashboard({
                           (emp.email || "").toLowerCase().includes(playerSearch.toLowerCase());
     if (!matchesSearch) return false;
 
-    if (playerTierFilter === "intermediate") return emp.skill_rating >= 3.50;
-    if (playerTierFilter === "novice") return emp.skill_rating >= 2.75 && emp.skill_rating < 3.50;
-    if (playerTierFilter === "beginner") return emp.skill_rating < 2.75;
-    return true;
+    if (playerTierFilter === "all") return true;
+    const starInfo = getStarSkillInfo(emp.skill_rating);
+    return starInfo.stars === parseInt(playerTierFilter, 10);
   });
 
   useEffect(() => {
@@ -114,6 +149,10 @@ export function AdminDashboard({
     setSessions(initialSessions);
   }, [initialSessions]);
 
+  useEffect(() => {
+    setEmployees(initialEmployees);
+  }, [initialEmployees]);
+
   async function handleToggleStatus(courtId: string, newStatus: CourtStatus) {
     setCourts((prev) =>
       prev.map((c) => (c.id === courtId ? { ...c, status: newStatus } : c))
@@ -124,17 +163,45 @@ export function AdminDashboard({
   }
 
   async function handleRoleChange(userId: string, newRole: UserRole) {
+    const emp = employees.find((e) => e.id === userId);
+    if (emp?.email?.toLowerCase() === "admin@dctechmicro.com") {
+      showNotice("System Admin role is permanent and cannot be modified.");
+      return;
+    }
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === userId ? { ...e, role: newRole } : e))
+    );
+    showNotice(`Updated role to ${newRole.toUpperCase()}`);
     await updatePlayerRole(userId, newRole);
-    showNotice(`Player role updated to ${newRole.toUpperCase()}`);
     router.refresh();
   }
 
-  async function handleRatingChange(userId: string, delta: number) {
-    const emp = employees.find((e) => e.id === userId);
-    if (!emp) return;
-    const newRating = Math.max(1.0, Math.min(6.0, Number((emp.skill_rating + delta).toFixed(2))));
-    await adjustPlayerRating(userId, newRating);
-    showNotice(`Rating updated to ${newRating.toFixed(2)}`);
+  async function handleRatingChange(playerId: string, delta: number) {
+    const player = employees.find((e) => e.id === playerId);
+    if (!player || player.email?.toLowerCase() === "admin@dctechmicro.com") return;
+    const newRating = Math.max(1.0, Math.min(6.0, (player.skill_rating || 3.0) + delta));
+    const rounded = Math.round(newRating * 100) / 100;
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
+    );
+    await adjustPlayerRating(playerId, rounded);
+    showNotice(`Updated skill rating for player.`);
+    router.refresh();
+  }
+
+  async function handleSetRating(playerId: string, newRating: number) {
+    const emp = employees.find((e) => e.id === playerId);
+    if (emp?.email?.toLowerCase() === "admin@dctechmicro.com") {
+      showNotice("System Admin does not participate in matches or ratings.");
+      return;
+    }
+    const rounded = Math.round(newRating * 100) / 100;
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
+    );
+    const starInfo = getStarSkillInfo(rounded);
+    showNotice(`Updated ${emp?.full_name || "player"} to ${starInfo.label}`);
+    await adjustPlayerRating(playerId, rounded);
     router.refresh();
   }
 
@@ -163,9 +230,16 @@ export function AdminDashboard({
   }
 
   async function handleResetQueue() {
-    if (confirm("Are you sure you want to clear the entire active queue?")) {
-      await resetSessionQueue("s1");
-      showNotice("Session queue has been reset.");
+    const targetSessionId = activeSession?.id || sessions[0]?.id;
+    if (!targetSessionId) {
+      alert("No active session found to reset queue for.");
+      return;
+    }
+
+    if (confirm("Are you sure you want to clear the entire active queue? This will remove all waiting players from the paddle queue.")) {
+      await resetSessionQueue(targetSessionId);
+      showNotice("Session queue has been cleared.");
+      router.refresh();
     }
   }
 
@@ -490,18 +564,233 @@ export function AdminDashboard({
                       <option value="6">6 Courts (24 Players active)</option>
                     </select>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Queue Matching & Rotation Style</label>
-                    <select
-                      name="matchingStyle"
-                      defaultValue="balanced"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-bold"
+                </div>
+
+                {/* Pickleq-Style Matching Mode Selector */}
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
+                      Matching mode
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      Queue rotation strategy
+                    </span>
+                  </div>
+
+                  {/* Hidden form input to submit selected value */}
+                  <input type="hidden" name="matchingStyle" value={selectedMatchingMode} />
+
+                  <div className="space-y-2">
+                    {/* 1. Balanced (Recommended) */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMatchingMode("balanced")}
+                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                        selectedMatchingMode === "balanced"
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
                     >
-                      <option value="balanced">⚖️ Balanced DUPR Matching (Recommended)</option>
-                      <option value="fifo">⏱️ Classic FIFO (4-on / 4-off)</option>
-                      <option value="winners_stay">👑 King of the Court (Winners Stay)</option>
-                      <option value="social_mixer">🔀 Social Mixer (Max Variety)</option>
-                    </select>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                          {selectedMatchingMode === "balanced" && (
+                            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                          <span>Balanced</span>
+                          <span className="ml-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                            RECOMMENDED
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Balances teams by rating. Avoids repeat matchups when possible.
+                      </p>
+                    </button>
+
+                    {/* 2. Social Mix (New) */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMatchingMode("social_mixer")}
+                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                        selectedMatchingMode === "social_mixer"
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                          {selectedMatchingMode === "social_mixer" && (
+                            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                          <span>Social Mix</span>
+                          <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                            NEW
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Avoids repeat partners and opponents. Doesn&apos;t use ratings.
+                      </p>
+                    </button>
+
+                    {/* 3. Skill Separated */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMatchingMode("skill_separated")}
+                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                        selectedMatchingMode === "skill_separated"
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        {selectedMatchingMode === "skill_separated" && (
+                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        <span>Skill Separated</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Keeps similar skill levels together. May leave a court waiting.
+                      </p>
+                    </button>
+
+                    {/* 4. Winners / Losers */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMatchingMode("winners_losers")}
+                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                        selectedMatchingMode === "winners_losers"
+                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        {selectedMatchingMode === "winners_losers" && (
+                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        <span>Winners / Losers</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Winners play winners. Losers play losers.
+                      </p>
+                    </button>
+
+                    {/* More modes & formats (Collapsible) */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreMatchingModes(!showMoreMatchingModes)}
+                        className="w-full p-3 flex items-center justify-between text-left hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors font-mono"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                            More modes & formats
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Skill Courts · Mixed Doubles · King/Queen · Club Wars
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          <span>{showMoreMatchingModes ? "Hide options" : "Show options"}</span>
+                          {showMoreMatchingModes ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      </button>
+
+                      {showMoreMatchingModes && (
+                        <div className="p-3 pt-0 space-y-2 border-t border-slate-200 dark:border-slate-800/60 mt-1">
+                          {/* 5. Skill Courts */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMatchingMode("skill_courts")}
+                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
+                              selectedMatchingMode === "skill_courts"
+                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                              {selectedMatchingMode === "skill_courts" && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              )}
+                              <span>Skill Courts</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Give each skill group its own courts and queue.
+                            </p>
+                          </button>
+
+                          {/* 6. Mixed Doubles */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMatchingMode("mixed_doubles")}
+                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
+                              selectedMatchingMode === "mixed_doubles"
+                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                              {selectedMatchingMode === "mixed_doubles" && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              )}
+                              <span>Mixed Doubles</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Every team has one male and one female player.
+                            </p>
+                          </button>
+
+                          {/* 7. King/Queen of the Court */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMatchingMode("king_queen")}
+                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
+                              selectedMatchingMode === "king_queen"
+                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                              {selectedMatchingMode === "king_queen" && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              )}
+                              <span>King/Queen of the Court</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Winners move up. Losers move down.
+                            </p>
+                          </button>
+
+                          {/* 8. Club Wars */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMatchingMode("club_wars")}
+                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
+                              selectedMatchingMode === "club_wars"
+                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                              {selectedMatchingMode === "club_wars" && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              )}
+                              <span>Club Wars</span>
+                              <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                                BETA
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              Two groups compete. Every match is one group vs the other.
+                            </p>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -675,16 +964,18 @@ export function AdminDashboard({
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Initial DUPR</label>
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Initial Skill Level (Stars)</label>
                         <select
                           value={walkInRating}
                           onChange={(e) => setWalkInRating(parseFloat(e.target.value))}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-medium"
                         >
-                          <option value="2.5">2.50 (Beginner)</option>
-                          <option value="3.0">3.00 (Intermediate)</option>
-                          <option value="3.5">3.50 (Advanced)</option>
-                          <option value="4.0">4.00 (Pro)</option>
+                          <option value="2.0">★☆☆☆☆☆ Beginner (~2.0 DUPR)</option>
+                          <option value="2.5">★★☆☆☆☆ Adv. Beginner (~2.5 DUPR)</option>
+                          <option value="3.0">★★★☆☆☆ Intermediate (~3.0 DUPR)</option>
+                          <option value="3.5">★★★★☆☆ Adv. Intermediate (~3.5 DUPR)</option>
+                          <option value="4.0">★★★★★☆ Advanced (~4.0 DUPR)</option>
+                          <option value="4.5">★★★★★★ Expert (~4.5+ DUPR)</option>
                         </select>
                       </div>
                     </div>
@@ -729,71 +1020,43 @@ export function AdminDashboard({
               </Button>
             </CardHeader>
 
-            {/* Category Filter Tabs & Search Bar */}
-            <div className="p-4 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800/60 space-y-3">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                {/* Category Pills */}
-                <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPlayerTierFilter("all")}
-                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs ${
-                      playerTierFilter === "all"
-                        ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 border-transparent shadow-xs"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    All Players ({employees.length})
-                  </button>
+            {/* Category Filter Combobox & Search Bar */}
+            <div className="p-4 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800/60">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Unified 1-Filter Combobox */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <Filter className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <select
+                      value={playerTierFilter}
+                      onChange={(e) => setPlayerTierFilter(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8.5 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono font-medium focus:border-emerald-500 focus:outline-none shadow-2xs cursor-pointer"
+                    >
+                      <option value="all">★ All Skill Levels ({employees.length} Players)</option>
+                      <option value="6">★★★★★★ 6 Stars · Expert (~4.5+ DUPR) ({count6})</option>
+                      <option value="5">★★★★★☆ 5 Stars · Advanced (~4.0 DUPR) ({count5})</option>
+                      <option value="4">★★★★☆☆ 4 Stars · Adv. Intermediate (~3.5 DUPR) ({count4})</option>
+                      <option value="3">★★★☆☆☆ 3 Stars · Intermediate (~3.0 DUPR) ({count3})</option>
+                      <option value="2">★★☆☆☆☆ 2 Stars · Adv. Beginner (~2.5 DUPR) ({count2})</option>
+                      <option value="1">★☆☆☆☆☆ 1 Star · Beginner (~2.0 DUPR) ({count1})</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setPlayerTierFilter("intermediate")}
-                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
-                      playerTierFilter === "intermediate"
-                        ? "bg-emerald-500 text-slate-950 border-emerald-500 font-extrabold shadow-xs"
-                        : "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/60"
-                    }`}
-                  >
-                    <span>Intermediate (3.50+)</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-600 text-white dark:bg-emerald-400 dark:text-slate-950">
-                      {intermediateCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPlayerTierFilter("novice")}
-                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
-                      playerTierFilter === "novice"
-                        ? "bg-sky-500 text-slate-950 border-sky-500 font-extrabold shadow-xs"
-                        : "border-sky-500/30 bg-sky-50/50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/60"
-                    }`}
-                  >
-                    <span>Adv. Beginner / Novice (2.75)</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-600 text-white dark:bg-sky-400 dark:text-slate-950">
-                      {noviceCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPlayerTierFilter("beginner")}
-                    className={`px-3 py-1.5 rounded-lg border font-bold transition-all text-xs flex items-center gap-1.5 ${
-                      playerTierFilter === "beginner"
-                        ? "bg-amber-500 text-slate-950 border-amber-500 font-extrabold shadow-xs"
-                        : "border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/60"
-                    }`}
-                  >
-                    <span>Beginner (2.25)</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-600 text-white dark:bg-amber-400 dark:text-slate-950">
-                      {beginnerCount}
-                    </span>
-                  </button>
+                  {playerTierFilter !== "all" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPlayerTierFilter("all")}
+                      className="h-8 px-2 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-mono shrink-0"
+                    >
+                      Reset
+                    </Button>
+                  )}
                 </div>
 
                 {/* Search Bar */}
-                <div className="relative w-full lg:w-64">
+                <div className="relative w-full sm:w-64">
                   <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                   <input
                     type="text"
@@ -818,6 +1081,7 @@ export function AdminDashboard({
               ) : (
                 <div className="divide-y divide-slate-200 dark:divide-slate-800/60">
                   {filteredEmployees.map((emp) => {
+                    const isSystemAdmin = emp.email?.toLowerCase() === "admin@dctechmicro.com";
                     const tierInfo = getPlayerTier(emp.skill_rating);
                     return (
                       <div
@@ -825,8 +1089,17 @@ export function AdminDashboard({
                         className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0">
-                            {emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"}
+                          <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden">
+                            {emp.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={emp.avatar_url}
+                                alt={emp.full_name || "Avatar"}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"
+                            )}
                           </div>
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -837,10 +1110,10 @@ export function AdminDashboard({
                                 variant={emp.role === "admin" ? "volt" : "secondary"}
                                 className="text-[10px] uppercase font-mono"
                               >
-                                {emp.role}
+                                {isSystemAdmin ? "System Admin" : emp.role}
                               </Badge>
-                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${tierInfo.badge}`}>
-                                {tierInfo.label}
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${isSystemAdmin ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" : tierInfo.badge}`}>
+                                {isSystemAdmin ? "🛡️ Root Admin (Non-Player)" : tierInfo.label}
                               </span>
                             </div>
 
@@ -855,42 +1128,87 @@ export function AdminDashboard({
                                 <span className="text-slate-400 italic">No email linked</span>
                               )}
                               <span className="text-slate-300 dark:text-slate-700">•</span>
-                              <span>DUPR: <strong className="text-emerald-600 dark:text-emerald-400">{formatRating(emp.skill_rating)}</strong></span>
+                              {isSystemAdmin ? (
+                                <span className="text-amber-600 dark:text-amber-400 font-semibold">Non-Playing Admin</span>
+                              ) : (
+                                <span>DUPR: <strong className="text-emerald-600 dark:text-emerald-400">{formatRating(emp.skill_rating)}</strong></span>
+                              )}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                          {/* Rating Incrementer */}
-                          <div className="flex items-center gap-1 font-mono text-xs bg-slate-50 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(emp.id, -0.1)}
-                              className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-bold"
-                            >
-                              -0.1
-                            </button>
-                            <span className="px-1 text-slate-900 dark:text-slate-300 font-bold">
-                              {formatRating(emp.skill_rating)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(emp.id, 0.1)}
-                              className="px-2 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold"
-                            >
-                              +0.1
-                            </button>
-                          </div>
+                          {isSystemAdmin ? (
+                            <div className="text-xs font-mono text-slate-400 dark:text-slate-500 italic bg-slate-100/60 dark:bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                              🔒 Role & Rating Locked
+                            </div>
+                          ) : (
+                            <>
+                              {/* Pickleq-Style 6-Star Rating Control */}
+                              {(() => {
+                                const starInfo = getStarSkillInfo(emp.skill_rating);
+                                return (
+                                  <div className="flex items-center gap-2 bg-slate-50/80 dark:bg-slate-950/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                                    <div className="flex items-center gap-0.5 px-1">
+                                      {[1, 2, 3, 4, 5, 6].map((starNum) => {
+                                        const isFilled = starNum <= starInfo.stars;
+                                        return (
+                                          <button
+                                            key={starNum}
+                                            type="button"
+                                            onClick={() => {
+                                              const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starNum);
+                                              if (targetTier) handleSetRating(emp.id, targetTier.dupr);
+                                            }}
+                                            className="p-0.5 hover:scale-125 transition-transform focus:outline-none"
+                                            title={`Set to ${starNum} Stars`}
+                                          >
+                                            <Star
+                                              className={`h-4 w-4 transition-colors ${
+                                                isFilled
+                                                  ? "text-amber-500 fill-amber-400 drop-shadow-xs"
+                                                  : "text-slate-300 dark:text-slate-600 fill-slate-200/50 dark:fill-slate-800"
+                                              }`}
+                                            />
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
 
-                          {/* Role Selector */}
-                          <select
-                            defaultValue={emp.role}
-                            onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
-                            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1 text-xs text-slate-900 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
-                          >
-                            <option value="player">Player</option>
-                            <option value="admin">Admin</option>
-                          </select>
+                                    <select
+                                      value={starInfo.stars}
+                                      onChange={(e) => {
+                                        const starVal = parseInt(e.target.value, 10);
+                                        const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starVal);
+                                        if (targetTier) handleSetRating(emp.id, targetTier.dupr);
+                                      }}
+                                      className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer border-l border-slate-200 dark:border-slate-800 pl-2 pr-1 font-mono"
+                                    >
+                                      {SKILL_STAR_TIERS.map((tier) => (
+                                        <option
+                                          key={tier.stars}
+                                          value={tier.stars}
+                                          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                                        >
+                                          {tier.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Role Selector */}
+                              <select
+                                defaultValue={emp.role}
+                                onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
+                                className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
+                              >
+                                <option value="player">Player</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
@@ -915,37 +1233,200 @@ export function AdminDashboard({
             </CardHeader>
             <CardContent className="pt-4 space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-mono">
               <p>
-                As an Administrator, you manage the event lifecycle, rented court count, and paddle lines. Live court scoreboards and paddle queues activate only when an Admin starts a session.
+                As an Administrator, you manage the session lifecycle, rented court provisioning, player queue rotations, and official match score submissions. Live court scoreboards and paddle queues activate when an Admin creates and starts a session.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">Step 1: Create Session</div>
-                  <div>In the Sessions tab above, set Title, Venue, and number of Rented Courts (2 to 6).</div>
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 1: Create Session</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In the Sessions tab, set Title, Date/Time, and Rented Courts (2 to 6 courts).</div>
                 </div>
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">Step 2: Start Session</div>
-                  <div>Click Start Session to open live court scoreboards and paddle rotation lines.</div>
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 2: Start Session</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Click Start Session to open live court scoreboards and activate paddle queue lines.</div>
                 </div>
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">Step 3: Manage Queue</div>
-                  <div>Use Bulk Pre-Queue, Bump late players, Swap spots, or Call Next Up.</div>
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 3: Rotate & Record</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In /matches/new, call next 4 from queue, score games, and submit final scores.</div>
                 </div>
-                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">Step 4: Finish Session</div>
-                  <div>Click Finish Session to save game records, update DUPR ratings, and reset courts to Standby.</div>
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 4: Finish Session</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Click Finish Session to save game records, update DUPR ratings, and archive courts.</div>
                 </div>
               </div>
             </CardContent>
+          </Card>
+
+          {/* Pickleq Live Court Scoring Station Guide */}
+          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 space-y-5 shadow-sm">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Activity className="h-5 w-5 text-emerald-500" />
+                Live Court Scoring Station (/matches/new)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pickleq-style court station allows administrators and court umpires to manage individual courts simultaneously.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400">
+                  <Zap className="h-4 w-4" />
+                  1. Independent Court Cards
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
+                  Each rented court is rendered in its own dedicated card showing its current state: 🟢 <strong>READY / OPEN</strong> or 🔴 <strong>IN PLAY</strong> with live duration clock.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-sky-600 dark:text-sky-400">
+                  <Users className="h-4 w-4" />
+                  2. 1-Click Queue Callup
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
+                  Click <strong>Call Next 4</strong> on an open court card to automatically pull the top 4 waiting players from the queue and balance teams by DUPR rating.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-600 dark:text-amber-400">
+                  <Trophy className="h-4 w-4" />
+                  3. Button Safeguard & Score
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
+                  The <strong>Complete & Submit Match Score</strong> button remains strictly disabled on empty courts until players are called. Submitting updates player DUPR and frees the court.
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Matching Modes & Rotation Strategies Guide */}
+          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 space-y-5 shadow-sm">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Layers className="h-5 w-5 text-emerald-500" />
+                Queue Matching Modes & Rotation Strategies
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Configurable matching modes define how waiting players are paired and rotated onto open courts during open play.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs font-mono">
+              {/* Balanced */}
+              <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                  <span className="text-emerald-600 dark:text-emerald-400">✓ Balanced</span>
+                  <span className="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[9px] font-bold px-1.5 py-0.2 uppercase">
+                    RECOMMENDED
+                  </span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Pairs #1 + #4 vs #2 + #3 by DUPR rating. Keeps games competitive and evenly matched while minimizing repeat matchups.
+                </p>
+              </div>
+
+              {/* Social Mix */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                  <span>Social Mix</span>
+                  <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[9px] font-bold px-1.5 py-0.2 uppercase">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Focuses on social variety by shuffling players and avoiding repeat teammates/opponents without filtering by skill rating.
+                </p>
+              </div>
+
+              {/* Skill Separated */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  Skill Separated
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Groups players of similar DUPR ratings together on the same court (Intermediate with Intermediate, Novice with Novice).
+                </p>
+              </div>
+
+              {/* Winners / Losers */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  Winners / Losers
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Winners rotate to face other winners; losers rotate to face other losers for tiered ladder play.
+                </p>
+              </div>
+
+              {/* Skill Courts */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  Skill Courts
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Dedicates specific rented courts to designated rating brackets (e.g. Court 1: 3.5+, Court 2: 2.75-3.5, Court 3: Beginner).
+                </p>
+              </div>
+
+              {/* Mixed Doubles */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  Mixed Doubles
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Ensures each 2v2 doubles team consists of 1 male and 1 female coworker.
+                </p>
+              </div>
+
+              {/* King/Queen of the Court */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
+                  King/Queen of the Court
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Winners move up toward Court 1 (Championship court); losers move down toward the lower court.
+                </p>
+              </div>
+
+              {/* Club Wars */}
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                  <span>Club Wars</span>
+                  <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[9px] font-bold px-1.5 py-0.2 uppercase">
+                    BETA
+                  </span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
+                  Splits participants into two team clubs (e.g. Engineering vs Product). Every match is Club A vs Club B.
+                </p>
+              </div>
+            </div>
+
+            {/* Engine Execution Flow Summary */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+              <div className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-emerald-500" />
+                How the Rotation Engine Executes Your Selected Mode:
+              </div>
+              <ul className="space-y-1.5 list-disc list-inside">
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 1 (Paddle Line Order):</strong> When <span className="text-emerald-600 dark:text-emerald-400 font-bold">Call Next 4</span> is clicked, the engine pulls the top 4 waiting players in strict FIFO arrival order.</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 2 (Locked Doubles Pairs):</strong> If two coworkers queued together as a pair (+Coworker), they are locked together on <span className="text-emerald-600 dark:text-emerald-400 font-bold">Team 1</span>.</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 3 (Matching Mode Execution):</strong> The engine applies your active session mode (e.g. <em>Balanced</em> pairs #1+#4 vs #2+#3; <em>Social Mix</em> shuffles permutations; <em>Skill Separated</em> pairs tier with tier).</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 4 (Court Dispatch):</strong> The match starts in-progress with live umpires and scoreboards. When completed, court frees up and queue automatically advances.</li>
+              </ul>
+            </div>
           </Card>
 
           {/* Admin Queue Management Tools */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold font-mono uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Zap className="h-4 w-4 text-emerald-500" />
-              Queue Operations (On the Queue Screen)
+              Queue Operations & Rotation Lineup (/queue)
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
               <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-2 shadow-sm">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                   <UserCheck className="h-4 w-4" />
@@ -985,6 +1466,16 @@ export function AdminDashboard({
                   Quick-adds an unregistered coworker or external guest with an initial estimated DUPR rating (2.5, 3.0, 3.5, 4.0).
                 </p>
               </Card>
+
+              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-2 shadow-sm border-rose-500/30">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
+                  <RefreshCw className="h-4 w-4" />
+                  🔄 Reset Queue
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Located in the top Admin Header. Instantly clears all waiting/called players for the active session (e.g. at event wrap-up or emergency stoppage) while preserving completed match history.
+                </p>
+              </Card>
             </div>
           </div>
 
@@ -1004,21 +1495,21 @@ export function AdminDashboard({
               <div className="pt-2 flex items-start gap-3">
                 <span className="h-6 w-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-emerald-600 dark:text-emerald-400">1</span>
                 <div>
-                  <strong className="text-slate-900 dark:text-slate-100">Point Stepper:</strong> Tap <span className="text-emerald-600 dark:text-emerald-400 font-bold">+ Point</span> whenever the serving team scores a point. Public arena scoreboards update live.
+                  <strong className="text-slate-900 dark:text-slate-100">Point Stepper:</strong> Tap <span className="text-emerald-600 dark:text-emerald-400 font-bold">+ Point</span> whenever the serving team scores a point. Public arena scoreboards update live with haptic vibration.
                 </div>
               </div>
 
               <div className="pt-2 flex items-start gap-3">
                 <span className="h-6 w-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-amber-600 dark:text-amber-400">2</span>
                 <div>
-                  <strong className="text-slate-900 dark:text-slate-100">Side Out / Fault:</strong> Tap <span className="text-amber-600 dark:text-amber-400 font-bold">Side Out</span> to advance Server 1 to Server 2, or transfer serve possession to the opposing team.
+                  <strong className="text-slate-900 dark:text-slate-100">Game to 11 (Win by 2):</strong> Matches are played to 11 points and must be won by at least 2 points. The system highlights 🏆 Game Point when reached.
                 </div>
               </div>
 
               <div className="pt-2 flex items-start gap-3">
                 <span className="h-6 w-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-sky-600 dark:text-sky-400">3</span>
                 <div>
-                  <strong className="text-slate-900 dark:text-slate-100">Call Queue (4 Players):</strong> When a match finishes, tap <span className="text-sky-600 dark:text-sky-400 font-bold">Call Next Up</span> to summon the next pod from the paddle rack directly to this court.
+                  <strong className="text-slate-900 dark:text-slate-100">Call Queue (4 Players):</strong> When a match finishes, tap <span className="text-sky-600 dark:text-sky-400 font-bold">Call Next 4</span> to summon the next pod from the paddle rack directly to this court.
                 </div>
               </div>
 

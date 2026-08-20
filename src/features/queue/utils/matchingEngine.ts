@@ -1,6 +1,16 @@
 import type { Profile } from "@/types";
 
-export type MatchingStyle = "balanced" | "fifo" | "winners_stay" | "social_mixer";
+export type MatchingStyle =
+  | "balanced"
+  | "social_mixer"
+  | "skill_separated"
+  | "winners_losers"
+  | "skill_courts"
+  | "mixed_doubles"
+  | "king_queen"
+  | "club_wars"
+  | "fifo"
+  | "winners_stay";
 
 export interface TeamMatchup {
   teamA: Profile[];
@@ -52,7 +62,18 @@ export function createMatchupFromPod(
         break;
       }
 
-      case "winners_stay": {
+      case "skill_separated":
+      case "skill_courts": {
+        // Keeps similar skill levels together (High vs High, Low vs Low)
+        const sorted = [...players].sort((a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0));
+        teamA = [sorted[0], sorted[1]];
+        teamB = [sorted[2], sorted[3]];
+        break;
+      }
+
+      case "winners_losers":
+      case "winners_stay":
+      case "king_queen": {
         if (previousWinners.length >= 2) {
           // Split previous 2 winners and pair them with 2 new challengers
           const w1 = previousWinners[0];
@@ -61,15 +82,18 @@ export function createMatchupFromPod(
           teamA = [w1, challengers[0] || players[0]];
           teamB = [w2, challengers[1] || players[1]];
         } else {
-          // Fallback to FIFO
-          teamA = [players[0], players[1]];
-          teamB = [players[2], players[3]];
+          // Fallback to balanced DUPR
+          const sorted = [...players].sort((a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0));
+          teamA = [sorted[0], sorted[3]];
+          teamB = [sorted[1], sorted[2]];
         }
         break;
       }
 
-      case "social_mixer": {
-        // Random shuffle permutation
+      case "social_mixer":
+      case "club_wars":
+      case "mixed_doubles": {
+        // Random / Social shuffle permutation
         const shuffled = [...players].sort(() => Math.random() - 0.5);
         teamA = [shuffled[0], shuffled[1]];
         teamB = [shuffled[2], shuffled[3]];

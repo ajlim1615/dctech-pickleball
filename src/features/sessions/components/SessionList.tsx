@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { Calendar, MapPin, Users, PlayCircle, Clock, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cleanSessionDescription } from "@/lib/utils";
 import type { Session } from "@/types";
 
 interface SessionListProps {
@@ -33,10 +34,18 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
             <PlayCircle className="h-7 w-7 text-emerald-500 dark:text-emerald-400" />
             Pickleball Sessions
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">
             Upcoming and completed DCTECH open-play schedule
           </p>
         </div>
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="inline-flex items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-bold px-4 py-2 text-xs hover:bg-emerald-400 shadow-sm"
+          >
+            Create Session in Admin Panel
+          </Link>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -49,14 +58,6 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
                 ? "There are currently no scheduled or active sessions. Administrators can schedule a new session from the Admin Panel."
                 : "There are currently no scheduled open-play sessions. Please check back later or check with your recreation organizer."}
             </p>
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="inline-flex items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-bold px-4 py-2 text-xs hover:bg-emerald-400 shadow-sm"
-              >
-                Go to Admin Panel to Create Session
-              </Link>
-            )}
           </Card>
         ) : (
           sessions.map((s) => {
@@ -64,6 +65,7 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
             const isCompleted = s.status === "completed";
             const isScheduled = s.status === "scheduled";
             const isCancelled = s.status === "cancelled";
+            const cleanedDesc = cleanSessionDescription(s.description);
 
             return (
               <Card
@@ -118,9 +120,9 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
                     </div>
 
                     <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{s.title}</h3>
-                    {s.description && (
+                    {cleanedDesc && (
                       <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 max-w-2xl">
-                        {s.description}
+                        {cleanedDesc}
                       </p>
                     )}
 

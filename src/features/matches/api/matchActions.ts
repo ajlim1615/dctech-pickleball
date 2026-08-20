@@ -84,20 +84,38 @@ export async function updateMatchScore(matchId: string, teamAScore: number, team
   return { success: true };
 }
 
+import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
+import { FinalizeMatchSchema } from "@/lib/security/validation";
+
 export async function finalizeMatch(
   matchId: string,
   teamAScore: number,
   teamBScore: number
 ) {
+  const validation = FinalizeMatchSchema.safeParse({ matchId, teamAScore, teamBScore });
+  if (!validation.success) {
+    return { error: validation.error.issues[0]?.message || "Invalid match score parameters." };
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Authentication required to finalize match." };
+  }
+
+  // Rate Limiting on Score Submission
+  const rateLimit = checkRateLimit(user.id, "match_finalize", RATE_LIMIT_CONFIGS.MATCH_ACTIONS);
+  if (!rateLimit.success) {
+    return { error: rateLimit.error };
+  }
 
   // Call the database complete_match stored procedure
   const { data, error } = await supabase.rpc("complete_match", {
     p_match_id: matchId,
     p_team_a_score: teamAScore,
     p_team_b_score: teamBScore,
-    p_recorded_by: user?.id,
+    p_recorded_by: user.id,
   });
 
   if (error) {
@@ -113,7 +131,7 @@ export async function finalizeMatch(
         winning_team: winner,
         status: "completed",
         ended_at: new Date().toISOString(),
-        recorded_by: user?.id || null,
+        recorded_by: user.id,
         updated_at: new Date().toISOString(),
       })
       .eq("id", matchId);

@@ -41,6 +41,7 @@ interface QueueBoardProps {
   initialQueue: QueueEntryWithPlayer[];
   currentUserId?: string;
   userRole?: string;
+  userEmail?: string;
   sessionId?: string;
   sessionTitle?: string;
   employees?: Profile[];
@@ -51,12 +52,14 @@ export function QueueBoard({
   initialQueue,
   currentUserId = "",
   userRole = "player",
+  userEmail = "",
   sessionId = "",
   sessionTitle = "Today's Open Play",
   employees = [],
   courtCount = 3,
 }: QueueBoardProps) {
-  const isAdmin = userRole === "admin";
+  const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
+  const isAdmin = userRole === "admin" || isSystemAdmin;
   const router = useRouter();
   const { queue, myPosition, calledAlert, dismissAlert } = useLiveQueue(
     initialQueue,
@@ -302,27 +305,29 @@ export function QueueBoard({
             </>
           )}
 
-          {myPosition ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLeave}
-              disabled={isSubmitting}
-              className="text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-500/30 font-mono"
-            >
-              <UserMinus className="h-3.5 w-3.5 mr-1" />
-              Leave Queue
-            </Button>
-          ) : (
-            <Button
-              variant="volt"
-              size="sm"
-              onClick={() => setIsJoining(true)}
-              className="font-bold text-xs"
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Join Open-Play Queue
-            </Button>
+          {!isSystemAdmin && (
+            myPosition ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLeave}
+                disabled={isSubmitting}
+                className="text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-500/30 font-mono"
+              >
+                <UserMinus className="h-3.5 w-3.5 mr-1" />
+                Leave Queue
+              </Button>
+            ) : (
+              <Button
+                variant="volt"
+                size="sm"
+                onClick={() => setIsJoining(true)}
+                className="font-bold text-xs"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Join Open-Play Queue
+              </Button>
+            )
           )}
         </div>
       </div>

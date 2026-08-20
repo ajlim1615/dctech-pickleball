@@ -16,7 +16,15 @@ interface QueuePlayer {
   partner?: string;
 }
 
-export function LiveQueueRail({ queue = [] }: { queue?: QueuePlayer[] }) {
+export function LiveQueueRail({
+  queue = [],
+  userEmail = "",
+}: {
+  queue?: QueuePlayer[];
+  userEmail?: string;
+}) {
+  const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
+
   return (
     <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-sm">
       <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-row items-center justify-between space-y-0">
@@ -33,8 +41,14 @@ export function LiveQueueRail({ queue = [] }: { queue?: QueuePlayer[] }) {
         </div>
         <Link href="/queue">
           <Button variant="volt" size="sm" className="font-mono text-xs shadow-xs">
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Join Queue
+            {isSystemAdmin ? (
+              <span>View Queue →</span>
+            ) : (
+              <>
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Join Queue
+              </>
+            )}
           </Button>
         </Link>
       </CardHeader>
@@ -49,7 +63,7 @@ export function LiveQueueRail({ queue = [] }: { queue?: QueuePlayer[] }) {
               href="/queue"
               className="inline-flex items-center justify-center text-xs font-bold text-emerald-600 dark:text-[#d4e938] hover:underline font-mono"
             >
-              Enter Queue to Play Next →
+              {isSystemAdmin ? "Monitor Paddle Queue →" : "Enter Queue to Play Next →"}
             </Link>
           </div>
         ) : (

@@ -4,8 +4,27 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole, CourtStatus, Profile } from "@/types";
 
+import { requireAdminUser } from "@/lib/security/authGuard";
+import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
+import { WalkInPlayerSchema, sanitizeString } from "@/lib/security/validation";
+
 export async function updatePlayerRole(userId: string, role: UserRole) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  // Rate Limiting
+  const rateLimit = checkRateLimit(auth.context?.userId || "admin", "admin_role_update", RATE_LIMIT_CONFIGS.ADMIN_ACTIONS);
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const supabase = await createClient();
+
+  // Guard: Protect root system admin
+  const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).single();
+  if (profile?.email?.toLowerCase() === "admin@dctechmicro.com") {
+    return { error: "The System Admin account (admin@dctechmicro.com) role is locked and cannot be changed." };
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({ role, updated_at: new Date().toISOString() })
@@ -19,7 +38,22 @@ export async function updatePlayerRole(userId: string, role: UserRole) {
 }
 
 export async function adjustPlayerRating(userId: string, newRating: number) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  // Rate Limiting
+  const rateLimit = checkRateLimit(auth.context?.userId || "admin", "admin_rating_adjust", RATE_LIMIT_CONFIGS.ADMIN_ACTIONS);
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const supabase = await createClient();
+
+  // Guard: System admin does not have a player rating
+  const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).single();
+  if (profile?.email?.toLowerCase() === "admin@dctechmicro.com") {
+    return { error: "The System Admin account (admin@dctechmicro.com) is a non-playing administrator and cannot have a rating." };
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({ skill_rating: newRating, updated_at: new Date().toISOString() })
@@ -29,10 +63,17 @@ export async function adjustPlayerRating(userId: string, newRating: number) {
 
   revalidatePath("/admin");
   revalidatePath("/rankings");
+  revalidatePath("/profile");
+  revalidatePath("/queue");
+  revalidatePath("/");
   return { success: true };
 }
 
 export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("courts")
@@ -47,6 +88,10 @@ export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
 }
 
 export async function resetSessionQueue(sessionId: string) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("queue_entries")
@@ -62,6 +107,10 @@ export async function resetSessionQueue(sessionId: string) {
 }
 
 export async function assignStaffToCourt(courtId: string, staffId: string | null) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("courts")
@@ -80,6 +129,10 @@ export async function assignStaffToCourt(courtId: string, staffId: string | null
 }
 
 export async function setRentedCourtCount(count: number, surfaceType?: string) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
 
   const { data: existingCourts } = await supabase
@@ -99,7 +152,7 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
     for (let i = currentCount + 1; i <= count; i++) {
       toAdd.push({
         name: `Court ${i}`,
-        surface_type: surfaceType || "Standard Court",
+        surface_type: surfaceType ? sanitizeString(surfaceType) : "Standard Court",
         status: "available" as CourtStatus,
         sort_order: i,
       });
@@ -122,13 +175,28 @@ export async function createWalkInPlayer(params: {
   isGuest?: boolean;
   skillRating?: number;
 }) {
+  // Server-side RBAC Guard
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const validation = WalkInPlayerSchema.safeParse({
+    name: params.fullName,
+    type: params.isGuest ? "guest" : "employee",
+    skillRating: params.skillRating || 3.0,
+  });
+
+  if (!validation.success) {
+    return { error: validation.error.issues[0]?.message || "Invalid player details." };
+  }
+
+  const cleanName = validation.data.name;
   const supabase = await createClient();
   const rawEmail = `${params.isGuest ? "guest" : "unreg"}_${Date.now()}_${Math.floor(Math.random() * 1000)}@dctechmicro.local`;
   const newId = crypto.randomUUID();
 
   const formattedName = params.isGuest
-    ? params.fullName.includes("(Guest)") ? params.fullName : `${params.fullName} (Guest)`
-    : params.fullName;
+    ? cleanName.includes("(Guest)") ? cleanName : `${cleanName} (Guest)`
+    : cleanName;
 
   const { data, error } = await supabase
     .from("profiles")
@@ -136,9 +204,9 @@ export async function createWalkInPlayer(params: {
       id: newId,
       email: rawEmail,
       full_name: formattedName,
-      display_name: params.fullName,
+      display_name: cleanName,
       role: "player",
-      skill_rating: params.skillRating || 3.0,
+      skill_rating: validation.data.skillRating,
       is_active: true,
     })
     .select()

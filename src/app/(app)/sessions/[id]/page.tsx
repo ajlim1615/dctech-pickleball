@@ -36,6 +36,7 @@ export default async function SessionDetailPage({
     <SessionDetailView
       session={session}
       userRole={authData?.profile?.role || "player"}
+      userEmail={authData?.user?.email || authData?.profile?.email || ""}
       currentUserId={authData?.user?.id}
       courts={courts}
     />

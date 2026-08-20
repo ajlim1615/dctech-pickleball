@@ -70,6 +70,7 @@ export default async function QueuePage() {
       initialQueue={queue}
       currentUserId={authData?.user?.id || ""}
       userRole={authData?.profile?.role || "player"}
+      userEmail={authData?.user?.email || authData?.profile?.email || ""}
       sessionId={activeSession.id}
       sessionTitle={activeSession.title}
       employees={employees}

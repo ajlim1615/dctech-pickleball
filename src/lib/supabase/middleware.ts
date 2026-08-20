@@ -30,27 +30,42 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // Helper to inject enterprise security headers
+  function applySecurityHeaders(res: NextResponse) {
+    res.headers.set("X-Frame-Options", "DENY");
+    res.headers.set("X-Content-Type-Options", "nosniff");
+    res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    return res;
+  }
+
+  const pathname = request.nextUrl.pathname;
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
+  const isPublicApi = pathname.startsWith("/api/health");
+
+  if (isPublicApi) {
+    return applySecurityHeaders(supabaseResponse);
+  }
+
   // Refreshing the auth token
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
-
-  // If user is not authenticated and trying to access any page other than /login or /auth
+  // If user is not authenticated and trying to access any page other than /login, /auth, or public routes
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
   // If user is already authenticated and visits /login
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  return supabaseResponse;
+  return applySecurityHeaders(supabaseResponse);
 }

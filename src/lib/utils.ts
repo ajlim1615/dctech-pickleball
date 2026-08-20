@@ -14,3 +14,8 @@ export function formatRating(rating: number | string | null | undefined): string
 export function formatScore(teamAScore: number, teamBScore: number): string {
   return `${teamAScore} - ${teamBScore}`;
 }
+
+export function cleanSessionDescription(description?: string | null): string {
+  if (!description) return "";
+  return description.replace(/\s*\[matching_mode:[^\]]+\]/gi, "").trim();
+}

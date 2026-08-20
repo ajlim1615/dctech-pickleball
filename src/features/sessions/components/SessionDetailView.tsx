@@ -9,12 +9,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
 import { checkInToSession } from "../api/sessionActions";
-import { formatRating } from "@/lib/utils";
+import { formatRating, cleanSessionDescription } from "@/lib/utils";
 import type { Session, ActiveCourtView } from "@/types";
 
 interface SessionDetailViewProps {
   session: Session & { checkins?: any[] };
   userRole?: string;
+  userEmail?: string;
   currentUserId?: string;
   courts?: ActiveCourtView[];
 }
@@ -22,13 +23,16 @@ interface SessionDetailViewProps {
 export function SessionDetailView({
   session,
   userRole = "player",
+  userEmail = "",
   currentUserId,
   courts,
 }: SessionDetailViewProps) {
   const router = useRouter();
-  const isAdmin = userRole === "admin";
+  const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
+  const isAdmin = userRole === "admin" || isSystemAdmin;
 
   const isUserCheckedInDatabase = Boolean(
+    !isSystemAdmin &&
     currentUserId &&
     session.checkins?.some(
       (c: any) => c.player_id === currentUserId || c.player?.id === currentUserId
@@ -45,6 +49,7 @@ export function SessionDetailView({
   const checkins = session.checkins || [];
 
   async function handleCheckIn() {
+    if (isSystemAdmin) return;
     setLoading(true);
     const res = await checkInToSession(session.id);
     if (!res?.error) {
@@ -53,6 +58,8 @@ export function SessionDetailView({
     }
     setLoading(false);
   }
+
+  const cleanedDescription = cleanSessionDescription(session.description);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 space-y-8">
@@ -83,7 +90,7 @@ export function SessionDetailView({
               {session.title}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
-              {session.description || "DCTECH open play rotation on all facility courts."}
+              {cleanedDescription || "DCTECH open play rotation on all facility courts."}
             </p>
 
             <div className="flex items-center gap-4 text-xs font-mono text-slate-500 dark:text-slate-400 pt-1">
@@ -99,7 +106,11 @@ export function SessionDetailView({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {isCheckedIn ? (
+            {isSystemAdmin ? (
+              <Badge variant="outline" className="text-xs font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30 py-2 px-3">
+                🛡️ System Admin (Operator Mode)
+              </Badge>
+            ) : isCheckedIn ? (
               <div className="flex items-center gap-2.5">
                 <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono shadow-xs">
                   <CheckCircle2 className="h-4 w-4" />
