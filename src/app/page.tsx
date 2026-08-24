@@ -4,18 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
-import { LiveQueueRail } from "@/features/queue/components/LiveQueueRail";
+import { SessionQueueLiveBoard } from "@/features/sessions/components/SessionQueueLiveBoard";
 import { getCourts } from "@/features/courts/api/courtActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { cleanSessionDescription } from "@/lib/utils";
 
 export default async function HomePage() {
-  const [courts, sessions, authData] = await Promise.all([
+  const [courts, sessions, authData, employees] = await Promise.all([
     getCourts(),
     getSessions(),
     getCurrentUser(),
+    getAllEmployees(),
   ]);
 
   const userEmail = authData?.user?.email || authData?.profile?.email;
@@ -27,18 +29,6 @@ export default async function HomePage() {
   const totalCourtsCount = courts.length;
 
   const rawQueue = activeSession ? await getQueueForSession(activeSession.id) : [];
-  const waitingQueue = rawQueue.filter((e) => e.status === "waiting");
-  const formattedQueue = waitingQueue.map((e, idx) => {
-    const minsAgo = Math.max(0, Math.floor((Date.now() - new Date(e.joined_at).getTime()) / 60000));
-    return {
-      id: e.id,
-      position: idx + 1,
-      name: e.player?.full_name || e.player?.display_name || "Player",
-      rating: e.player?.skill_rating ? Number(e.player.skill_rating).toFixed(2) : "3.00",
-      type: (e.group_id ? "Doubles Pair" : "Singles") as "Doubles Pair" | "Singles",
-      waitTime: `~${minsAgo}m wait`,
-    };
-  });
 
   const activeDescription = cleanSessionDescription(activeSession?.description);
 
@@ -161,8 +151,16 @@ export default async function HomePage() {
               sessionId={activeSession?.id}
             />
           </div>
-          <div className="space-y-6">
-            <LiveQueueRail queue={formattedQueue} userEmail={userEmail || ""} />
+          <div>
+            <SessionQueueLiveBoard
+              initialQueue={rawQueue}
+              sessionId={activeSession.id}
+              currentUserId={authData?.user?.id}
+              userRole={authData?.profile?.role || "player"}
+              userEmail={userEmail || ""}
+              employees={employees}
+              isSessionActive={true}
+            />
           </div>
         </div>
       ) : (

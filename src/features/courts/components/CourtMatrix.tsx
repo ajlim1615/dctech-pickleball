@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Clock, Zap, ShieldCheck, PlayCircle, Filter } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -97,14 +97,16 @@ export function CourtMatrix({ initialCourts, userRole = "player", sessionId }: C
     if (sessionId) {
       const res = await callNextUp(sessionId, courtId, 4);
       if (res?.error) {
-        alert(`Queue notice: ${res.error}\nOpening court station.`);
+        alert(`Queue notice: ${res.error}`);
+      } else {
+        router.refresh();
       }
     }
-    router.push(`/courts/${courtId}/monitor`);
+    setCallingCourtId(null);
   }
 
-  const courtsToDisplay: MockCourt[] =
-    initialCourts !== undefined
+  const courtsToDisplay: MockCourt[] = useMemo(() => {
+    return initialCourts !== undefined
       ? initialCourts.map((c) => ({
           id: c.id,
           name: c.name,
@@ -134,11 +136,14 @@ export function CourtMatrix({ initialCourts, userRole = "player", sessionId }: C
             : undefined,
         }))
       : defaultFreshCourts;
+  }, [initialCourts]);
 
-  const filteredCourts = courtsToDisplay.filter((c) => {
-    if (filter === "all") return true;
-    return c.status === filter;
-  });
+  const filteredCourts = useMemo(() => {
+    return courtsToDisplay.filter((c) => {
+      if (filter === "all") return true;
+      return c.status === filter;
+    });
+  }, [courtsToDisplay, filter]);
 
   return (
     <div className="space-y-4">
@@ -152,7 +157,7 @@ export function CourtMatrix({ initialCourts, userRole = "player", sessionId }: C
             Real-time court status & live staff umpire scoreboards
           </p>
         </div>
-        <div className="flex items-center gap-1.5 font-mono text-xs">
+        <div className="flex items-center gap-1.5 font-mono text-xs overflow-x-auto scrollbar-none pb-1 sm:pb-0">
           <button
             type="button"
             onClick={() => setFilter("all")}
@@ -230,15 +235,9 @@ export function CourtMatrix({ initialCourts, userRole = "player", sessionId }: C
                     <ShieldCheck className="h-3.5 w-3.5" />
                     Monitor: <span className="text-slate-800 dark:text-slate-200 font-medium">{court.staffMonitor || "Assigned Staff"}</span>
                   </span>
-
-                  {isAdmin && (
-                    <a
-                      href={`/courts/${court.id}/monitor`}
-                      className="text-xs font-bold text-emerald-600 dark:text-[#d4e938] hover:underline"
-                    >
-                      Umpire Mode →
-                    </a>
-                  )}
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {court.surface}
+                  </span>
                 </div>
 
                 {isOccupied ? (
@@ -251,39 +250,58 @@ export function CourtMatrix({ initialCourts, userRole = "player", sessionId }: C
                       </span>
                     </div>
 
-                    {/* Scoreboard */}
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 p-3 flex items-center justify-between">
-                      <div className="flex-1 space-y-1">
-                        <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 font-mono">
-                          TEAM 1
-                        </div>
-                        {court.game?.teamA.map((p, idx) => (
-                          <div key={idx} className="text-xs font-bold text-slate-900 dark:text-slate-200 truncate">
-                            {p}
+                    {/* Scoreboard Card (Responsive & Overflow-Safe) */}
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/70 p-3">
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 min-w-0">
+                        {/* Team 1 (Left) */}
+                        <div className="min-w-0 space-y-1">
+                          <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-wider uppercase">
+                            TEAM 1
                           </div>
-                        ))}
-                      </div>
-
-                      <div className="px-4 text-center">
-                        <div className="text-2xl font-black font-mono tracking-wider text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                          <span className="text-emerald-600 dark:text-emerald-400">{court.game?.scoreA}</span>
-                          <span className="text-slate-400 dark:text-slate-600">-</span>
-                          <span className="text-sky-600 dark:text-sky-400">{court.game?.scoreB}</span>
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                          {court.game?.serverNotation ? `Server: ${court.game.serverNotation}` : "0 - 0 - 2"}
-                        </div>
-                      </div>
-
-                      <div className="flex-1 text-right space-y-1">
-                        <div className="text-xs font-medium text-sky-600 dark:text-sky-400 font-mono">
-                          TEAM 2
-                        </div>
-                        {court.game?.teamB.map((p, idx) => (
-                          <div key={idx} className="text-xs font-bold text-slate-900 dark:text-slate-200 truncate">
-                            {p}
+                          <div className="space-y-0.5 min-w-0">
+                            {court.game?.teamA.map((p, idx) => (
+                              <div
+                                key={idx}
+                                className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate"
+                                title={p}
+                              >
+                                {p}
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Center Score */}
+                        <div className="shrink-0 px-1 sm:px-3 text-center">
+                          <div className="rounded-lg bg-white dark:bg-slate-900 px-2.5 py-1 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                            <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-slate-100 flex items-center justify-center gap-1">
+                              <span className="text-emerald-600 dark:text-emerald-400">{court.game?.scoreA}</span>
+                              <span className="text-slate-300 dark:text-slate-700 font-normal">:</span>
+                              <span className="text-sky-600 dark:text-sky-400">{court.game?.scoreB}</span>
+                            </div>
+                            <div className="text-[9px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                              {court.game?.serverNotation ? court.game.serverNotation : "0 - 0 - 2"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Team 2 (Right) */}
+                        <div className="min-w-0 text-right space-y-1">
+                          <div className="text-[10px] font-bold text-sky-600 dark:text-sky-400 font-mono tracking-wider uppercase">
+                            TEAM 2
+                          </div>
+                          <div className="space-y-0.5 min-w-0">
+                            {court.game?.teamB.map((p, idx) => (
+                              <div
+                                key={idx}
+                                className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate"
+                                title={p}
+                              >
+                                {p}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

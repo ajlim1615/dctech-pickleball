@@ -50,6 +50,115 @@ export async function getSessionById(id: string) {
   };
 }
 
+import {
+  computeSessionLeaderboard,
+  type SessionRankedPlayer,
+} from "../utils/sessionLeaderboard";
+export type { SessionRankedPlayer };
+
+export async function getSessionMatches(sessionId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("matches")
+    .select(`
+      *,
+      court:courts!court_id (id, name, surface_type),
+      players:match_players (
+        id,
+        team,
+        player:profiles (
+          id,
+          full_name,
+          display_name,
+          avatar_url,
+          skill_rating
+        )
+      )
+    `)
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    // If embedding with explicit FK has issue, fetch matches & courts separately and combine
+    const [matchesRes, courtsRes] = await Promise.all([
+      supabase
+        .from("matches")
+        .select(`
+          *,
+          players:match_players (
+            id,
+            team,
+            player:profiles (
+              id,
+              full_name,
+              display_name,
+              avatar_url,
+              skill_rating
+            )
+          )
+        `)
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false }),
+      supabase.from("courts").select("id, name, surface_type"),
+    ]);
+
+    if (matchesRes.error || !matchesRes.data) return [];
+    const courtMap = new Map((courtsRes.data || []).map((c) => [c.id, c]));
+    return matchesRes.data.map((m) => ({
+      ...m,
+      court: courtMap.get(m.court_id) || { id: m.court_id, name: "Court", surface_type: "Standard Court" },
+    }));
+  }
+  return data || [];
+}
+
+export async function getSessionLeaderboard(sessionId: string): Promise<SessionRankedPlayer[]> {
+  const supabase = await createClient();
+
+  const [sessionRes, matchesRes] = await Promise.all([
+    supabase
+      .from("session_checkins")
+      .select(`
+        id,
+        player_id,
+        player:profiles (
+          id,
+          full_name,
+          display_name,
+          avatar_url,
+          skill_rating,
+          email
+        )
+      `)
+      .eq("session_id", sessionId)
+      .eq("status", "checked_in"),
+    supabase
+      .from("matches")
+      .select(`
+        *,
+        players:match_players (
+          id,
+          team,
+          player:profiles (
+            id,
+            full_name,
+            display_name,
+            avatar_url,
+            skill_rating,
+            email
+          )
+        )
+      `)
+      .eq("session_id", sessionId)
+      .eq("status", "completed"),
+  ]);
+
+  const checkins = sessionRes.data || [];
+  const matches = matchesRes.data || [];
+
+  return computeSessionLeaderboard(matches, checkins);
+}
+
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { sanitizeString } from "@/lib/security/validation";

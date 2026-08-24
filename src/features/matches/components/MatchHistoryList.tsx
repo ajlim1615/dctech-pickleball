@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Trophy, Calendar, CheckCircle2, Clock, MapPin, Plus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,53 @@ export interface MatchItem {
 }
 
 interface MatchHistoryListProps {
-  initialMatches?: MatchItem[];
+  initialMatches?: any[];
 }
 
 export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps) {
-  const matches: MatchItem[] = initialMatches;
+  const matches: MatchItem[] = useMemo(() => {
+    return initialMatches.map((m: any) => {
+      // If already formatted MatchItem
+      if (Array.isArray(m.teamA) && Array.isArray(m.teamB)) {
+        return m as MatchItem;
+      }
+
+      // Raw Match from DB
+      const courtName = m.court?.name || (typeof m.court === "string" ? m.court : "Court");
+      const format = m.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
+      const teamAPlayers: string[] = (m.players || [])
+        .filter((p: any) => p.team === "team_a")
+        .map((p: any) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
+      const teamBPlayers: string[] = (m.players || [])
+        .filter((p: any) => p.team === "team_b")
+        .map((p: any) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
+
+      const scoreA = m.team_a_score ?? 0;
+      const scoreB = m.team_b_score ?? 0;
+      const winner = m.winning_team || (scoreA > scoreB ? "team_a" : scoreB > scoreA ? "team_b" : "tie");
+      const dateSource = m.ended_at || m.started_at || m.created_at;
+      const date = dateSource
+        ? new Date(dateSource).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "Recent";
+
+      return {
+        id: m.id,
+        courtName,
+        format,
+        teamA: teamAPlayers.length > 0 ? teamAPlayers : ["Team 1"],
+        teamB: teamBPlayers.length > 0 ? teamBPlayers : ["Team 2"],
+        scoreA,
+        scoreB,
+        winner,
+        date,
+      };
+    });
+  }, [initialMatches]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
@@ -46,15 +46,37 @@ export function StaffCourtMonitor({
   const isCurrentlyInPlay = Boolean(currentMatch && currentMatch.status === "in_progress");
 
   // Player Names
-  const initialTeamA = currentMatch?.players
-    ?.filter((p) => p.team === "team_a")
-    ?.map((p: any) => p.profile?.full_name || p.profile?.display_name || p.player?.full_name || p.player?.display_name || "Player")
-    ?.join(" & ") || "";
+  const initialTeamA = useMemo(() => {
+    return (
+      currentMatch?.players
+        ?.filter((p) => p.team === "team_a")
+        ?.map(
+          (p: any) =>
+            p.profile?.full_name ||
+            p.profile?.display_name ||
+            p.player?.full_name ||
+            p.player?.display_name ||
+            "Player"
+        )
+        ?.join(" & ") || ""
+    );
+  }, [currentMatch?.players]);
 
-  const initialTeamB = currentMatch?.players
-    ?.filter((p) => p.team === "team_b")
-    ?.map((p: any) => p.profile?.full_name || p.profile?.display_name || p.player?.full_name || p.player?.display_name || "Player")
-    ?.join(" & ") || "";
+  const initialTeamB = useMemo(() => {
+    return (
+      currentMatch?.players
+        ?.filter((p) => p.team === "team_b")
+        ?.map(
+          (p: any) =>
+            p.profile?.full_name ||
+            p.profile?.display_name ||
+            p.player?.full_name ||
+            p.player?.display_name ||
+            "Player"
+        )
+        ?.join(" & ") || ""
+    );
+  }, [currentMatch?.players]);
 
   const [teamAName, setTeamAName] = useState(initialTeamA || "Team 1");
   const [teamBName, setTeamBName] = useState(initialTeamB || "Team 2");
@@ -71,21 +93,11 @@ export function StaffCourtMonitor({
   const [scoreB, setScoreB] = useState<number>(currentMatch?.team_b_score || 0);
   const [servingTeam, setServingTeam] = useState<"A" | "B">("A");
   const [serverNumber, setServerNumber] = useState<1 | 2>(2);
-  const [timeoutSeconds, setTimeoutSeconds] = useState<number | null>(null);
   const [completed, setCompleted] = useState<boolean>(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
   // Active match ID
   const [activeMatchId, setActiveMatchId] = useState<string | null>(currentMatch?.id || null);
-
-  // Timer countdown for 60s timeout
-  useEffect(() => {
-    if (timeoutSeconds === null || timeoutSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setTimeoutSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : null));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timeoutSeconds]);
 
   // Standard Pickleball Call String (e.g. "0 - 0 - 2")
   const servingScore = servingTeam === "A" ? scoreA : scoreB;
@@ -106,6 +118,8 @@ export function StaffCourtMonitor({
   }
 
   function handlePointForTeam(team: "A" | "B") {
+    if (isGameWon) return;
+
     if (servingTeam !== team) {
       setServingTeam(team);
       setServerNumber(1);
@@ -334,23 +348,6 @@ export function StaffCourtMonitor({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {timeoutSeconds !== null ? (
-              <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 text-xs font-mono font-bold text-amber-700 dark:text-amber-400 animate-pulse">
-                <Timer className="h-4 w-4" />
-                TIMEOUT: {timeoutSeconds}s
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setTimeoutSeconds(60)}
-                className="text-xs font-mono"
-              >
-                <Timer className="h-3.5 w-3.5 mr-1" />
-                60s Timeout
-              </Button>
-            )}
-
             {!activeMatchId && !isCurrentlyInPlay && (
               <Button
                 variant="volt"
@@ -612,6 +609,7 @@ export function StaffCourtMonitor({
                   size="icon"
                   onClick={() => setScoreA((prev) => Math.max(0, prev - 1))}
                   className="h-12 w-12 rounded-xl text-lg font-bold"
+                  title="Minus 1 point"
                 >
                   <Minus className="h-5 w-5" />
                 </Button>
@@ -620,7 +618,9 @@ export function StaffCourtMonitor({
                   variant="default"
                   size="icon"
                   onClick={() => handlePointForTeam("A")}
-                  className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20"
+                  disabled={isGameWon}
+                  className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isGameWon ? "Match won (win by 2 reached)" : "Add 1 point"}
                 >
                   <Plus className="h-6 w-6" />
                 </Button>
@@ -676,6 +676,7 @@ export function StaffCourtMonitor({
                   size="icon"
                   onClick={() => setScoreB((prev) => Math.max(0, prev - 1))}
                   className="h-12 w-12 rounded-xl text-lg font-bold"
+                  title="Minus 1 point"
                 >
                   <Minus className="h-5 w-5" />
                 </Button>
@@ -684,7 +685,9 @@ export function StaffCourtMonitor({
                   variant="volt"
                   size="icon"
                   onClick={() => handlePointForTeam("B")}
-                  className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20"
+                  disabled={isGameWon}
+                  className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isGameWon ? "Match won (win by 2 reached)" : "Add 1 point"}
                 >
                   <Plus className="h-6 w-6" />
                 </Button>
@@ -701,28 +704,30 @@ export function StaffCourtMonitor({
               onClick={handleSideOut}
               className="font-mono text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 h-12"
             >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Side Out / Fault (Rotate Server)
+              <RotateCcw className="h-4 w-4 mr-2 shrink-0" />
+              Side Out / Rotate Server
             </Button>
 
             <Button
               type="button"
-              variant="volt"
+              variant={isGameWon ? "volt" : "secondary"}
               size="lg"
               onClick={handleFinalizeGame}
-              disabled={isPending}
-              className={`font-mono text-xs font-bold h-12 transition-all ${
+              disabled={isPending || !isGameWon}
+              className={`font-mono text-xs font-bold h-12 px-4 transition-all flex items-center justify-center gap-2 ${
                 isGameWon
-                  ? "bg-emerald-500 text-slate-950 ring-4 ring-emerald-500/40 font-black shadow-lg"
-                  : "shadow-md shadow-emerald-500/10"
+                  ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 ring-4 ring-emerald-500/30 font-black shadow-lg cursor-pointer"
+                  : "opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
               }`}
             >
-              <Trophy className="h-4 w-4 mr-2" />
-              {isPending
-                ? "Finalizing Game..."
-                : isGameWon
-                ? `🏆 Finalize Victory for ${winningTeamName} (${scoreA}–${scoreB})`
-                : "Complete Game & Record Score"}
+              <Trophy className={`h-4 w-4 shrink-0 ${isGameWon ? "text-slate-950" : "text-slate-400"}`} />
+              <span className="truncate">
+                {isPending
+                  ? "Finalizing Game..."
+                  : isGameWon
+                  ? `Finalize Victory (${scoreA} – ${scoreB})`
+                  : "Play to 11 (Win by 2) to Complete"}
+              </span>
             </Button>
           </div>
         </>

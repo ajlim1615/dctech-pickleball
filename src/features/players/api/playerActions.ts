@@ -63,14 +63,22 @@ export async function getPlayerMatchHistory(userId: string) {
     .select("id, match_id, team, created_at")
     .eq("player_id", userId)
     .order("created_at", { ascending: false })
-    .limit(15);
+    .limit(30);
 
   if (mpError || !playerEntries || playerEntries.length === 0) {
     if (mpError) console.error("Error fetching match_players:", mpError.message);
     return [];
   }
 
-  const matchIds = Array.from(new Set(playerEntries.map((pe) => pe.match_id).filter(Boolean)));
+  // Deduplicate by match_id so each match is only represented once
+  const seenMatchIds = new Set<string>();
+  const uniquePlayerEntries = playerEntries.filter((pe) => {
+    if (!pe.match_id || seenMatchIds.has(pe.match_id)) return false;
+    seenMatchIds.add(pe.match_id);
+    return true;
+  });
+
+  const matchIds = Array.from(seenMatchIds);
   if (matchIds.length === 0) return [];
 
   // 2. Fetch matches, courts, all match_players, and sessions in parallel
@@ -88,7 +96,7 @@ export async function getPlayerMatchHistory(userId: string) {
       .in("match_id", matchIds),
     supabase
       .from("sessions")
-      .select("id, title"),
+      .select("id, title, status"),
   ]);
 
   if (matchesRes.error) {
@@ -108,7 +116,7 @@ export async function getPlayerMatchHistory(userId: string) {
 
   const profileMap = new Map((profilesData || []).map((p) => [p.id, p]));
   const courtMap = new Map((courtsRes.data || []).map((c) => [c.id, c.name]));
-  const sessionMap = new Map((sessionsRes.data || []).map((s) => [s.id, s.title]));
+  const sessionMap = new Map((sessionsRes.data || []).map((s) => [s.id, s]));
   const matchMap = new Map((matchesRes.data || []).map((m) => [m.id, m]));
 
   // Group participants by match_id
@@ -129,13 +137,15 @@ export async function getPlayerMatchHistory(userId: string) {
     matchPlayersByMatchId.set(mp.match_id, list);
   }
 
-  const results = playerEntries
+  const rawResults = uniquePlayerEntries
     .map((pe) => {
       const match = matchMap.get(pe.match_id);
-      if (!match) return null;
+      if (!match || match.status === "abandoned") return null;
 
       const courtName = match.court_id ? courtMap.get(match.court_id) || `Court` : "Court";
-      const sessionTitle = match.session_id ? sessionMap.get(match.session_id) || "Open Play Session" : "Open Play Session";
+      const sessionObj = match.session_id ? sessionMap.get(match.session_id) : null;
+      const sessionTitle = sessionObj?.title || "Open Play Session";
+      const sessionStatus = sessionObj?.status || "active";
 
       const allParticipants = matchPlayersByMatchId.get(pe.match_id) || [];
       const myTeam = pe.team;
@@ -153,6 +163,7 @@ export async function getPlayerMatchHistory(userId: string) {
         team: pe.team,
         created_at: pe.created_at || match.created_at,
         sessionTitle,
+        sessionStatus,
         partner: partnerName,
         opponents: opponentsName,
         match: {
@@ -161,9 +172,20 @@ export async function getPlayerMatchHistory(userId: string) {
         },
       };
     })
-    .filter(Boolean);
+    .filter(Boolean) as any[];
 
-  return results;
+  // A player can only have at most 1 active LIVE match. Filter out stale orphaned live matches.
+  let hasLiveMatch = false;
+  const results: any[] = [];
+  for (const item of rawResults) {
+    if (item.match?.status === "in_progress") {
+      if (hasLiveMatch) continue;
+      hasLiveMatch = true;
+    }
+    results.push(item);
+  }
+
+  return results.slice(0, 15);
 }
 
 export async function getPlayerRatingHistory(userId: string): Promise<PlayerRatingHistory[]> {

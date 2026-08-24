@@ -14,6 +14,13 @@ export async function createMatch(params: {
   const supabase = await createClient();
   const format = params.format || (params.teamAPlayerIds.length === 1 ? "singles" : "doubles");
 
+  // 0. Cancel previous orphaned in-progress matches on this court if any
+  await supabase
+    .from("matches")
+    .update({ status: "abandoned", ended_at: new Date().toISOString() })
+    .eq("court_id", params.courtId)
+    .eq("status", "in_progress");
+
   // 1. Insert Match
   const { data: match, error: matchError } = await supabase
     .from("matches")
@@ -159,7 +166,7 @@ export async function getMatchesList(limit = 20) {
     .from("matches")
     .select(`
       *,
-      court:courts (name, surface_type),
+      court:courts!court_id (name, surface_type),
       players:match_players (
         id,
         team,
@@ -175,6 +182,38 @@ export async function getMatchesList(limit = 20) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error || !data) return [];
-  return data;
+  if (error) {
+    const [matchesRes, courtsRes] = await Promise.all([
+      supabase
+        .from("matches")
+        .select(`
+          *,
+          players:match_players (
+            id,
+            team,
+            player:profiles (
+              id,
+              full_name,
+              display_name,
+              avatar_url,
+              skill_rating
+            )
+          )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase.from("courts").select("id, name, surface_type"),
+    ]);
+
+    if (matchesRes.error || !matchesRes.data) return [];
+    const courtMap = new Map((courtsRes.data || []).map((c) => [c.id, c]));
+    return matchesRes.data.map((m) => ({
+      ...m,
+      court: courtMap.get(m.court_id) || { name: "Court", surface_type: "Standard Court" },
+    }));
+  }
+
+  return data || [];
 }
+
+export const getMatches = getMatchesList;

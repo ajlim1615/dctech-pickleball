@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   User,
   Trophy,
@@ -105,9 +105,11 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
   const [dragStart, setDragStart] = useState({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 });
   const imageElementRef = useRef<HTMLImageElement>(null);
 
-  const winRate = profile.games_played > 0
-    ? Math.round((profile.games_won / profile.games_played) * 100)
-    : 0;
+  const winRate = useMemo(() => {
+    return profile.games_played > 0
+      ? Math.round((profile.games_won / profile.games_played) * 100)
+      : 0;
+  }, [profile.games_played, profile.games_won]);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -287,46 +289,54 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
     setTimeout(() => setAvatarNotice(null), 3000);
   }
 
-  const displayMatches = matches.map((item: any) => {
-    if (item.result && item.score) return item;
+  const displayMatches = useMemo(() => {
+    return matches.map((item: any) => {
+      if (item.result && item.score) return item;
 
-    const match = item.match || item;
-    const playerTeam = item.team;
-    let isWon = false;
-    if (match.winning_team) {
-      isWon = match.winning_team === playerTeam;
-    } else if (match.team_a_score !== undefined && match.team_b_score !== undefined) {
-      const winningSide = match.team_a_score > match.team_b_score ? "team_a" : match.team_b_score > match.team_a_score ? "team_b" : "tie";
-      isWon = winningSide === playerTeam;
-    }
-    const isTie = match.winning_team === "tie";
-    const isInProgress = match.status === "in_progress";
+      const match = item.match || item;
+      const playerTeam = item.team;
+      let isWon = false;
+      if (match.winning_team) {
+        isWon = match.winning_team === playerTeam;
+      } else if (match.team_a_score !== undefined && match.team_b_score !== undefined) {
+        const winningSide =
+          match.team_a_score > match.team_b_score
+            ? "team_a"
+            : match.team_b_score > match.team_a_score
+            ? "team_b"
+            : "tie";
+        isWon = winningSide === playerTeam;
+      }
+      const isTie = match.winning_team === "tie";
+      const isInProgress = match.status === "in_progress";
 
-    const result = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
-    const courtName = (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
-    const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
-    const sessionTitle = item.sessionTitle || "Open Play Session";
-    const partner = item.partner;
-    const opponents = item.opponents;
-    const dateSource = match.ended_at || match.started_at || item.created_at;
-    const dateLabel = dateSource
-      ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-      : "Recent";
-    const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
+      const result = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
+      const courtName =
+        (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
+      const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
+      const sessionTitle = item.sessionTitle || "Open Play Session";
+      const partner = item.partner;
+      const opponents = item.opponents;
+      const dateSource = match.ended_at || match.started_at || item.created_at;
+      const dateLabel = dateSource
+        ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        : "Recent";
+      const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
 
-    return {
-      result,
-      court: courtName,
-      format: formatLabel,
-      sessionTitle,
-      partner,
-      opponents,
-      date: dateLabel,
-      type: sessionTitle,
-      score: scoreLabel,
-      status: match.status,
-    };
-  });
+      return {
+        result,
+        court: courtName,
+        format: formatLabel,
+        sessionTitle,
+        partner,
+        opponents,
+        date: dateLabel,
+        type: sessionTitle,
+        score: scoreLabel,
+        status: match.status,
+      };
+    });
+  }, [matches]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
@@ -470,8 +480,17 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
 
       {/* Photo Cropping & Position Adjustment Modal */}
       {isCropping && cropImageSrc && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+        <div
+          onClick={() => {
+            setIsCropping(false);
+            setCropImageSrc(null);
+          }}
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">

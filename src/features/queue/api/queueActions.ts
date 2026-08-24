@@ -510,6 +510,13 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   }
 
   // 4. Create Match and assign to court
+  // Void any previous orphaned in_progress matches on this court
+  await supabase
+    .from("matches")
+    .update({ status: "abandoned", ended_at: new Date().toISOString() })
+    .eq("court_id", courtId)
+    .eq("status", "in_progress");
+
   const { data: match, error: matchError } = await supabase
     .from("matches")
     .insert({

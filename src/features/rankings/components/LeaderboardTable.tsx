@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Trophy,
   Search,
@@ -49,47 +49,52 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
     }
   }
 
-  const filtered = rankings.filter((r) =>
-    (r.full_name || r.display_name || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const sorted = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = query
+      ? rankings.filter((r) =>
+          (r.full_name || r.display_name || "").toLowerCase().includes(query)
+        )
+      : rankings;
 
-  const sorted = [...filtered].sort((a, b) => {
-    let comparison = 0;
-    switch (sortField) {
-      case "rank":
-        comparison = (a.rank || 0) - (b.rank || 0);
-        break;
-      case "name":
-        comparison = (a.full_name || a.display_name || "").localeCompare(
-          b.full_name || b.display_name || ""
-        );
-        break;
-      case "rating":
-        comparison = Number(a.skill_rating || 0) - Number(b.skill_rating || 0);
-        break;
-      case "games":
-        comparison = (a.games_played || 0) - (b.games_played || 0);
-        if (comparison === 0) {
-          comparison = (a.games_won || 0) - (b.games_won || 0);
-        }
-        break;
-      case "won":
-        comparison = (a.games_won || 0) - (b.games_won || 0);
-        if (comparison === 0) {
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "rank":
+          comparison = (a.rank || 0) - (b.rank || 0);
+          break;
+        case "name":
+          comparison = (a.full_name || a.display_name || "").localeCompare(
+            b.full_name || b.display_name || ""
+          );
+          break;
+        case "rating":
+          comparison = Number(a.skill_rating || 0) - Number(b.skill_rating || 0);
+          break;
+        case "games":
           comparison = (a.games_played || 0) - (b.games_played || 0);
-        }
-        break;
-      case "win_rate":
-        comparison = (a.win_rate || 0) - (b.win_rate || 0);
-        if (comparison === 0) {
+          if (comparison === 0) {
+            comparison = (a.games_won || 0) - (b.games_won || 0);
+          }
+          break;
+        case "won":
           comparison = (a.games_won || 0) - (b.games_won || 0);
-        }
-        break;
-      default:
-        comparison = 0;
-    }
-    return sortOrder === "asc" ? comparison : -comparison;
-  });
+          if (comparison === 0) {
+            comparison = (a.games_played || 0) - (b.games_played || 0);
+          }
+          break;
+        case "win_rate":
+          comparison = (a.win_rate || 0) - (b.win_rate || 0);
+          if (comparison === 0) {
+            comparison = (a.games_won || 0) - (b.games_won || 0);
+          }
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+  }, [rankings, search, sortField, sortOrder]);
 
   async function handleViewPlayer(player: RankedPlayer) {
     setSelectedPlayer(player);
@@ -106,45 +111,53 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
   }
 
   // Format matches for player detail view
-  const formattedMatches = playerMatches.map((item: any) => {
-    if (item.result && item.score) return item;
+  const formattedMatches = useMemo(() => {
+    return playerMatches.map((item: any) => {
+      if (item.result && item.score) return item;
 
-    const match = item.match || item;
-    const playerTeam = item.team;
-    let isWon = false;
-    if (match.winning_team) {
-      isWon = match.winning_team === playerTeam;
-    } else if (match.team_a_score !== undefined && match.team_b_score !== undefined) {
-      const winningSide = match.team_a_score > match.team_b_score ? "team_a" : match.team_b_score > match.team_a_score ? "team_b" : "tie";
-      isWon = winningSide === playerTeam;
-    }
-    const isTie = match.winning_team === "tie";
-    const isInProgress = match.status === "in_progress";
+      const match = item.match || item;
+      const playerTeam = item.team;
+      let isWon = false;
+      if (match.winning_team) {
+        isWon = match.winning_team === playerTeam;
+      } else if (match.team_a_score !== undefined && match.team_b_score !== undefined) {
+        const winningSide =
+          match.team_a_score > match.team_b_score
+            ? "team_a"
+            : match.team_b_score > match.team_a_score
+            ? "team_b"
+            : "tie";
+        isWon = winningSide === playerTeam;
+      }
+      const isTie = match.winning_team === "tie";
+      const isInProgress = match.status === "in_progress";
 
-    const result = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
-    const courtName = (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
-    const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
-    const sessionTitle = item.sessionTitle || "Open Play Session";
-    const partner = item.partner;
-    const opponents = item.opponents;
-    const dateSource = match.ended_at || match.started_at || item.created_at;
-    const dateLabel = dateSource
-      ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-      : "Recent";
-    const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
+      const result = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
+      const courtName =
+        (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
+      const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
+      const sessionTitle = item.sessionTitle || "Open Play Session";
+      const partner = item.partner;
+      const opponents = item.opponents;
+      const dateSource = match.ended_at || match.started_at || item.created_at;
+      const dateLabel = dateSource
+        ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        : "Recent";
+      const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
 
-    return {
-      result,
-      court: courtName,
-      format: formatLabel,
-      sessionTitle,
-      partner,
-      opponents,
-      date: dateLabel,
-      type: sessionTitle,
-      score: scoreLabel,
-    };
-  });
+      return {
+        result,
+        court: courtName,
+        format: formatLabel,
+        sessionTitle,
+        partner,
+        opponents,
+        date: dateLabel,
+        type: sessionTitle,
+        score: scoreLabel,
+      };
+    });
+  }, [playerMatches]);
 
   function renderSortIcon(field: SortField) {
     if (sortField !== field) {
@@ -400,8 +413,14 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
 
       {/* View Player Stats & History Modal */}
       {selectedPlayer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setSelectedPlayer(null)}
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto cursor-default"
+          >
             {/* Modal Header: Profile Picture, Name, Email, Rank */}
             <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-5">
               <div className="flex items-center gap-4 sm:gap-5">

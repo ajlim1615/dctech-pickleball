@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
@@ -27,6 +27,8 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
+  Sparkles,
+  Flame,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,13 +109,30 @@ export function AdminDashboard({
     return { stars: 6, label: "Expert (~4.5+ DUPR)", dupr: 4.5 };
   }
 
-  // Skill Tier Counts for Combobox
-  const count6 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 6).length;
-  const count5 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 5).length;
-  const count4 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 4).length;
-  const count3 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 3).length;
-  const count2 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 2).length;
-  const count1 = employees.filter((e) => getStarSkillInfo(e.skill_rating).stars === 1).length;
+  // Single-pass Skill Tier Counts for Quick Filter Chips
+  const { countBeginners, countIntermediate, countAdvanced, countAdmins } = useMemo(() => {
+    let beginners = 0;
+    let intermediate = 0;
+    let advanced = 0;
+    let admins = 0;
+
+    for (const e of employees) {
+      if (e.role === "admin" || e.email?.toLowerCase() === "admin@dctechmicro.com") {
+        admins++;
+      }
+      const s = getStarSkillInfo(e.skill_rating).stars;
+      if (s === 1 || s === 2) beginners++;
+      else if (s === 3 || s === 4) intermediate++;
+      else if (s >= 5) advanced++;
+    }
+
+    return {
+      countBeginners: beginners,
+      countIntermediate: intermediate,
+      countAdvanced: advanced,
+      countAdmins: admins,
+    };
+  }, [employees]);
 
   function getPlayerTier(rating: number) {
     const info = getStarSkillInfo(rating);
@@ -123,15 +142,38 @@ export function AdminDashboard({
     return { label: info.label, badge: "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" };
   }
 
-  const filteredEmployees = employees.filter((emp) => {
-    const matchesSearch = (emp.full_name || emp.display_name || "").toLowerCase().includes(playerSearch.toLowerCase()) ||
-                          (emp.email || "").toLowerCase().includes(playerSearch.toLowerCase());
-    if (!matchesSearch) return false;
+  const filteredEmployees = useMemo(() => {
+    const query = playerSearch.trim().toLowerCase();
 
-    if (playerTierFilter === "all") return true;
-    const starInfo = getStarSkillInfo(emp.skill_rating);
-    return starInfo.stars === parseInt(playerTierFilter, 10);
-  });
+    return employees.filter((emp) => {
+      if (query) {
+        const matchesSearch =
+          (emp.full_name || emp.display_name || "").toLowerCase().includes(query) ||
+          (emp.email || "").toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      if (playerTierFilter === "all") return true;
+      if (playerTierFilter === "beginners") {
+        const s = getStarSkillInfo(emp.skill_rating).stars;
+        return s === 1 || s === 2;
+      }
+      if (playerTierFilter === "intermediate") {
+        const s = getStarSkillInfo(emp.skill_rating).stars;
+        return s === 3 || s === 4;
+      }
+      if (playerTierFilter === "advanced") {
+        const s = getStarSkillInfo(emp.skill_rating).stars;
+        return s >= 5;
+      }
+      if (playerTierFilter === "admins") {
+        return emp.role === "admin" || emp.email?.toLowerCase() === "admin@dctechmicro.com";
+      }
+
+      const starInfo = getStarSkillInfo(emp.skill_rating);
+      return starInfo.stars === parseInt(playerTierFilter, 10);
+    });
+  }, [employees, playerSearch, playerTierFilter]);
 
   useEffect(() => {
     setCourts(
@@ -292,7 +334,7 @@ export function AdminDashboard({
       )}
 
       {/* Streamlined Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 font-mono text-xs">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 font-mono text-xs overflow-x-auto scrollbar-none whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveTab("sessions")}
@@ -906,8 +948,14 @@ export function AdminDashboard({
         <>
           {/* Fast Add Modal */}
           {isAddingPlayer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-              <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
+            <div
+              onClick={() => setIsAddingPlayer(false)}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
+            >
+              <Card
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
+              >
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <UserPlus className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -1020,52 +1068,56 @@ export function AdminDashboard({
               </Button>
             </CardHeader>
 
-            {/* Category Filter Combobox & Search Bar */}
-            <div className="p-4 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800/60">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                {/* Unified 1-Filter Combobox */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-72">
-                    <Filter className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                    <select
-                      value={playerTierFilter}
-                      onChange={(e) => setPlayerTierFilter(e.target.value)}
-                      className="w-full appearance-none rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8.5 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 font-mono font-medium focus:border-emerald-500 focus:outline-none shadow-2xs cursor-pointer"
+            {/* 1. 📊 Stat Overview Bar: Clickable Quick-Filter Chips & Search */}
+            <div className="p-3.5 bg-slate-50/90 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Quick Filter Chips */}
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 md:pb-0">
+                {[
+                  { id: "all", label: "All Players", count: employees.length, icon: Users },
+                  { id: "beginners", label: "Beginners (1-2★)", count: countBeginners, icon: Sparkles },
+                  { id: "intermediate", label: "Intermediate (3-4★)", count: countIntermediate, icon: Flame },
+                  { id: "advanced", label: "Advanced / Expert (5-6★)", count: countAdvanced, icon: Trophy },
+                  { id: "admins", label: "Admins", count: countAdmins, icon: ShieldCheck },
+                ].map((chip) => {
+                  const isActive = playerTierFilter === chip.id;
+                  const Icon = chip.icon;
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => setPlayerTierFilter(chip.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all shrink-0 border cursor-pointer ${
+                        isActive
+                          ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 border-slate-900 dark:border-emerald-500 shadow-2xs"
+                          : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      }`}
                     >
-                      <option value="all">★ All Skill Levels ({employees.length} Players)</option>
-                      <option value="6">★★★★★★ 6 Stars · Expert (~4.5+ DUPR) ({count6})</option>
-                      <option value="5">★★★★★☆ 5 Stars · Advanced (~4.0 DUPR) ({count5})</option>
-                      <option value="4">★★★★☆☆ 4 Stars · Adv. Intermediate (~3.5 DUPR) ({count4})</option>
-                      <option value="3">★★★☆☆☆ 3 Stars · Intermediate (~3.0 DUPR) ({count3})</option>
-                      <option value="2">★★☆☆☆☆ 2 Stars · Adv. Beginner (~2.5 DUPR) ({count2})</option>
-                      <option value="1">★☆☆☆☆☆ 1 Star · Beginner (~2.0 DUPR) ({count1})</option>
-                    </select>
-                    <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-400 dark:text-slate-950" : "text-slate-400"}`} />
+                      <span>{chip.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isActive
+                            ? "bg-white/20 text-white dark:bg-slate-950/20 dark:text-slate-950"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        {chip.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-                  {playerTierFilter !== "all" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPlayerTierFilter("all")}
-                      className="h-8 px-2 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-mono shrink-0"
-                    >
-                      Reset
-                    </Button>
-                  )}
-                </div>
-
-                {/* Search Bar */}
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={playerSearch}
-                    onChange={(e) => setPlayerSearch(e.target.value)}
-                    placeholder="Search player or email..."
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-emerald-500 focus:outline-none shadow-2xs font-mono"
-                  />
-                </div>
+              {/* Search Bar */}
+              <div className="relative w-full md:w-64 shrink-0">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={playerSearch}
+                  onChange={(e) => setPlayerSearch(e.target.value)}
+                  placeholder="Search player or email..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8.5 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-emerald-500 focus:outline-none shadow-2xs font-mono"
+                />
               </div>
             </div>
 
@@ -1083,13 +1135,16 @@ export function AdminDashboard({
                   {filteredEmployees.map((emp) => {
                     const isSystemAdmin = emp.email?.toLowerCase() === "admin@dctechmicro.com";
                     const tierInfo = getPlayerTier(emp.skill_rating);
+                    const starInfo = getStarSkillInfo(emp.skill_rating);
+
                     return (
                       <div
                         key={emp.id}
-                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden">
+                        {/* Player Profile Column */}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs">
                             {emp.avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -1101,26 +1156,32 @@ export function AdminDashboard({
                               emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"
                             )}
                           </div>
-                          <div>
+                          <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                                 {emp.full_name || emp.display_name}
                               </h4>
                               <Badge
                                 variant={emp.role === "admin" ? "volt" : "secondary"}
-                                className="text-[10px] uppercase font-mono"
+                                className="text-[10px] uppercase font-mono px-2 py-0.5"
                               >
                                 {isSystemAdmin ? "System Admin" : emp.role}
                               </Badge>
-                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${isSystemAdmin ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" : tierInfo.badge}`}>
-                                {isSystemAdmin ? "🛡️ Root Admin (Non-Player)" : tierInfo.label}
+                              <span
+                                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${
+                                  isSystemAdmin
+                                    ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40"
+                                    : tierInfo.badge
+                                }`}
+                              >
+                                {isSystemAdmin ? "🛡️ Root Admin" : tierInfo.label}
                               </span>
                             </div>
 
                             {/* Email Subtitle & DUPR Rating */}
-                            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono flex flex-wrap items-center gap-2 pt-1">
+                            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono flex flex-wrap items-center gap-2">
                               {emp.email ? (
-                                <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+                                <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium truncate max-w-[200px] sm:max-w-none">
                                   <Mail className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
                                   {emp.email}
                                 </span>
@@ -1129,84 +1190,68 @@ export function AdminDashboard({
                               )}
                               <span className="text-slate-300 dark:text-slate-700">•</span>
                               {isSystemAdmin ? (
-                                <span className="text-amber-600 dark:text-amber-400 font-semibold">Non-Playing Admin</span>
+                                <span className="text-amber-600 dark:text-amber-400 font-semibold">Non-Playing</span>
                               ) : (
-                                <span>DUPR: <strong className="text-emerald-600 dark:text-emerald-400">{formatRating(emp.skill_rating)}</strong></span>
+                                <span>
+                                  DUPR: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRating(emp.skill_rating)}</strong>
+                                </span>
                               )}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3">
+                        {/* Compact Inline Controls Column */}
+                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center pt-2 sm:pt-0">
                           {isSystemAdmin ? (
-                            <div className="text-xs font-mono text-slate-400 dark:text-slate-500 italic bg-slate-100/60 dark:bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                            <div className="text-xs font-mono text-slate-400 dark:text-slate-500 italic bg-slate-100/70 dark:bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
                               🔒 Role & Rating Locked
                             </div>
                           ) : (
                             <>
-                              {/* Pickleq-Style 6-Star Rating Control */}
-                              {(() => {
-                                const starInfo = getStarSkillInfo(emp.skill_rating);
-                                return (
-                                  <div className="flex items-center gap-2 bg-slate-50/80 dark:bg-slate-950/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-                                    <div className="flex items-center gap-0.5 px-1">
-                                      {[1, 2, 3, 4, 5, 6].map((starNum) => {
-                                        const isFilled = starNum <= starInfo.stars;
-                                        return (
-                                          <button
-                                            key={starNum}
-                                            type="button"
-                                            onClick={() => {
-                                              const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starNum);
-                                              if (targetTier) handleSetRating(emp.id, targetTier.dupr);
-                                            }}
-                                            className="p-0.5 hover:scale-125 transition-transform focus:outline-none"
-                                            title={`Set to ${starNum} Stars`}
-                                          >
-                                            <Star
-                                              className={`h-4 w-4 transition-colors ${
-                                                isFilled
-                                                  ? "text-amber-500 fill-amber-400 drop-shadow-xs"
-                                                  : "text-slate-300 dark:text-slate-600 fill-slate-200/50 dark:fill-slate-800"
-                                              }`}
-                                            />
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-
-                                    <select
-                                      value={starInfo.stars}
-                                      onChange={(e) => {
-                                        const starVal = parseInt(e.target.value, 10);
-                                        const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starVal);
-                                        if (targetTier) handleSetRating(emp.id, targetTier.dupr);
-                                      }}
-                                      className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer border-l border-slate-200 dark:border-slate-800 pl-2 pr-1 font-mono"
+                              {/* Consolidated Skill Tier Dropdown */}
+                              <div className="relative">
+                                <select
+                                  value={starInfo.stars}
+                                  onChange={(e) => {
+                                    const starVal = parseInt(e.target.value, 10);
+                                    const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starVal);
+                                    if (targetTier) handleSetRating(emp.id, targetTier.dupr);
+                                  }}
+                                  className="appearance-none rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 pl-3 pr-7 py-1.5 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none shadow-2xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                                >
+                                  {SKILL_STAR_TIERS.filter((t) => t.stars > 0).map((tier) => (
+                                    <option
+                                      key={tier.stars}
+                                      value={tier.stars}
+                                      className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                                     >
-                                      {SKILL_STAR_TIERS.map((tier) => (
-                                        <option
-                                          key={tier.stars}
-                                          value={tier.stars}
-                                          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                                        >
-                                          {tier.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                );
-                              })()}
+                                      {"★".repeat(tier.stars)}{"☆".repeat(6 - tier.stars)} · {tier.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                              </div>
 
                               {/* Role Selector */}
-                              <select
-                                defaultValue={emp.role}
-                                onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
-                                className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
-                              >
-                                <option value="player">Player</option>
-                                <option value="admin">Admin</option>
-                              </select>
+                              <div className="relative">
+                                <select
+                                  defaultValue={emp.role}
+                                  onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
+                                  className={`appearance-none rounded-xl border pl-3 pr-7 py-1.5 text-xs font-mono font-bold focus:outline-none shadow-2xs cursor-pointer transition-colors ${
+                                    emp.role === "admin"
+                                      ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                                      : "border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-slate-800 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
+                                  }`}
+                                >
+                                  <option value="player" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                    Player
+                                  </option>
+                                  <option value="admin" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                                    Admin
+                                  </option>
+                                </select>
+                                <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                              </div>
                             </>
                           )}
                         </div>

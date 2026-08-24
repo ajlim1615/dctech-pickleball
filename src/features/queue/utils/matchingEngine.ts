@@ -93,8 +93,12 @@ export function createMatchupFromPod(
       case "social_mixer":
       case "club_wars":
       case "mixed_doubles": {
-        // Random / Social shuffle permutation
-        const shuffled = [...players].sort(() => Math.random() - 0.5);
+        // True Fisher-Yates shuffle for unbiased uniform distribution
+        const shuffled = [...players];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
         teamA = [shuffled[0], shuffled[1]];
         teamB = [shuffled[2], shuffled[3]];
         break;
