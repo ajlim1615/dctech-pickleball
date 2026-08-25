@@ -44,7 +44,6 @@ export function MobileBottomNav() {
   const navItems = [
     { label: "Courts", href: "/", icon: Activity },
     { label: "Sessions", href: "/sessions", icon: PlayCircle },
-    { label: "Queue", href: "/queue", icon: Users },
     { label: "Rankings", href: "/rankings", icon: Trophy },
     { label: "Profile", href: "/profile", icon: User },
     ...(userRole === "admin" ? [{ label: "Admin", href: "/admin", icon: ShieldCheck }] : []),

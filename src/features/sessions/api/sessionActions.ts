@@ -308,7 +308,6 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   revalidatePath("/admin");
   revalidatePath("/queue");
   revalidatePath("/matches");
-  revalidatePath("/matches/new");
   revalidatePath("/");
   return { success: true };
 }

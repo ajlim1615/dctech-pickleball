@@ -17,6 +17,9 @@ import {
   ExternalLink,
   Clock,
   CheckCircle2,
+  ShieldCheck,
+  Check,
+  Search,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +46,8 @@ interface SessionQueueLiveBoardProps {
   userEmail?: string;
   employees?: Profile[];
   isSessionActive?: boolean;
+  onOpenBulkQueue?: () => void;
+  readOnly?: boolean;
 }
 
 export function SessionQueueLiveBoard({
@@ -53,14 +58,17 @@ export function SessionQueueLiveBoard({
   userEmail = "",
   employees = [],
   isSessionActive = true,
+  onOpenBulkQueue,
+  readOnly = false,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
-  const isAdmin = userRole === "admin" || isSystemAdmin;
+  const isAdmin = !readOnly && (userRole === "admin" || isSystemAdmin);
 
   const { queue, myPosition } = useLiveQueue(initialQueue, currentUserId);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [joinMode, setJoinMode] = useState<"solo" | "coworker" | "guest">("solo");
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -124,6 +132,7 @@ export function SessionQueueLiveBoard({
     setIsSubmitting(true);
     await leaveQueue(sessionId);
     setIsSubmitting(false);
+    setShowLeaveConfirm(false);
     router.refresh();
   }
 
@@ -167,17 +176,24 @@ export function SessionQueueLiveBoard({
           </div>
         </div>
 
-        <Link
-          href="/queue"
-          className="text-xs font-mono text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-bold flex items-center gap-1 shrink-0"
-        >
-          <span>Full Board</span>
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && onOpenBulkQueue && (
+            <Button
+              type="button"
+              variant="volt"
+              size="sm"
+              onClick={onOpenBulkQueue}
+              className="text-xs h-7 px-2.5 font-bold shadow-xs flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Bulk Queue</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* User Queue Status & Join Actions */}
-      {!isSystemAdmin && isSessionActive && (
+      {!readOnly && !isSystemAdmin && isSessionActive && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 p-3 flex items-center justify-between gap-3 text-xs font-mono">
           {isUserInQueue ? (
             <>
@@ -187,15 +203,39 @@ export function SessionQueueLiveBoard({
                   You are #{myPosition || 1} in queue {myPosition && myPosition <= 4 ? "(Up Next!)" : ""}
                 </span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLeave}
-                disabled={isSubmitting}
-                className="text-[11px] h-7 px-2 text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-              >
-                Leave Queue
-              </Button>
+              {showLeaveConfirm ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-rose-600 dark:text-rose-400 font-semibold">
+                    Lose your spot?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLeave}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold px-2 py-1 transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Leaving..." : "Yes, Leave"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveConfirm(false)}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-semibold px-2 py-1 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLeaveConfirm(true)}
+                  disabled={isSubmitting}
+                  className="text-[11px] h-7 px-2 text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                >
+                  Leave Queue
+                </Button>
+              )}
             </>
           ) : (
             <>

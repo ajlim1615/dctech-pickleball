@@ -139,7 +139,6 @@ export function Navbar() {
   const navItems = [
     { label: "Live Courts", href: "/", icon: Activity },
     { label: "Sessions", href: "/sessions", icon: PlayCircle },
-    { label: "Queue", href: "/queue", icon: Users },
     { label: "Rankings", href: "/rankings", icon: Trophy },
     { label: "Guide", href: "/guide", icon: BookOpen },
     ...(userProfile?.role === "admin" ? [{ label: "Admin", href: "/admin", icon: ShieldCheck }] : []),

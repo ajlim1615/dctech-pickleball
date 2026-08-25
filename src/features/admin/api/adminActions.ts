@@ -219,7 +219,7 @@ export async function createWalkInPlayer(params: {
 
   revalidatePath("/admin");
   revalidatePath("/queue");
-  revalidatePath("/matches/new");
+  revalidatePath("/sessions");
   return { success: true, player: data };
 }
 

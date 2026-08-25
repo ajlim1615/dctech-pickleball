@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Trophy, Calendar, CheckCircle2, Clock, MapPin, Plus } from "lucide-react";
+import { Trophy, Calendar, CheckCircle2, Clock, MapPin, Plus, PlayCircle } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,11 +82,11 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
         </div>
 
         <a
-          href="/matches/new"
+          href="/sessions"
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-slate-950 px-4 py-2 text-xs font-bold hover:bg-emerald-400 transition-colors font-mono shadow-sm"
         >
-          <Plus className="h-4 w-4" />
-          Record New Match Score
+          <PlayCircle className="h-4 w-4" />
+          Go to Active Session
         </a>
       </div>
 
@@ -96,13 +96,13 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
             <Trophy className="h-8 w-8 text-slate-400 dark:text-slate-600 mx-auto" />
             <p className="text-slate-900 dark:text-slate-200 font-semibold text-sm">No Matches Recorded Yet</p>
             <p className="text-slate-500 max-w-sm mx-auto">
-              When sports staff or players record completed game scores, match logs and head-to-head scorecards will appear here.
+              When sports staff or players record completed game scores on the session court matrix, match logs and head-to-head scorecards will appear here.
             </p>
             <a
-              href="/matches/new"
+              href="/sessions"
               className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 font-bold text-slate-950 text-xs hover:bg-emerald-400 shadow-sm"
             >
-              Record First Match Score
+              Go to Sessions
             </a>
           </Card>
         ) : (

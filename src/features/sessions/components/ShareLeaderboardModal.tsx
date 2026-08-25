@@ -166,21 +166,51 @@ export function ShareLeaderboardModal({
             className="relative w-full max-w-xs rounded-3xl bg-gradient-to-b from-[#0a8247] via-[#09713d] to-[#064e29] text-white p-5 shadow-2xl space-y-4 font-sans select-none border border-emerald-400/30 overflow-hidden"
             style={{ width: "320px" }}
           >
-            {/* DCTECH Background Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-0">
-              <div className="text-[72px] font-black tracking-widest text-white/[0.07] -rotate-45 uppercase select-none pointer-events-none font-mono">
+            {/* Top-Right Brand Logo Badge */}
+            <div className="absolute top-4 right-4 z-20 pointer-events-none">
+              <div className="h-9 w-9 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 p-1 shadow-lg flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/icon-192.png"
+                  alt="DCTECH"
+                  className="h-full w-full object-contain rounded-xl drop-shadow-xs"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            </div>
+
+            {/* Enhanced DCTECH Background Watermarks (Multi-Zone & Repeated Diagonal Pattern) */}
+            <div className="absolute inset-0 pointer-events-none select-none overflow-hidden z-0">
+              {/* Large Upper Diagonal Stamp */}
+              <div className="absolute -top-4 -left-6 text-[46px] font-black tracking-widest text-white/[0.12] -rotate-[28deg] uppercase select-none font-mono whitespace-nowrap">
                 DCTECH
               </div>
+
+              {/* Center Main Bold Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-[64px] font-black tracking-widest text-white/[0.14] -rotate-[28deg] uppercase select-none font-mono">
+                  DCTECH
+                </div>
+              </div>
+
+              {/* Lower Right Repeating Diagonal Stamp */}
+              <div className="absolute -bottom-6 -right-6 text-[46px] font-black tracking-widest text-white/[0.12] -rotate-[28deg] uppercase select-none font-mono whitespace-nowrap">
+                DCTECH
+              </div>
+
+              {/* Ambient radial lighting glow for depth */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_50%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(0,0,0,0.25),transparent_60%)]" />
             </div>
 
             {/* Content Layer (z-10) */}
             <div className="relative z-10 space-y-4">
               {/* Header / Brand */}
-              <div className="text-center space-y-1">
-                <div className="text-sm font-extrabold tracking-wider uppercase text-emerald-100">
+              <div className="text-center space-y-1 pr-6 pl-6">
+                <div className="text-sm font-extrabold tracking-wider uppercase text-emerald-100 drop-shadow-xs">
                   Pickleball
                 </div>
-                <div className="text-[11px] font-medium text-emerald-200/90 tracking-wide">
+                <div className="text-[11px] font-medium text-emerald-200/95 tracking-wide">
                   Session Results
                 </div>
                 <div className="pt-2 flex justify-center">
@@ -191,7 +221,7 @@ export function ShareLeaderboardModal({
               </div>
 
               {/* Players & Games Summary Box */}
-              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-black/25 border border-white/10 p-2.5 text-center backdrop-blur-xs shadow-inner">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-black/30 border border-white/15 p-2.5 text-center backdrop-blur-xs shadow-inner">
                 <div className="space-y-0.5">
                   <div className="text-lg font-black text-white leading-none">
                     {totalPlayers}

@@ -1291,7 +1291,7 @@ export function AdminDashboard({
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
                   <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 3: Rotate & Record</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In /matches/new, call next 4 from queue, score games, and submit final scores.</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In the active Session view, call next 4 from queue, score games, and submit final scores.</div>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
                   <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 4: Finish Session</div>
@@ -1303,14 +1303,23 @@ export function AdminDashboard({
 
           {/* Pickleq Live Court Scoring Station Guide */}
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 space-y-5 shadow-sm">
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Activity className="h-5 w-5 text-emerald-500" />
-                Live Court Scoring Station (/matches/new)
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Pickleq-style court station allows administrators and court umpires to manage individual courts simultaneously.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-emerald-500" />
+                  Live Court Scoring Station (Session Screen)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Interactive court stations allow administrators and court umpires to manage individual courts simultaneously inside any active session.
+                </p>
+              </div>
+              <a
+                href="/courts/1/monitor"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-3 py-1.5 text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 transition-colors shadow-2xs shrink-0 cursor-pointer"
+              >
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Launch Umpire Mode →
+              </a>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
@@ -1526,14 +1535,23 @@ export function AdminDashboard({
 
           {/* Referee & Umpire Station */}
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 space-y-5 shadow-sm">
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                Staff Referee & Umpire Station Guide
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Staff umpires or designated tablet stations manage court match flow and score tracking on active courts.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                  Staff Referee & Umpire Station Guide
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Staff umpires or designated tablet stations manage court match flow and score tracking on active courts.
+                </p>
+              </div>
+              <a
+                href="/courts/1/monitor"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-3 py-1.5 text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 transition-colors shadow-2xs shrink-0 cursor-pointer"
+              >
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Open Umpire Mode →
+              </a>
             </div>
 
             <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300 font-mono divide-y divide-slate-200 dark:divide-slate-800/80">
