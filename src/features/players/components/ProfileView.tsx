@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
@@ -479,18 +480,15 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
       </Card>
 
       {/* Photo Cropping & Position Adjustment Modal */}
-      {isCropping && cropImageSrc && (
-        <div
-          onClick={() => {
-            setIsCropping(false);
-            setCropImageSrc(null);
-          }}
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 cursor-default"
-          >
+      <Modal
+        isOpen={Boolean(isCropping && cropImageSrc)}
+        onClose={() => {
+          setIsCropping(false);
+          setCropImageSrc(null);
+        }}
+      >
+        {cropImageSrc && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 cursor-default">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -637,13 +635,15 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Change Password Modal */}
-      {isChangingPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+      <Modal
+        isOpen={isChangingPasswordModal}
+        onClose={() => setIsChangingPasswordModal(false)}
+      >
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3.5">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
@@ -788,8 +788,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Player Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

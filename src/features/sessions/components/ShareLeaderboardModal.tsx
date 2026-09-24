@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { formatRating } from "@/lib/utils";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
 
@@ -138,14 +139,8 @@ export function ShareLeaderboardModal({
   }
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200 cursor-pointer"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-2xl relative my-auto cursor-default"
-      >
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-2xl relative my-auto cursor-default">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -374,6 +369,6 @@ export function ShareLeaderboardModal({
           </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

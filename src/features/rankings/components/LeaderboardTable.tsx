@@ -19,6 +19,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { formatRating } from "@/lib/utils";
 import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
 import type { RankedPlayer } from "../api/rankingActions";
@@ -412,15 +413,12 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
       )}
 
       {/* View Player Stats & History Modal */}
-      {selectedPlayer && (
-        <div
-          onClick={() => setSelectedPlayer(null)}
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto cursor-default"
-          >
+      <Modal
+        isOpen={Boolean(selectedPlayer)}
+        onClose={() => setSelectedPlayer(null)}
+      >
+        {selectedPlayer && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto cursor-default">
             {/* Modal Header: Profile Picture, Name, Email, Rank */}
             <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-5">
               <div className="flex items-center gap-4 sm:gap-5">
@@ -595,8 +593,8 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

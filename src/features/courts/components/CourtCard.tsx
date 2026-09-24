@@ -158,7 +158,7 @@ export function CourtCard({
   }
 
   function handleAutoCallQueue() {
-    if (!isAdministrator) return;
+    if (!isAdministrator || isPending) return;
     if (!sessionId) {
       setErrorMessage("No active session found. Please start a session first.");
       return;
@@ -190,7 +190,7 @@ export function CourtCard({
       : null;
 
   function handleSubmitScore() {
-    if (!isAdministrator) return;
+    if (!isAdministrator || isPending) return;
     setErrorMessage(null);
     setSuccessMessage(null);
 

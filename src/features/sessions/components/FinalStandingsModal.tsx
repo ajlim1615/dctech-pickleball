@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatRating } from "@/lib/utils";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
+import { Modal } from "@/components/ui/modal";
 
 interface FinalStandingsModalProps {
   sessionTitle: string;
@@ -34,14 +35,8 @@ export function FinalStandingsModal({
 
   return (
     <>
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200 cursor-pointer"
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6 relative my-auto cursor-default animate-in zoom-in-95 duration-200"
-        >
+      <Modal isOpen={true} onClose={onClose}>
+        <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6 relative my-auto cursor-default animate-in zoom-in-95 duration-200">
           {/* Header Banner */}
           <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-5">
             <div className="flex items-center gap-3.5">
@@ -203,7 +198,7 @@ export function FinalStandingsModal({
             </Button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       {showShareCard && (
         <ShareLeaderboardModal

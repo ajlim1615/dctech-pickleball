@@ -24,6 +24,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 import {
@@ -100,42 +101,51 @@ export function SessionQueueLiveBoard({
   }, [isNextPodFull, nextPod, matchingMode]);
 
   async function handleQuickJoinSolo() {
-    if (!sessionId || isSystemAdmin) return;
+    if (!sessionId || isSystemAdmin || isSubmitting) return;
     setIsSubmitting(true);
-    const res = await joinQueue({ sessionId });
-    if (res?.error) {
-      alert(`Error joining queue: ${res.error}`);
-    } else {
-      router.refresh();
+    try {
+      const res = await joinQueue({ sessionId });
+      if (res?.error) {
+        alert(`Error joining queue: ${res.error}`);
+      } else {
+        router.refresh();
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   }
 
   async function handleModalJoin(e: React.FormEvent) {
     e.preventDefault();
-    if (!sessionId || isSystemAdmin) return;
+    if (!sessionId || isSystemAdmin || isSubmitting) return;
     setIsSubmitting(true);
-    const res = await joinQueue({
-      sessionId,
-      partnerId: joinMode === "coworker" && selectedPartnerId ? selectedPartnerId : undefined,
-      guestName: joinMode === "guest" && guestName ? guestName : undefined,
-    });
-    if (res?.error) {
-      alert(`Error joining queue: ${res.error}`);
-    } else {
-      setShowJoinModal(false);
-      router.refresh();
+    try {
+      const res = await joinQueue({
+        sessionId,
+        partnerId: joinMode === "coworker" && selectedPartnerId ? selectedPartnerId : undefined,
+        guestName: joinMode === "guest" && guestName ? guestName : undefined,
+      });
+      if (res?.error) {
+        alert(`Error joining queue: ${res.error}`);
+      } else {
+        setShowJoinModal(false);
+        router.refresh();
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   }
 
   async function handleLeave() {
-    if (!sessionId) return;
+    if (!sessionId || isSubmitting) return;
     setIsSubmitting(true);
-    await leaveQueue(sessionId);
-    setIsSubmitting(false);
-    setShowLeaveConfirm(false);
-    router.refresh();
+    try {
+      await leaveQueue(sessionId);
+      setShowLeaveConfirm(false);
+      router.refresh();
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function handleBump(entryId: string, name: string) {
@@ -252,6 +262,7 @@ export function SessionQueueLiveBoard({
                   variant="volt"
                   size="sm"
                   onClick={handleQuickJoinSolo}
+                  loading={isSubmitting}
                   disabled={isSubmitting}
                   className="font-bold text-xs h-8 px-3 shadow-xs"
                 >
@@ -416,15 +427,11 @@ export function SessionQueueLiveBoard({
       )}
 
       {/* Modal for Joining with Partner / Guest */}
-      {showJoinModal && (
-        <div
-          onClick={() => setShowJoinModal(false)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl font-mono text-xs cursor-default"
-          >
+      <Modal
+        isOpen={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+      >
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl font-mono text-xs cursor-default">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                 Join Paddle Queue
@@ -514,8 +521,7 @@ export function SessionQueueLiveBoard({
               </div>
             </form>
           </div>
-        </div>
-      )}
+      </Modal>
     </Card>
   );
 }

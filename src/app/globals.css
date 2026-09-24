@@ -95,13 +95,31 @@ body {
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
   touch-action: manipulation;
-  overflow-x: hidden;
 }
 
-button, a, input, select {
+html, body {
+  overflow-x: clip;
+}
+
+/* Snappy, responsive hardware-accelerated button transitions */
+button, [role="button"], a, input, select {
   touch-action: manipulation;
+}
+
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.975);
+  transition: transform 75ms ease-out;
+}
+
+/* GPU hardware-accelerate micro-animations */
+.animate-ping, .animate-pulse, .animate-spin, .animate-nav-progress {
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 /* Custom court scrollbar */

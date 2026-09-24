@@ -198,12 +198,29 @@ export async function createSession(formData: FormData) {
 
   const supabase = await createClient();
   const userId = auth.context?.userId || "";
+  const isoStartTime = new Date(startTime).toISOString();
+
+  // Idempotency / Duplicate Creation Guard (within last 10 seconds)
+  const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+  const { data: recentDuplicate } = await supabase
+    .from("sessions")
+    .select("id")
+    .eq("title", title)
+    .eq("start_time", isoStartTime)
+    .gte("created_at", tenSecondsAgo)
+    .maybeSingle();
+
+  if (recentDuplicate) {
+    // Return existing session ID idempotently to prevent duplicate sessions
+    return { success: true, sessionId: recentDuplicate.id };
+  }
 
   const { error } = await supabase.from("sessions").insert({
     title,
     description: finalDescription,
     location,
-    start_time: new Date(startTime).toISOString(),
+    start_time: isoStartTime,
+
     end_time: new Date(endTime).toISOString(),
     max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
     created_by: userId,

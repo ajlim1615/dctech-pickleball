@@ -7,6 +7,8 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
 import { NavigationProgressBar } from "@/components/layout/NavigationProgressBar";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,7 +52,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      className={`${geistSans.variable} ${geistMono.variable} min-h-full`}
       suppressHydrationWarning
     >
       <body
@@ -75,6 +77,8 @@ export default function RootLayout({
               <span>© 2026 DCTECH | Pickleball</span>
             </div>
           </footer>
+          <Analytics />
+          <SpeedInsights />
         </ThemeProvider>
       </body>
     </html>

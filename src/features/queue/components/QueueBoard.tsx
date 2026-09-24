@@ -24,6 +24,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import {
   joinQueue,
   leaveQueue,
@@ -374,15 +375,11 @@ export function QueueBoard({
       )}
 
       {/* Join Queue Modal with Solo, Coworker, & Guest (+1) Options */}
-      {isJoining && (
-        <div
-          onClick={() => setIsJoining(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-        >
-          <Card
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-            className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
-          >
+      <Modal
+        isOpen={isJoining}
+        onClose={() => setIsJoining(false)}
+      >
+        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default">
             <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
                 Join Open-Play Queue
@@ -500,19 +497,14 @@ export function QueueBoard({
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+      </Modal>
 
       {/* Fast Add Walk-In Modal for Organizers */}
-      {isAddingWalkIn && (
-        <div
-          onClick={() => setIsAddingWalkIn(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-        >
-          <Card
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-            className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
-          >
+      <Modal
+        isOpen={isAddingWalkIn}
+        onClose={() => setIsAddingWalkIn(false)}
+      >
+        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default">
             <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -612,13 +604,14 @@ export function QueueBoard({
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+      </Modal>
 
       {/* Bulk Pre-Queue Modal for Organizers */}
-      {isBulkAdding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[85vh]">
+      <Modal
+        isOpen={isBulkAdding}
+        onClose={() => setIsBulkAdding(false)}
+      >
+        <Card className="w-full max-w-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl flex flex-col max-h-[85vh]">
             <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4 shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -762,12 +755,14 @@ export function QueueBoard({
               </div>
             </CardContent>
           </Card>
-        </div>
-      )}
+      </Modal>
 
       {/* Swap / Substitute Modal */}
-      {swappingEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <Modal
+        isOpen={Boolean(swappingEntry)}
+        onClose={() => setSwappingEntry(null)}
+      >
+        {swappingEntry && (
           <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
             <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -872,8 +867,8 @@ export function QueueBoard({
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* View Toggle */}
       <div className="flex items-center justify-between">

@@ -37,10 +37,12 @@ import {
   ExternalLink,
   Power,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import {
   toggleCourtStatus,
@@ -92,7 +94,11 @@ export function AdminDashboard({
   const [playerSearch, setPlayerSearch] = useState<string>("");
 
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isSubmittingSession, setIsSubmittingSession] = useState(false);
   const [isEditingSession, setIsEditingSession] = useState<Session | null>(null);
+  const [isSubmittingEditSession, setIsSubmittingEditSession] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [isConfirmModalSubmitting, setIsConfirmModalSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isScalingCourts, setIsScalingCourts] = useState(false);
   const [isExportingRoster, setIsExportingRoster] = useState(false);
@@ -314,32 +320,43 @@ export function AdminDashboard({
 
   async function handleCreateSessionSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const countStr = (formData.get("courtCount") as string) || "4";
-    const courtCount = parseInt(countStr, 10) || 4;
+    if (isSubmittingSession) return;
+    setIsSubmittingSession(true);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const countStr = (formData.get("courtCount") as string) || "4";
+      const courtCount = parseInt(countStr, 10) || 4;
 
-    const res = await createSession(formData);
-    if (res?.error) {
-      showNotice(`Error: ${res.error}`);
-    } else {
-      setIsCreatingSession(false);
-      showNotice(`Session created and ${courtCount} rented courts provisioned!`);
-      router.refresh();
+      const res = await createSession(formData);
+      if (res?.error) {
+        showNotice(`Error: ${res.error}`);
+      } else {
+        setIsCreatingSession(false);
+        showNotice(`Session created and ${courtCount} rented courts provisioned!`);
+        router.refresh();
+      }
+    } finally {
+      setIsSubmittingSession(false);
     }
   }
 
   async function handleEditSessionSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!isEditingSession) return;
-    const formData = new FormData(e.currentTarget);
+    if (!isEditingSession || isSubmittingEditSession) return;
+    setIsSubmittingEditSession(true);
+    try {
+      const formData = new FormData(e.currentTarget);
 
-    const res = await editSession(isEditingSession.id, formData);
-    if (res?.error) {
-      showNotice(`Error: ${res.error}`);
-    } else {
-      setIsEditingSession(null);
-      showNotice("Session settings updated successfully!");
-      router.refresh();
+      const res = await editSession(isEditingSession.id, formData);
+      if (res?.error) {
+        showNotice(`Error: ${res.error}`);
+      } else {
+        setIsEditingSession(null);
+        showNotice("Session settings updated successfully!");
+        router.refresh();
+      }
+    } finally {
+      setIsSubmittingEditSession(false);
     }
   }
 
@@ -1223,8 +1240,15 @@ export function AdminDashboard({
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="submit" variant="volt" size="sm" className="font-bold text-xs">
-                    Publish Session & Provision Courts
+                  <Button
+                    type="submit"
+                    variant="volt"
+                    size="sm"
+                    loading={isSubmittingSession}
+                    disabled={isSubmittingSession}
+                    className="font-bold text-xs"
+                  >
+                    {isSubmittingSession ? "Provisioning Session & Courts..." : "Publish Session & Provision Courts"}
                   </Button>
                 </div>
               </form>
@@ -1314,27 +1338,35 @@ export function AdminDashboard({
                             <Button
                               variant="volt"
                               size="sm"
+                              loading={actionLoadingId === s.id}
+                              disabled={actionLoadingId === s.id}
                               onClick={async () => {
-                                setSessions((prev) =>
-                                  prev.map((item) => (item.id === s.id ? { ...item, status: "active" } : item))
-                                );
-                                if (courts.length === 0) {
-                                  setCourts(
-                                    Array.from({ length: 4 }, (_, i) => ({
-                                      id: String(i + 1),
-                                      name: `Court ${i + 1}`,
-                                      status: "available" as CourtStatus,
-                                      surface: "Standard Court",
-                                    }))
+                                if (actionLoadingId === s.id) return;
+                                setActionLoadingId(s.id);
+                                try {
+                                  setSessions((prev) =>
+                                    prev.map((item) => (item.id === s.id ? { ...item, status: "active" } : item))
                                   );
+                                  if (courts.length === 0) {
+                                    setCourts(
+                                      Array.from({ length: 4 }, (_, i) => ({
+                                        id: String(i + 1),
+                                        name: `Court ${i + 1}`,
+                                        status: "available" as CourtStatus,
+                                        surface: "Standard Court",
+                                      }))
+                                    );
+                                  }
+                                  await updateSessionStatus(s.id, "active");
+                                  showNotice(`Session "${s.title}" is now ACTIVE!`);
+                                  router.refresh();
+                                } finally {
+                                  setActionLoadingId(null);
                                 }
-                                await updateSessionStatus(s.id, "active");
-                                showNotice(`Session "${s.title}" is now ACTIVE!`);
-                                router.refresh();
                               }}
                               className="text-xs font-bold cursor-pointer"
                             >
-                              Start Session
+                              {actionLoadingId === s.id ? "Activating..." : "Start Session"}
                             </Button>
                           )}
                           <Button
@@ -1367,15 +1399,12 @@ export function AdminDashboard({
           </div>
 
           {/* Edit Session Modal */}
-          {isEditingSession && (
-            <div
-              onClick={() => setIsEditingSession(null)}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-            >
-              <Card
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="w-full max-w-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default max-h-[90vh] overflow-y-auto"
-              >
+          <Modal
+            isOpen={Boolean(isEditingSession)}
+            onClose={() => setIsEditingSession(null)}
+          >
+            {isEditingSession && (
+              <Card className="w-full max-w-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default max-h-[90vh] overflow-y-auto">
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <Edit3 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -1533,15 +1562,22 @@ export function AdminDashboard({
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" variant="volt" size="sm" className="font-bold text-xs font-mono">
-                        Save Changes
+                      <Button
+                        type="submit"
+                        variant="volt"
+                        size="sm"
+                        loading={isSubmittingEditSession}
+                        disabled={isSubmittingEditSession}
+                        className="font-bold text-xs font-mono"
+                      >
+                        {isSubmittingEditSession ? "Saving Changes..." : "Save Changes"}
                       </Button>
                     </div>
                   </form>
                 </CardContent>
               </Card>
-            </div>
-          )}
+            )}
+          </Modal>
         </div>
       )}
 
@@ -1549,15 +1585,11 @@ export function AdminDashboard({
       {activeTab === "players" && (
         <>
           {/* Fast Add Modal */}
-          {isAddingPlayer && (
-            <div
-              onClick={() => setIsAddingPlayer(false)}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-            >
-              <Card
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
-              >
+          <Modal
+            isOpen={isAddingPlayer}
+            onClose={() => setIsAddingPlayer(false)}
+          >
+            <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default">
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <UserPlus className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -1674,23 +1706,19 @@ export function AdminDashboard({
                   </form>
                 </CardContent>
               </Card>
-            </div>
-          )}
+          </Modal>
 
           {/* Edit Player Details Modal */}
-          {editingPlayer && (
-            <div
-              onClick={() => {
-                setEditingPlayer(null);
-                setEditPlayerName("");
-                setEditPlayerEmail("");
-              }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-            >
-              <Card
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
-              >
+          <Modal
+            isOpen={Boolean(editingPlayer)}
+            onClose={() => {
+              setEditingPlayer(null);
+              setEditPlayerName("");
+              setEditPlayerEmail("");
+            }}
+          >
+            {editingPlayer && (
+              <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default">
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <Pencil className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
@@ -1794,8 +1822,8 @@ export function AdminDashboard({
                   </form>
                 </CardContent>
               </Card>
-            </div>
-          )}
+            )}
+          </Modal>
 
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-sm">
             <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2412,15 +2440,12 @@ export function AdminDashboard({
       )}
 
       {/* Custom Confirmation Modal */}
-      {confirmModal?.isOpen && (
-        <div
-          onClick={() => setConfirmModal(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
-        >
-          <Card
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-            className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default p-5 space-y-4"
-          >
+      <Modal
+        isOpen={Boolean(confirmModal?.isOpen)}
+        onClose={() => setConfirmModal(null)}
+      >
+        {confirmModal?.isOpen && (
+          <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default p-5 space-y-4">
             <div className="flex items-center gap-3">
               <div
                 className={`p-2.5 rounded-xl ${
@@ -2457,10 +2482,18 @@ export function AdminDashboard({
                 type="button"
                 variant={confirmModal.isDestructive ? "destructive" : "volt"}
                 size="sm"
+                disabled={isConfirmModalSubmitting}
+                loading={isConfirmModalSubmitting}
                 onClick={async () => {
-                  const act = confirmModal.action;
-                  setConfirmModal(null);
-                  await act();
+                  if (isConfirmModalSubmitting) return;
+                  setIsConfirmModalSubmitting(true);
+                  try {
+                    const act = confirmModal.action;
+                    await act();
+                    setConfirmModal(null);
+                  } finally {
+                    setIsConfirmModalSubmitting(false);
+                  }
                 }}
                 className="text-xs font-mono font-bold cursor-pointer"
               >
@@ -2468,8 +2501,8 @@ export function AdminDashboard({
               </Button>
             </div>
           </Card>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

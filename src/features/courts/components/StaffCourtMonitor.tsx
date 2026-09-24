@@ -19,6 +19,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import { finalizeMatch, updateMatchScore, createMatch } from "@/features/matches/api/matchActions";
 import { callNextUp } from "@/features/queue/api/queueActions";
@@ -228,10 +229,7 @@ export function StaffCourtMonitor({
   }
 
   async function handleCallNextFromQueue() {
-    if (!sessionId) {
-      alert("No active session found.");
-      return;
-    }
+    if (!sessionId || isPending) return;
 
     startTransition(async () => {
       const res = await callNextUp(sessionId, courtId, 4);
@@ -249,10 +247,12 @@ export function StaffCourtMonitor({
   }
 
   async function handleFinalizeGame() {
+    if (isPending) return;
     setShowFinalizeConfirm(true);
   }
 
   async function confirmFinalizeGame() {
+    if (isPending) return;
     setShowFinalizeConfirm(false);
     startTransition(async () => {
       if (activeMatchId) {
@@ -313,15 +313,11 @@ export function StaffCourtMonitor({
   return (
     <>
     {/* Finalize Game Confirmation Modal */}
-    {showFinalizeConfirm && (
-      <div
-        onClick={() => setShowFinalizeConfirm(false)}
-        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-pointer"
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default"
-        >
+    <Modal
+      isOpen={showFinalizeConfirm}
+      onClose={() => setShowFinalizeConfirm(false)}
+    >
+      <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -367,9 +363,8 @@ export function StaffCourtMonitor({
               {isPending ? "Recording..." : "Confirm & Record Score"}
             </button>
           </div>
-        </div>
       </div>
-    )}
+    </Modal>
     <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
       {/* Top Navigation */}
       <div className="flex items-center justify-between">

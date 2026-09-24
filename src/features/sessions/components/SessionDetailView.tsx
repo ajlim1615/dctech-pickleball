@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
 import { SessionLeaderboard } from "./SessionLeaderboard";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
@@ -197,26 +198,33 @@ export function SessionDetailView({
   }
 
   async function handleStartSession() {
+    if (statusLoading) return;
     setStatusLoading(true);
-    const res = await updateSessionStatus(session.id, "active");
-    if (res?.error) {
-      alert(`Error starting session: ${res.error}`);
-    } else {
-      setCurrentStatus("active");
-      router.refresh();
+    try {
+      const res = await updateSessionStatus(session.id, "active");
+      if (res?.error) {
+        alert(`Error starting session: ${res.error}`);
+      } else {
+        setCurrentStatus("active");
+        router.refresh();
+      }
+    } finally {
+      setStatusLoading(false);
     }
-    setStatusLoading(false);
   }
 
   async function handleCheckIn() {
-    if (isSystemAdmin) return;
+    if (isSystemAdmin || loading) return;
     setLoading(true);
-    const res = await checkInToSession(session.id);
-    if (!res?.error) {
-      setIsCheckedIn(true);
-      router.refresh();
+    try {
+      const res = await checkInToSession(session.id);
+      if (!res?.error) {
+        setIsCheckedIn(true);
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const cleanedDescription = cleanSessionDescription(session.description);
@@ -414,15 +422,11 @@ export function SessionDetailView({
       </div>
 
       {/* Finish Session Confirmation Modal */}
-      {showFinishConfirm && (
-        <div
-          onClick={() => setShowFinishConfirm(false)}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default"
-          >
+      <Modal
+        isOpen={showFinishConfirm}
+        onClose={() => setShowFinishConfirm(false)}
+      >
+        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
@@ -479,8 +483,7 @@ export function SessionDetailView({
               </Button>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Final Session Standings Modal Screen */}
       {showFinalStandings && (
@@ -497,15 +500,11 @@ export function SessionDetailView({
       )}
 
       {/* Checked-In Players Pop-Up Modal */}
-      {showCheckedInList && (
-        <div
-          onClick={() => setShowCheckedInList(false)}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[85vh] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl overflow-hidden cursor-default"
-          >
+      <Modal
+        isOpen={showCheckedInList}
+        onClose={() => setShowCheckedInList(false)}
+      >
+        <div className="w-full max-w-lg max-h-[85vh] rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col shadow-2xl overflow-hidden cursor-default">
             {/* Modal Header */}
             <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800/80 shrink-0 space-y-3">
               <div className="flex items-start justify-between gap-3">
@@ -630,19 +629,14 @@ export function SessionDetailView({
               </Button>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Admin Add / Bulk Queue Modal - Top Level Root Component */}
-      {showBulkModal && (
-        <div
-          onClick={() => setShowBulkModal(false)}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer animate-in fade-in duration-200"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl max-h-[90vh] rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden cursor-default"
-          >
+      <Modal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+      >
+        <div className="w-full max-w-xl max-h-[90vh] rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden cursor-default">
             {/* Modal Header */}
             <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 shrink-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -1031,8 +1025,7 @@ export function SessionDetailView({
               </form>
             )}
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Main Grid: Court Matrix + Unified Live Queue Link Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
