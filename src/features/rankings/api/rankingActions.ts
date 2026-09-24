@@ -11,19 +11,16 @@ export interface RankedPlayer extends Profile {
 export async function getLeaderboard(): Promise<RankedPlayer[]> {
   const supabase = await createClient();
 
-  // 1. Fetch active profiles (excluding non-playing root admin)
-  const { data: profiles, error: pError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("is_active", true)
-    .neq("email", "admin@dctechmicro.com");
-
-  if (pError || !profiles) return [];
-
-  // 2. Fetch completed sessions & completed matches
+  // Fetch active profiles (excluding non-playing root admin), completed sessions & matches in parallel
   // Matches from active / in-progress sessions must NOT be pre-recorded in global rankings!
-  const [completedSessionsRes, completedMatchesRes] = await Promise.all([
-    supabase.from("sessions").select("id").eq("status", "completed"),
+  // Casual / Unranked sessions ([ranked:false]) are excluded from global leaderboard standings.
+  const [profilesRes, completedSessionsRes, completedMatchesRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("is_active", true)
+      .neq("email", "admin@dctechmicro.com"),
+    supabase.from("sessions").select("id, description").eq("status", "completed"),
     supabase
       .from("matches")
       .select(`
@@ -41,13 +38,19 @@ export async function getLeaderboard(): Promise<RankedPlayer[]> {
       .eq("status", "completed"),
   ]);
 
-  const completedSessionIds = new Set(
-    (completedSessionsRes.data || []).map((s) => s.id)
+  const profiles = profilesRes.data;
+  if (profilesRes.error || !profiles) return [];
+
+  // Only include sessions that are NOT tagged as [ranked:false]
+  const completedRankedSessionIds = new Set(
+    (completedSessionsRes.data || [])
+      .filter((s) => !s.description?.includes("[ranked:false]"))
+      .map((s) => s.id)
   );
 
-  // Filter matches that belong strictly to finished sessions
+  // Filter matches that belong strictly to finished, ranked sessions
   const finishedSessionMatches = (completedMatchesRes.data || []).filter(
-    (m) => m.session_id && completedSessionIds.has(m.session_id)
+    (m) => m.session_id && completedRankedSessionIds.has(m.session_id)
   );
 
   // 3. Compute stats for each player from completed sessions

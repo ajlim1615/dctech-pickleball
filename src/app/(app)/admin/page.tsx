@@ -8,8 +8,11 @@ import { AdminDashboard } from "@/features/admin/components/AdminDashboard";
 export default async function AdminPage() {
   const authData = await getCurrentUser();
 
-  // If not logged in or not an admin, redirect away from Admin panel
-  if (!authData || authData.profile?.role !== "admin") {
+  const isSystemAdmin = authData?.user?.email?.toLowerCase() === "admin@dctechmicro.com";
+  const isAdmin = authData?.profile?.role === "admin" || isSystemAdmin;
+
+  // If not logged in or not an admin, redirect away from Admin panel immediately
+  if (!isAdmin) {
     redirect("/");
   }
 
@@ -18,6 +21,7 @@ export default async function AdminPage() {
     getSessions(),
     getCourts(),
   ]);
+
 
   return (
     <AdminDashboard

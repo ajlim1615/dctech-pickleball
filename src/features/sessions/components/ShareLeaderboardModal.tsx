@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { toPng } from "html-to-image";
 import {
   Trophy,
   Share2,
@@ -58,6 +57,7 @@ export function ShareLeaderboardModal({
     if (!cardRef.current) return;
     try {
       setIsDownloading(true);
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
         pixelRatio: 3, // Crisp high-res export
@@ -88,6 +88,7 @@ export function ShareLeaderboardModal({
     if (navigator.share && cardRef.current) {
       try {
         setIsDownloading(true);
+        const { toPng } = await import("html-to-image");
         const dataUrl = await toPng(cardRef.current, { pixelRatio: 2 });
         const blob = await (await fetch(dataUrl)).blob();
         const file = new File([blob], "dctech-leaderboard.png", { type: "image/png" });

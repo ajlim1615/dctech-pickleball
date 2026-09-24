@@ -60,6 +60,7 @@ interface CourtMatrixProps {
   queue?: QueueEntryWithPlayer[];
   isAdmin?: boolean;
   readOnly?: boolean;
+  targetPoints?: number;
 }
 
 export function CourtMatrix({
@@ -70,6 +71,7 @@ export function CourtMatrix({
   queue,
   isAdmin,
   readOnly = false,
+  targetPoints = 11,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
 
@@ -121,6 +123,7 @@ export function CourtMatrix({
               userRole={userRole}
               isAdmin={isAdministrator}
               readOnly={readOnly}
+              targetPoints={targetPoints}
             />
           ))}
         </div>

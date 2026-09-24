@@ -1,8 +1,8 @@
 import {
   getSessionById,
-  getSessionLeaderboard,
   getSessionMatches,
 } from "@/features/sessions/api/sessionActions";
+import { computeSessionLeaderboard } from "@/features/sessions/utils/sessionLeaderboard";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getCourts } from "@/features/courts/api/courtActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
@@ -16,15 +16,19 @@ export default async function SessionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [sessionData, authData, courts, leaderboard, matches, queue, employees] = await Promise.all([
+  const [sessionData, authData, courts, matches, queue, employees] = await Promise.all([
     getSessionById(id),
     getCurrentUser(),
     getCourts(),
-    getSessionLeaderboard(id),
     getSessionMatches(id),
     getQueueForSession(id),
     getAllEmployees(),
   ]);
+
+  const leaderboard = computeSessionLeaderboard(
+    matches,
+    (sessionData?.checkins || []) as any
+  );
 
   // Fallback demo session if running locally without connected DB
   const session: Session & { checkins?: any[] } = sessionData || {

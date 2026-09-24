@@ -36,7 +36,7 @@ import {
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
 import { useLiveQueue } from "../hooks/useLiveQueue";
 import { QueueCallupAlert } from "./QueueCallupAlert";
-import { createMatchupFromPod } from "../utils/matchingEngine";
+import { createMatchupFromPod, type MatchingStyle } from "../utils/matchingEngine";
 import { formatRating } from "@/lib/utils";
 import type { QueueEntryWithPlayer, Profile } from "@/types";
 
@@ -49,6 +49,7 @@ interface QueueBoardProps {
   sessionTitle?: string;
   employees?: Profile[];
   courtCount?: number;
+  matchingMode?: MatchingStyle;
 }
 
 export function QueueBoard({
@@ -60,6 +61,7 @@ export function QueueBoard({
   sessionTitle = "Today's Open Play",
   employees = [],
   courtCount = 3,
+  matchingMode = "balanced",
 }: QueueBoardProps) {
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = userRole === "admin" || isSystemAdmin;
@@ -79,6 +81,7 @@ export function QueueBoard({
   // Fast Walk-In Modal for Organizers
   const [isAddingWalkIn, setIsAddingWalkIn] = useState(false);
   const [walkInName, setWalkInName] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInType, setWalkInType] = useState<"employee" | "guest">("guest");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
 
@@ -162,6 +165,7 @@ export function QueueBoard({
     setIsSubmitting(true);
     const res = await createWalkInPlayer({
       fullName: walkInName,
+      email: walkInType === "employee" && walkInEmail.trim() ? walkInEmail.trim() : undefined,
       isGuest: walkInType === "guest",
       skillRating: walkInRating,
     });
@@ -178,6 +182,7 @@ export function QueueBoard({
       }
       setIsAddingWalkIn(false);
       setWalkInName("");
+      setWalkInEmail("");
       router.refresh();
     }
     setIsSubmitting(false);
@@ -559,12 +564,38 @@ export function QueueBoard({
                   </div>
                 </div>
 
+                {walkInType === "employee" && (
+                  <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                        DCTECH Work Email
+                      </label>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                        Optional (auto-generated if empty)
+                      </span>
+                    </div>
+                    <input
+                      type="email"
+                      value={walkInEmail}
+                      onChange={(e) => setWalkInEmail(e.target.value)}
+                      placeholder="e.g. michael.chen@dctechmicro.com"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                      Syncs match history and DUPR automatically when they log in with this email.
+                    </p>
+                  </div>
+                )}
+
                 <div className="pt-2 flex items-center justify-end gap-3">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setIsAddingWalkIn(false)}
+                    onClick={() => {
+                      setIsAddingWalkIn(false);
+                      setWalkInEmail("");
+                    }}
                   >
                     Cancel
                   </Button>
@@ -899,7 +930,7 @@ export function QueueBoard({
             const podProfiles: Profile[] = pod.map(
               (item) => ((item.player || item) as unknown) as Profile
             );
-            const matchup = isFull ? createMatchupFromPod(podProfiles, "balanced") : null;
+            const matchup = isFull ? createMatchupFromPod(podProfiles, matchingMode) : null;
 
             if (isNextUp) {
               return (

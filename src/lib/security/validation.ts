@@ -90,6 +90,12 @@ export const WalkInPlayerSchema = z.object({
     .min(2, "Name must be at least 2 characters.")
     .max(50, "Name cannot exceed 50 characters.")
     .transform(sanitizeString),
+  email: z
+    .string()
+    .email("Invalid email format.")
+    .optional()
+    .or(z.literal(""))
+    .transform((val) => (val ? val.toLowerCase().trim() : undefined)),
   type: z.enum(["guest", "employee"]).default("guest"),
   skillRating: z.number().min(1.0).max(6.0).default(3.0),
   role: z.enum(["player", "admin"]).default("player"),
@@ -101,4 +107,18 @@ export const JoinQueueSchema = z.object({
   partnerId: z.string().uuid("Invalid partner UUID.").optional(),
   guestName: z.string().max(50).optional().transform(sanitizeString),
   preferredCourtId: z.string().uuid("Invalid court UUID.").optional(),
+});
+
+// Admin player update validation
+export const UpdatePlayerDetailsSchema = z.object({
+  userId: z.string().uuid("Invalid player ID."),
+  fullName: z
+    .string()
+    .min(2, "Name must be at least 2 characters.")
+    .max(70, "Name cannot exceed 70 characters.")
+    .transform(sanitizeString),
+  email: z
+    .string()
+    .email("Invalid email address format.")
+    .transform((val) => val.toLowerCase().trim()),
 });

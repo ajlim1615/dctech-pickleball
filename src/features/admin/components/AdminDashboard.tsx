@@ -18,6 +18,7 @@ import {
   FastForward,
   ArrowLeftRight,
   UserCheck,
+  UserX,
   Lock,
   Layers,
   Search,
@@ -29,14 +30,33 @@ import {
   Star,
   Sparkles,
   Flame,
+  Download,
+  Edit3,
+  Pencil,
+  XCircle,
+  ExternalLink,
+  Power,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
-import { toggleCourtStatus, updatePlayerRole, adjustPlayerRating, resetSessionQueue, assignStaffToCourt, setRentedCourtCount, createWalkInPlayer } from "../api/adminActions";
+import {
+  toggleCourtStatus,
+  updatePlayerRole,
+  adjustPlayerRating,
+  resetSessionQueue,
+  assignStaffToCourt,
+  setRentedCourtCount,
+  createWalkInPlayer,
+  updatePlayerDetails,
+  togglePlayerActiveStatus,
+  cancelSession,
+  editSession,
+} from "../api/adminActions";
 import { createSession, updateSessionStatus } from "@/features/sessions/api/sessionActions";
-import { formatRating } from "@/lib/utils";
+import { formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView } from "@/types";
 
 interface AdminDashboardProps {
@@ -57,19 +77,46 @@ export function AdminDashboard({
   // Fast-Add Walk In State
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [walkInName, setWalkInName] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInType, setWalkInType] = useState<"guest" | "employee">("guest");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
+
+  // Edit Player Details State (Name & Email)
+  const [editingPlayer, setEditingPlayer] = useState<Profile | null>(null);
+  const [editPlayerName, setEditPlayerName] = useState("");
+  const [editPlayerEmail, setEditPlayerEmail] = useState("");
+  const [isUpdatingPlayer, setIsUpdatingPlayer] = useState(false);
 
   // Player Tier Category Filter State (Combobox)
   const [playerTierFilter, setPlayerTierFilter] = useState<string>("all");
   const [playerSearch, setPlayerSearch] = useState<string>("");
 
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isEditingSession, setIsEditingSession] = useState<Session | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [isScalingCourts, setIsScalingCourts] = useState(false);
+  const [isExportingRoster, setIsExportingRoster] = useState(false);
 
-  // Matching Mode State (Pickleq Style)
+  // Clean confirmation modal state (replaces raw window.confirm)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    isDestructive?: boolean;
+    action: () => Promise<void>;
+  } | null>(null);
+
+  // Session Creation Config State
   const [selectedMatchingMode, setSelectedMatchingMode] = useState<string>("balanced");
+  const [sessionIsRanked, setSessionIsRanked] = useState<boolean>(true);
+  const [sessionTargetPoints, setSessionTargetPoints] = useState<number>(11);
   const [showMoreMatchingModes, setShowMoreMatchingModes] = useState<boolean>(false);
+
+  // Session Edit Config State
+  const [editMatchingMode, setEditMatchingMode] = useState<string>("balanced");
+  const [editIsRanked, setEditIsRanked] = useState<boolean>(true);
+  const [editTargetPoints, setEditTargetPoints] = useState<number>(11);
 
   const [courts, setCourts] = useState<
     { id: string; name: string; status: CourtStatus; surface: string; assignedStaffId?: string | null }[]
@@ -86,6 +133,16 @@ export function AdminDashboard({
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const activeSession = sessions.find((s) => s.status === "active");
   const [employees, setEmployees] = useState<Profile[]>(initialEmployees);
+
+  // Sync edit modal state when an existing session is selected
+  useEffect(() => {
+    if (isEditingSession) {
+      const meta = parseSessionMetadata(isEditingSession.description);
+      setEditMatchingMode(meta.matchingMode);
+      setEditIsRanked(meta.isRanked);
+      setEditTargetPoints(meta.targetPoints);
+    }
+  }, [isEditingSession]);
 
   // 6-Star Skill Tiers (Exact Mapping)
   const SKILL_STAR_TIERS = [
@@ -110,13 +167,17 @@ export function AdminDashboard({
   }
 
   // Single-pass Skill Tier Counts for Quick Filter Chips
-  const { countBeginners, countIntermediate, countAdvanced, countAdmins } = useMemo(() => {
+  const { countBeginners, countIntermediate, countAdvanced, countAdmins, countInactive } = useMemo(() => {
     let beginners = 0;
     let intermediate = 0;
     let advanced = 0;
     let admins = 0;
+    let inactive = 0;
 
     for (const e of employees) {
+      if (!e.is_active) {
+        inactive++;
+      }
       if (e.role === "admin" || e.email?.toLowerCase() === "admin@dctechmicro.com") {
         admins++;
       }
@@ -131,6 +192,7 @@ export function AdminDashboard({
       countIntermediate: intermediate,
       countAdvanced: advanced,
       countAdmins: admins,
+      countInactive: inactive,
     };
   }, [employees]);
 
@@ -152,6 +214,9 @@ export function AdminDashboard({
           (emp.email || "").toLowerCase().includes(query);
         if (!matchesSearch) return false;
       }
+
+      if (playerTierFilter === "inactive") return !emp.is_active;
+      if (!emp.is_active && playerTierFilter !== "all") return false;
 
       if (playerTierFilter === "all") return true;
       if (playerTierFilter === "beginners") {
@@ -257,37 +322,147 @@ export function AdminDashboard({
     if (res?.error) {
       showNotice(`Error: ${res.error}`);
     } else {
-      setCourts(
-        Array.from({ length: courtCount }, (_, i) => ({
-          id: String(i + 1),
-          name: `Court ${i + 1}`,
-          status: "available" as CourtStatus,
-          surface: "Standard Court",
-        }))
-      );
       setIsCreatingSession(false);
       showNotice(`Session created and ${courtCount} rented courts provisioned!`);
       router.refresh();
     }
   }
 
-  async function handleResetQueue() {
+  async function handleEditSessionSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!isEditingSession) return;
+    const formData = new FormData(e.currentTarget);
+
+    const res = await editSession(isEditingSession.id, formData);
+    if (res?.error) {
+      showNotice(`Error: ${res.error}`);
+    } else {
+      setIsEditingSession(null);
+      showNotice("Session settings updated successfully!");
+      router.refresh();
+    }
+  }
+
+  function handleResetQueue() {
     const targetSessionId = activeSession?.id || sessions[0]?.id;
     if (!targetSessionId) {
-      alert("No active session found to reset queue for.");
+      showNotice("No active session found to reset queue for.");
       return;
     }
 
-    if (confirm("Are you sure you want to clear the entire active queue? This will remove all waiting players from the paddle queue.")) {
-      await resetSessionQueue(targetSessionId);
-      showNotice("Session queue has been cleared.");
+    setConfirmModal({
+      isOpen: true,
+      title: "Reset Active Queue",
+      message: "Are you sure you want to clear the entire active queue? This will remove all waiting players from the paddle queue. Completed match history remains safe.",
+      confirmLabel: "Yes, Reset Queue",
+      isDestructive: true,
+      action: async () => {
+        await resetSessionQueue(targetSessionId);
+        showNotice("Session queue has been cleared.");
+        router.refresh();
+      },
+    });
+  }
+
+  function handleFinishSession(session: Session) {
+    setConfirmModal({
+      isOpen: true,
+      title: `Finish Session: "${session.title}"`,
+      message: "Conclude this session? Active courts will be freed, pending queue entries will be cleared, and official match records will be finalized.",
+      confirmLabel: "Finish & Conclude",
+      isDestructive: false,
+      action: async () => {
+        setSessions((prev) =>
+          prev.map((item) => (item.id === session.id ? { ...item, status: "completed" } : item))
+        );
+        await updateSessionStatus(session.id, "completed");
+        showNotice(`Session "${session.title}" concluded!`);
+        router.refresh();
+      },
+    });
+  }
+
+  function handleCancelSession(session: Session) {
+    setConfirmModal({
+      isOpen: true,
+      title: `Cancel Session: "${session.title}"`,
+      message: "Are you sure you want to cancel this scheduled session? This cannot be undone.",
+      confirmLabel: "Yes, Cancel Session",
+      isDestructive: true,
+      action: async () => {
+        setSessions((prev) =>
+          prev.map((item) => (item.id === session.id ? { ...item, status: "cancelled" } : item))
+        );
+        await cancelSession(session.id);
+        showNotice(`Session "${session.title}" cancelled.`);
+        router.refresh();
+      },
+    });
+  }
+
+  async function handleCourtScale(num: number) {
+    setIsScalingCourts(true);
+    const res = await setRentedCourtCount(num, "Standard Court");
+    setIsScalingCourts(false);
+    if (res?.error) {
+      showNotice(`Error: ${res.error}`);
+    } else if (res?.courts) {
+      setCourts(
+        res.courts.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          surface: c.surface_type || "Standard Court",
+          assignedStaffId: c.assigned_staff_id || null,
+        }))
+      );
+      showNotice(`Facility adjusted to ${num} courts!`);
       router.refresh();
+    }
+  }
+
+  async function handleExportRoster() {
+    setIsExportingRoster(true);
+    try {
+      const dataToExport = employees.map((emp) => {
+        const starInfo = getStarSkillInfo(emp.skill_rating);
+        const winRate =
+          emp.games_played > 0
+            ? `${Math.round((emp.games_won / emp.games_played) * 100)}%`
+            : "N/A";
+        return {
+          "Full Name": emp.full_name || "N/A",
+          "Display Name": emp.display_name || "N/A",
+          "Email": emp.email || "Unregistered",
+          "Role": emp.role.toUpperCase(),
+          "DUPR Rating": Number(emp.skill_rating || 3.0).toFixed(2),
+          "Skill Tier": starInfo.label,
+          "Games Played": emp.games_played || 0,
+          "Games Won": emp.games_won || 0,
+          "Win Rate": winRate,
+          "Status": emp.is_active ? "Active" : "Inactive",
+        };
+      });
+
+      const XLSX = await import("xlsx");
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "DCTECH Pickleball Roster");
+      XLSX.writeFile(
+        workbook,
+        `dctech_pickleball_roster_${new Date().toISOString().split("T")[0]}.xlsx`
+      );
+      showNotice("Roster exported successfully to Excel!");
+    } catch (err: any) {
+      showNotice(`Export failed: ${err.message}`);
+    } finally {
+      setIsExportingRoster(false);
     }
   }
 
   function showNotice(msg: string) {
     setActionMessage(msg);
-    setTimeout(() => setActionMessage(null), 3000);
+    setTimeout(() => setActionMessage(null), 3500);
   }
 
   return (
@@ -317,11 +492,97 @@ export function AdminDashboard({
             variant="destructive"
             size="sm"
             onClick={handleResetQueue}
-            className="text-xs font-mono"
+            className="text-xs font-mono cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" />
             Reset Queue
           </Button>
+        </div>
+      </div>
+
+      {/* Live Admin Pulse KPI Bar */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Metric 1: Session Status */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
+          <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+            <span>ACTIVE SESSION</span>
+            {activeSession ? (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700" />
+            )}
+          </div>
+          <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">
+            {activeSession ? activeSession.title : "No Active Session"}
+          </div>
+          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+            {activeSession ? (
+              <>
+                {parseSessionMetadata(activeSession.description).isRanked ? "🏆 Ranked" : "🍃 Lowkey / Casual"} •{" "}
+                {parseSessionMetadata(activeSession.description).targetPoints} pts
+              </>
+            ) : (
+              "Schedule open play below"
+            )}
+          </div>
+        </div>
+
+        {/* Metric 2: Courts Online */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
+          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>COURTS IN USE</span>
+            <Activity className="h-3.5 w-3.5 text-emerald-500" />
+          </div>
+          <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-slate-100">
+            {courts.filter((c) => c.status === "occupied").length}{" "}
+            <span className="text-xs font-normal text-slate-500">/ {courts.length} Courts</span>
+          </div>
+          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+            {courts.filter((c) => c.status === "available").length} available for play
+          </div>
+        </div>
+
+        {/* Metric 3: Active Roster */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
+          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>ROSTER PULSE</span>
+            <Users className="h-3.5 w-3.5 text-sky-500" />
+          </div>
+          <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-slate-100">
+            {employees.filter((e) => e.is_active).length}{" "}
+            <span className="text-xs font-normal text-slate-500">/ {employees.length} Total</span>
+          </div>
+          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+            {countBeginners} Novice • {countIntermediate} Int • {countAdvanced} Adv
+          </div>
+        </div>
+
+        {/* Metric 4: Facility Arena Direct Navigation */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
+          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>QUICK NAVIGATION</span>
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+          </div>
+          <div className="flex items-center gap-1.5 pt-1">
+            <a
+              href="/queue"
+              className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-500 transition-colors"
+            >
+              Queue →
+            </a>
+            <a
+              href="/"
+              className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-500 transition-colors"
+            >
+              Kiosk →
+            </a>
+          </div>
+          <div className="text-[10px] font-mono text-slate-400">
+            One-tap direct station links
+          </div>
         </div>
       </div>
 
@@ -380,8 +641,8 @@ export function AdminDashboard({
           {activeSession ? (
             <Card className="border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20 p-5 sm:p-6 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
@@ -390,6 +651,27 @@ export function AdminDashboard({
                     <Badge variant="default" className="text-[10px] uppercase font-mono">
                       ACTIVE NOW
                     </Badge>
+
+                    {/* Mode & Target Score Badges */}
+                    {parseSessionMetadata(activeSession.description).isRanked ? (
+                      <Badge variant="volt" className="text-[10px] font-mono font-bold">
+                        🏆 Ranked
+                      </Badge>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
+                        🍃 Casual / Lowkey (Unranked)
+                      </span>
+                    )}
+
+                    {parseSessionMetadata(activeSession.description).targetPoints === 6 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
+                        ⚡ Speed Play (6 Pts)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                        🏆 Standard (11 Pts)
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs font-mono text-slate-600 dark:text-slate-300">
                     {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
@@ -398,21 +680,26 @@ export function AdminDashboard({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Direct Station Links & Finish Button */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/sessions/${activeSession.id}`}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold shadow-xs transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Court Station →
+                  </a>
+                  <a
+                    href="/queue"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono font-bold transition-colors"
+                  >
+                    Paddle Queue →
+                  </a>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={async () => {
-                      if (confirm(`Finish and conclude "${activeSession.title}"?`)) {
-                        setSessions((prev) =>
-                          prev.map((item) => (item.id === activeSession.id ? { ...item, status: "completed" } : item))
-                        );
-                        await updateSessionStatus(activeSession.id, "completed");
-                        showNotice(`Session "${activeSession.title}" concluded!`);
-                        router.refresh();
-                      }
-                    }}
-                    className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-mono"
+                    onClick={() => handleFinishSession(activeSession)}
+                    className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-mono cursor-pointer"
                   >
                     Finish Session
                   </Button>
@@ -427,34 +714,20 @@ export function AdminDashboard({
                     Rented Courts for this Session ({courts.length})
                   </h4>
 
-                  {/* Quick Scale Buttons */}
+                  {/* Safe Quick Scale Buttons */}
                   <div className="flex items-center gap-1 font-mono text-xs">
                     <span className="text-slate-500 dark:text-slate-400 text-[11px] mr-1">Adjust Courts:</span>
                     {[2, 3, 4, 5, 6].map((num) => (
                       <button
                         key={num}
                         type="button"
-                        onClick={async () => {
-                          const newCourts = Array.from({ length: num }, (_, i) => ({
-                            id: String(i + 1),
-                            name: `Court ${i + 1}`,
-                            status: "available" as CourtStatus,
-                            surface: "Standard Court",
-                          }));
-                          setCourts(newCourts);
-                          const res = await setRentedCourtCount(num, "Standard Court");
-                          if (res?.error) {
-                            showNotice(`Error: ${res.error}`);
-                          } else {
-                            showNotice(`Facility adjusted to ${num} courts!`);
-                            router.refresh();
-                          }
-                        }}
-                        className={`rounded px-2.5 py-0.5 border text-xs font-bold transition-all shadow-2xs ${
+                        disabled={isScalingCourts}
+                        onClick={() => handleCourtScale(num)}
+                        className={`rounded px-2.5 py-0.5 border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
                           courts.length === num
                             ? "border-emerald-500 bg-emerald-500 text-slate-950 font-black shadow-xs"
                             : "border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         {num}
                       </button>
@@ -605,6 +878,109 @@ export function AdminDashboard({
                       <option value="5">5 Courts (20 Players active)</option>
                       <option value="6">6 Courts (24 Players active)</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Session Mode & Game Points Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  {/* Mode: Ranked vs Casual */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
+                        Session Rating Mode
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Affects global DUPR
+                      </span>
+                    </div>
+                    <input type="hidden" name="isRanked" value={String(sessionIsRanked)} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSessionIsRanked(true)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          sessionIsRanked
+                            ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500/50"
+                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                          {sessionIsRanked && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+                          <span>🏆 Ranked</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                          Official match scores update DUPR & Leaderboard.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSessionIsRanked(false)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          !sessionIsRanked
+                            ? "border-purple-500 bg-purple-50/60 dark:bg-purple-950/40 ring-1 ring-purple-500/50"
+                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-purple-700 dark:text-purple-300 font-mono">
+                          {!sessionIsRanked && <Check className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />}
+                          <span>🍃 Casual</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                          Casual open-play. ZERO impact on DUPR or leaderboard.
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Target Score: 11 Pts vs 6 Pts */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
+                        Target Game Score
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Match win condition
+                      </span>
+                    </div>
+                    <input type="hidden" name="targetPoints" value={String(sessionTargetPoints)} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSessionTargetPoints(11)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          sessionTargetPoints === 11
+                            ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500/50"
+                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                          {sessionTargetPoints === 11 && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+                          <span>🏆 11 Points</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                          Standard Pickleball rule (win by 2 points).
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSessionTargetPoints(6)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          sessionTargetPoints === 6
+                            ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/40 ring-1 ring-amber-500/50"
+                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-700 dark:text-amber-300 font-mono">
+                          {sessionTargetPoints === 6 && <Check className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
+                          <span>⚡ 6 Pts Speed</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                          Rapid finish for high attendance & quick court rotations.
+                        </p>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -870,76 +1246,302 @@ export function AdminDashboard({
                 </p>
               </Card>
             ) : (
-              sessions.map((s) => (
-                <Card key={s.id} className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{s.title}</h4>
-                      <Badge
-                        variant={s.status === "active" ? "default" : "secondary"}
-                        className="text-[10px] uppercase font-mono"
-                      >
-                        {s.status}
-                      </Badge>
-                    </div>
-                    <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                      {new Date(s.start_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} •{" "}
-                      {new Date(s.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
-                      {new Date(s.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                    </div>
-                  </div>
+              sessions.map((s) => {
+                const meta = parseSessionMetadata(s.description);
+                return (
+                  <Card key={s.id} className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{s.title}</h4>
+                        <Badge
+                          variant={s.status === "active" ? "default" : "secondary"}
+                          className="text-[10px] uppercase font-mono"
+                        >
+                          {s.status}
+                        </Badge>
 
-                  <div className="flex items-center gap-2 font-mono text-xs w-full sm:w-auto">
-                    {s.status === "active" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          if (confirm(`Finish and conclude "${s.title}"?`)) {
-                            setSessions((prev) =>
-                              prev.map((item) => (item.id === s.id ? { ...item, status: "completed" } : item))
-                            );
-                            await updateSessionStatus(s.id, "completed");
-                            showNotice(`Session "${s.title}" completed!`);
-                            router.refresh();
-                          }
-                        }}
-                        className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs w-full sm:w-auto"
-                      >
-                        Finish / End Session
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="volt"
-                        size="sm"
-                        onClick={async () => {
-                          setSessions((prev) =>
-                            prev.map((item) => (item.id === s.id ? { ...item, status: "active" } : item))
-                          );
-                          if (courts.length === 0) {
-                            setCourts(
-                              Array.from({ length: 4 }, (_, i) => ({
-                                id: String(i + 1),
-                                name: `Court ${i + 1}`,
-                                status: "available" as CourtStatus,
-                                surface: "Standard Court",
-                              }))
-                            );
-                          }
-                          await updateSessionStatus(s.id, "active");
-                          showNotice(`Session "${s.title}" is now ACTIVE!`);
-                          router.refresh();
-                        }}
-                        className="text-xs w-full sm:w-auto font-bold"
-                      >
-                        Start Session
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              ))
+                        {/* Mode & Target Score Badges */}
+                        {meta.isRanked ? (
+                          <Badge variant="volt" className="text-[10px] font-mono">
+                            🏆 Ranked
+                          </Badge>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
+                            🍃 Casual
+                          </span>
+                        )}
+
+                        {meta.targetPoints === 6 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
+                            ⚡ 6 Pts
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                            11 Pts
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                        {new Date(s.start_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} •{" "}
+                        {new Date(s.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
+                        {new Date(s.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} •{" "}
+                        {s.location || "DCTECH Sports Arena"}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-xs w-full sm:w-auto">
+                      {s.status === "active" ? (
+                        <>
+                          <a
+                            href={`/sessions/${s.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Station
+                          </a>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFinishSession(s)}
+                            className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs w-full sm:w-auto cursor-pointer"
+                          >
+                            Finish Session
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {s.status !== "cancelled" && s.status !== "completed" && (
+                            <Button
+                              variant="volt"
+                              size="sm"
+                              onClick={async () => {
+                                setSessions((prev) =>
+                                  prev.map((item) => (item.id === s.id ? { ...item, status: "active" } : item))
+                                );
+                                if (courts.length === 0) {
+                                  setCourts(
+                                    Array.from({ length: 4 }, (_, i) => ({
+                                      id: String(i + 1),
+                                      name: `Court ${i + 1}`,
+                                      status: "available" as CourtStatus,
+                                      surface: "Standard Court",
+                                    }))
+                                  );
+                                }
+                                await updateSessionStatus(s.id, "active");
+                                showNotice(`Session "${s.title}" is now ACTIVE!`);
+                                router.refresh();
+                              }}
+                              className="text-xs font-bold cursor-pointer"
+                            >
+                              Start Session
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditingSession(s)}
+                            className="text-xs font-mono border-slate-300 dark:border-slate-700 cursor-pointer"
+                          >
+                            <Edit3 className="h-3.5 w-3.5 mr-1 text-slate-500" />
+                            Edit
+                          </Button>
+                          {s.status !== "cancelled" && s.status !== "completed" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelSession(s)}
+                              className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-mono cursor-pointer"
+                            >
+                              <XCircle className="h-3.5 w-3.5 mr-1" />
+                              Cancel
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })
             )}
           </div>
+
+          {/* Edit Session Modal */}
+          {isEditingSession && (
+            <div
+              onClick={() => setIsEditingSession(null)}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
+            >
+              <Card
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="w-full max-w-lg border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default max-h-[90vh] overflow-y-auto"
+              >
+                <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
+                  <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Edit3 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+                    Edit Session Settings
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Update title, schedule, rating mode, and match rules for &quot;{isEditingSession.title}&quot;.
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-5 space-y-4">
+                  <form onSubmit={handleEditSessionSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Session Title</label>
+                        <input
+                          type="text"
+                          name="title"
+                          required
+                          defaultValue={isEditingSession.title}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Location</label>
+                        <input
+                          type="text"
+                          name="location"
+                          defaultValue={isEditingSession.location || "DCTECH Sports Arena"}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Start Time</label>
+                        <input
+                          type="datetime-local"
+                          name="startTime"
+                          required
+                          defaultValue={isEditingSession.start_time ? new Date(isEditingSession.start_time).toISOString().slice(0, 16) : ""}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">End Time</label>
+                        <input
+                          type="datetime-local"
+                          name="endTime"
+                          required
+                          defaultValue={isEditingSession.end_time ? new Date(isEditingSession.end_time).toISOString().slice(0, 16) : ""}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Mode & Target Score Selectors */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Rating Mode</label>
+                        <input type="hidden" name="isRanked" value={String(editIsRanked)} />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditIsRanked(true)}
+                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                              editIsRanked
+                                ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            🏆 Ranked
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditIsRanked(false)}
+                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                              !editIsRanked
+                                ? "border-purple-500 bg-purple-50/60 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"
+                                : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            🍃 Casual
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Target Score</label>
+                        <input type="hidden" name="targetPoints" value={String(editTargetPoints)} />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditTargetPoints(11)}
+                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                              editTargetPoints === 11
+                                ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            🏆 11 Pts
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditTargetPoints(6)}
+                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                              editTargetPoints === 6
+                                ? "border-amber-500 bg-amber-50/60 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            ⚡ 6 Pts
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Matching Mode */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Matching Mode</label>
+                      <select
+                        name="matchingStyle"
+                        defaultValue={editMatchingMode}
+                        onChange={(e) => setEditMatchingMode(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                      >
+                        <option value="balanced">Balanced (Recommended)</option>
+                        <option value="social_mixer">Social Mix</option>
+                        <option value="skill_separated">Skill Separated</option>
+                        <option value="winners_losers">Winners / Losers</option>
+                        <option value="skill_courts">Skill Courts</option>
+                        <option value="mixed_doubles">Mixed Doubles</option>
+                        <option value="king_queen">King/Queen of the Court</option>
+                        <option value="club_wars">Club Wars</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Description</label>
+                      <textarea
+                        name="description"
+                        rows={2}
+                        defaultValue={isEditingSession.description ? isEditingSession.description.replace(/\[matching_mode:[^\]]+\]\s*/g, "").replace(/\[ranked:[^\]]+\]\s*/g, "").replace(/\[target_points:[^\]]+\]\s*/g, "").trim() : ""}
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingSession(null)}
+                        className="text-xs font-mono"
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" variant="volt" size="sm" className="font-bold text-xs font-mono">
+                        Save Changes
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       )}
 
@@ -972,6 +1574,7 @@ export function AdminDashboard({
                       if (!walkInName) return;
                       const res = await createWalkInPlayer({
                         fullName: walkInName,
+                        email: walkInType === "employee" && walkInEmail.trim() ? walkInEmail.trim() : undefined,
                         isGuest: walkInType === "guest",
                         skillRating: walkInRating,
                       });
@@ -981,6 +1584,7 @@ export function AdminDashboard({
                         showNotice(`Added player "${walkInName}"!`);
                         setIsAddingPlayer(false);
                         setWalkInName("");
+                        setWalkInEmail("");
                         router.refresh();
                       }
                     }}
@@ -1028,17 +1632,163 @@ export function AdminDashboard({
                       </div>
                     </div>
 
+                    {walkInType === "employee" && (
+                      <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                            DCTECH Work Email
+                          </label>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                            Optional (auto-generated if empty)
+                          </span>
+                        </div>
+                        <input
+                          type="email"
+                          value={walkInEmail}
+                          onChange={(e) => setWalkInEmail(e.target.value)}
+                          placeholder="e.g. michael.chen@dctechmicro.com"
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
+                        />
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                          Syncs match history and DUPR automatically when they log in with this email.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="pt-2 flex items-center justify-end gap-3">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setIsAddingPlayer(false)}
+                        onClick={() => {
+                          setIsAddingPlayer(false);
+                          setWalkInEmail("");
+                        }}
                       >
                         Cancel
                       </Button>
                       <Button type="submit" variant="volt" size="sm" className="font-bold text-xs">
                         Add to Directory
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Edit Player Details Modal */}
+          {editingPlayer && (
+            <div
+              onClick={() => {
+                setEditingPlayer(null);
+                setEditPlayerName("");
+                setEditPlayerEmail("");
+              }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
+            >
+              <Card
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default"
+              >
+                <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
+                  <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Pencil className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+                    Edit Player Profile
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Update player name or company email address for directory sync and login linking.
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-5 space-y-4">
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!editPlayerName.trim() || !editPlayerEmail.trim()) return;
+                      setIsUpdatingPlayer(true);
+                      const res = await updatePlayerDetails(
+                        editingPlayer.id,
+                        editPlayerName.trim(),
+                        editPlayerEmail.trim()
+                      );
+                      setIsUpdatingPlayer(false);
+                      if (res?.error) {
+                        showNotice(`Error: ${res.error}`);
+                      } else {
+                        setEmployees((prev) =>
+                          prev.map((emp) =>
+                            emp.id === editingPlayer.id
+                              ? {
+                                  ...emp,
+                                  full_name: editPlayerName.trim(),
+                                  display_name: editPlayerName.trim(),
+                                  email: editPlayerEmail.trim(),
+                                }
+                              : emp
+                          )
+                        );
+                        showNotice(`Updated player profile for "${editPlayerName.trim()}"!`);
+                        setEditingPlayer(null);
+                        setEditPlayerName("");
+                        setEditPlayerEmail("");
+                        router.refresh();
+                      }
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Player Full Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editPlayerName}
+                        onChange={(e) => setEditPlayerName(e.target.value)}
+                        placeholder="e.g. Michael Chen"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                      <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                        Company Email Address
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={editPlayerEmail}
+                        onChange={(e) => setEditPlayerEmail(e.target.value)}
+                        placeholder="e.g. michael.chen@dctechmicro.com"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
+                      />
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Updating this address allows unregistered walk-ins or employees with typos to link seamlessly to their corporate account.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-3">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isUpdatingPlayer}
+                        onClick={() => {
+                          setEditingPlayer(null);
+                          setEditPlayerName("");
+                          setEditPlayerEmail("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="volt"
+                        size="sm"
+                        disabled={isUpdatingPlayer}
+                        className="font-bold text-xs"
+                      >
+                        {isUpdatingPlayer ? "Saving..." : "Save Changes"}
                       </Button>
                     </div>
                   </form>
@@ -1057,15 +1807,27 @@ export function AdminDashboard({
                   Manage coworker ratings, roles, and open-play eligibility by skill categories.
                 </p>
               </div>
-              <Button
-                variant="volt"
-                size="sm"
-                onClick={() => setIsAddingPlayer(true)}
-                className="font-bold text-xs shrink-0 w-full sm:w-auto"
-              >
-                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                + Add Walk-In / Guest Player
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isExportingRoster}
+                  onClick={handleExportRoster}
+                  className="font-bold text-xs font-mono border-slate-300 dark:border-slate-700 hover:border-emerald-500 cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1 text-emerald-500" />
+                  {isExportingRoster ? "Exporting..." : "Export Roster (.xlsx)"}
+                </Button>
+                <Button
+                  variant="volt"
+                  size="sm"
+                  onClick={() => setIsAddingPlayer(true)}
+                  className="font-bold text-xs cursor-pointer"
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />
+                  + Add Walk-In Player
+                </Button>
+              </div>
             </CardHeader>
 
             {/* 1. 📊 Stat Overview Bar: Clickable Quick-Filter Chips & Search */}
@@ -1078,6 +1840,7 @@ export function AdminDashboard({
                   { id: "intermediate", label: "Intermediate (3-4★)", count: countIntermediate, icon: Flame },
                   { id: "advanced", label: "Advanced / Expert (5-6★)", count: countAdvanced, icon: Trophy },
                   { id: "admins", label: "Admins", count: countAdmins, icon: ShieldCheck },
+                  { id: "inactive", label: "Inactive", count: countInactive, icon: UserX },
                 ].map((chip) => {
                   const isActive = playerTierFilter === chip.id;
                   const Icon = chip.icon;
@@ -1140,7 +1903,9 @@ export function AdminDashboard({
                     return (
                       <div
                         key={emp.id}
-                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors"
+                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${
+                          !emp.is_active ? "opacity-65 bg-slate-50/40 dark:bg-slate-950/20" : ""
+                        }`}
                       >
                         {/* Player Profile Column */}
                         <div className="flex items-center gap-3.5 min-w-0">
@@ -1167,6 +1932,14 @@ export function AdminDashboard({
                               >
                                 {isSystemAdmin ? "System Admin" : emp.role}
                               </Badge>
+                              {!emp.is_active && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-[10px] uppercase font-mono px-2 py-0.5"
+                                >
+                                  Inactive
+                                </Badge>
+                              )}
                               <span
                                 className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${
                                   isSystemAdmin
@@ -1252,6 +2025,46 @@ export function AdminDashboard({
                                 </select>
                                 <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                               </div>
+
+                              {/* Active / Inactive Status Toggle */}
+                              <button
+                                type="button"
+                                title={emp.is_active ? "Click to Deactivate Player" : "Click to Activate Player"}
+                                onClick={async () => {
+                                  const nextState = !emp.is_active;
+                                  setEmployees((prev) =>
+                                    prev.map((e) => (e.id === emp.id ? { ...e, is_active: nextState } : e))
+                                  );
+                                  const res = await togglePlayerActiveStatus(emp.id, nextState);
+                                  if (res?.error) {
+                                    showNotice(`Error: ${res.error}`);
+                                  } else {
+                                    showNotice(`${emp.full_name || "Player"} marked ${nextState ? "ACTIVE" : "INACTIVE"}`);
+                                    router.refresh();
+                                  }
+                                }}
+                                className={`p-1.5 rounded-xl border text-xs font-mono transition-colors cursor-pointer ${
+                                  emp.is_active
+                                    ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-500/40"
+                                    : "border-slate-300 dark:border-slate-700 text-slate-400 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-500/40"
+                                }`}
+                              >
+                                <Power className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Edit Player Details (Name & Email) */}
+                              <button
+                                type="button"
+                                title="Edit Player Name & Email"
+                                onClick={() => {
+                                  setEditingPlayer(emp);
+                                  setEditPlayerName(emp.full_name || emp.display_name || "");
+                                  setEditPlayerEmail(emp.email || "");
+                                }}
+                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 hover:border-emerald-500/50 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
                             </>
                           )}
                         </div>
@@ -1594,6 +2407,66 @@ export function AdminDashboard({
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
               To keep the company leaderboard and DUPR ratings 100% accurate and dispute-free, <strong>only Administrators and Official Staff Umpires have permission to record and finalize match scores</strong>.
             </p>
+          </Card>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal?.isOpen && (
+        <div
+          onClick={() => setConfirmModal(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 cursor-pointer"
+        >
+          <Card
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default p-5 space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-2.5 rounded-xl ${
+                  confirmModal.isDestructive
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  {confirmModal.title}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  Admin Action Required
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-mono leading-relaxed">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmModal(null)}
+                className="text-xs font-mono cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant={confirmModal.isDestructive ? "destructive" : "volt"}
+                size="sm"
+                onClick={async () => {
+                  const act = confirmModal.action;
+                  setConfirmModal(null);
+                  await act();
+                }}
+                className="text-xs font-mono font-bold cursor-pointer"
+              >
+                {confirmModal.confirmLabel || "Confirm"}
+              </Button>
+            </div>
           </Card>
         </div>
       )}

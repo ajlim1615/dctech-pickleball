@@ -53,6 +53,7 @@ export interface CourtCardProps {
   userRole?: string;
   isAdmin?: boolean;
   readOnly?: boolean;
+  targetPoints?: number;
 }
 
 export function CourtCard({
@@ -62,11 +63,21 @@ export function CourtCard({
   userRole = "player",
   isAdmin,
   readOnly = false,
+  targetPoints = 11,
 }: CourtCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const isAdministrator = !readOnly && (isAdmin ?? (userRole === "admin"));
+
+  // Dynamic game finish target: 6 points (speed play) or 11 points (standard)
+  const [courtTargetPoints, setCourtTargetPoints] = useState<number>(targetPoints || 11);
+
+  useEffect(() => {
+    if (targetPoints) {
+      setCourtTargetPoints(targetPoints);
+    }
+  }, [targetPoints]);
 
   const activeMatch = court.current_match;
   const isExistingLiveMatch = Boolean(
@@ -129,12 +140,14 @@ export function CourtCard({
 
   function handleQuickWin(team: "A" | "B") {
     if (!isAdministrator) return;
+    const target = courtTargetPoints;
+    const losingScore = target === 6 ? 4 : Math.max(0, target - 2);
     if (team === "A") {
-      setScoreA(11);
-      setScoreB((prev) => (prev >= 10 ? 9 : prev));
+      setScoreA(target);
+      setScoreB((prev) => (prev >= target ? losingScore : prev));
     } else {
-      setScoreB(11);
-      setScoreA((prev) => (prev >= 10 ? 9 : prev));
+      setScoreB(target);
+      setScoreA((prev) => (prev >= target ? losingScore : prev));
     }
   }
 
@@ -164,13 +177,15 @@ export function CourtCard({
     });
   }
 
-  // Standard Pickleball Victory Condition: 11 points and win by at least 2
+  // Victory Condition: Respects dynamic targetPoints (6 pts win by 1, or 11 pts win by 2)
+  const winMargin = courtTargetPoints === 6 ? 1 : 2;
   const isGameOver =
-    (scoreA >= 11 && scoreA - scoreB >= 2) || (scoreB >= 11 && scoreB - scoreA >= 2);
+    (scoreA >= courtTargetPoints && scoreA - scoreB >= winMargin) ||
+    (scoreB >= courtTargetPoints && scoreB - scoreA >= winMargin);
   const winner =
-    scoreA >= 11 && scoreA - scoreB >= 2
+    scoreA >= courtTargetPoints && scoreA - scoreB >= winMargin
       ? "Team 1"
-      : scoreB >= 11 && scoreB - scoreA >= 2
+      : scoreB >= courtTargetPoints && scoreB - scoreA >= winMargin
       ? "Team 2"
       : null;
 
@@ -371,9 +386,37 @@ export function CourtCard({
           {/* Score Board & Steppers */}
           <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
-                Live Score Board:
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
+                  Live Score:
+                </span>
+                {isAdministrator && (
+                  <div className="flex items-center gap-1 font-mono text-[9px]">
+                    <button
+                      type="button"
+                      onClick={() => setCourtTargetPoints(6)}
+                      className={`px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
+                        courtTargetPoints === 6
+                          ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      ⚡ 6 Pts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourtTargetPoints(11)}
+                      className={`px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
+                        courtTargetPoints === 11
+                          ? "bg-emerald-500 text-slate-950 border-emerald-500 shadow-2xs"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      🏆 11 Pts
+                    </button>
+                  </div>
+                )}
+              </div>
               {isAdministrator && (
                 <button
                   type="button"
@@ -479,17 +522,17 @@ export function CourtCard({
                   type="button"
                   onClick={() => handleQuickWin("A")}
                   className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title="Quickly set Team 1 as the winner with 11 points"
+                  title={`Quickly set Team 1 as the winner with ${courtTargetPoints} points`}
                 >
-                  ⚡ Team 1 Wins (11)
+                  ⚡ Team 1 Wins ({courtTargetPoints})
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickWin("B")}
                   className="text-[10px] font-mono font-bold text-sky-700 dark:text-sky-400 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 border border-sky-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title="Quickly set Team 2 as the winner with 11 points"
+                  title={`Quickly set Team 2 as the winner with ${courtTargetPoints} points`}
                 >
-                  ⚡ Team 2 Wins (11)
+                  ⚡ Team 2 Wins ({courtTargetPoints})
                 </button>
               </div>
             )}

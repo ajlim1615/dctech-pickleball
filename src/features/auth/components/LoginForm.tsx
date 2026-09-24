@@ -162,8 +162,48 @@ export function LoginForm() {
           </Button>
         </form>
 
-        <div className="pt-2 text-center">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+        {/* Sign In vs Sign Up Toggle & Default Password Hint */}
+        <div className="pt-2 flex flex-col items-center gap-2 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+          {mode === "signin" ? (
+            <div className="text-center space-y-1.5">
+              <p className="text-slate-500 dark:text-slate-400">
+                Default password for DCTECH colleagues:{" "}
+                <code className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                  dctech123
+                </code>
+              </p>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("signup");
+                    setMessage(null);
+                  }}
+                  className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
+                >
+                  First time? Register your player account
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <span className="text-slate-500 dark:text-slate-400">Already in the directory? </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setMessage(null);
+                }}
+                className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
+              >
+                Sign in with existing account
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="text-center">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
             Available on office Wi-Fi, home, and mobile browsers.
           </p>
         </div>

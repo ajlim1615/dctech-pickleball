@@ -117,7 +117,50 @@ export async function finalizeMatch(
     return { error: rateLimit.error };
   }
 
-  // Call the database complete_match stored procedure
+  // Check if this match belongs to a Casual / Unranked session ([ranked:false])
+  const { data: matchRecord } = await supabase
+    .from("matches")
+    .select("session_id, court_id, sessions:session_id (description)")
+    .eq("id", matchId)
+    .single();
+
+  const isUnranked = Boolean(
+    (matchRecord as any)?.sessions?.description?.includes("[ranked:false]")
+  );
+
+  if (isUnranked) {
+    // Unranked casual match: record official score & free court, but bypass DUPR updates
+    const winner: WinningTeam =
+      teamAScore > teamBScore ? "team_a" : teamBScore > teamAScore ? "team_b" : "tie";
+
+    await supabase
+      .from("matches")
+      .update({
+        team_a_score: teamAScore,
+        team_b_score: teamBScore,
+        winning_team: winner,
+        status: "completed",
+        ended_at: new Date().toISOString(),
+        recorded_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", matchId);
+
+    if (matchRecord?.court_id) {
+      await supabase
+        .from("courts")
+        .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
+        .eq("id", matchRecord.court_id);
+    }
+
+    revalidatePath("/");
+    revalidatePath("/matches");
+    revalidatePath("/rankings");
+    revalidatePath("/profile");
+    return { success: true };
+  }
+
+  // Call the database complete_match stored procedure for ranked matches
   const { data, error } = await supabase.rpc("complete_match", {
     p_match_id: matchId,
     p_team_a_score: teamAScore,

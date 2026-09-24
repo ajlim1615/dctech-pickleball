@@ -26,29 +26,39 @@ describe("Pickleball Matching Engine", () => {
     expect(matchup.balanceScorePercent).toBe(100);
   });
 
-  it("should create a skill separated matchup pairing (Top 2) vs (Bottom 2)", () => {
+  it("should create a balanced doubles matchup in skill_separated mode (1+4 vs 2+3)", () => {
     const matchup = createMatchupFromPod(mockPlayers, "skill_separated");
 
-    // Team A should have P1 (4.5) + P2 (4.0) -> Top tier
-    expect(matchup.teamA.map((p) => p.id)).toEqual(["p1", "p2"]);
-    expect(matchup.teamARatingAvg).toBe(4.25);
+    // In pickleball, skill-bracketed courts must still balance the 2v2 to prevent 11-0 blowouts
+    expect(matchup.teamA.map((p) => p.id)).toEqual(["p1", "p4"]);
+    expect(matchup.teamARatingAvg).toBe(3.75);
 
-    // Team B should have P3 (3.5) + P4 (3.0) -> Lower tier
-    expect(matchup.teamB.map((p) => p.id)).toEqual(["p3", "p4"]);
-    expect(matchup.teamBRatingAvg).toBe(3.25);
+    expect(matchup.teamB.map((p) => p.id)).toEqual(["p2", "p3"]);
+    expect(matchup.teamBRatingAvg).toBe(3.75);
 
-    expect(matchup.ratingDelta).toBe(1.0);
+    expect(matchup.ratingDelta).toBe(0);
+    expect(matchup.balanceScorePercent).toBe(100);
   });
 
   it("should split previous winners with challengers in winners_losers mode", () => {
-    const previousWinners = [mockPlayers[0], mockPlayers[1]]; // P1, P2 won previous match
+    const previousWinners = [mockPlayers[0], mockPlayers[1]]; // P1 (4.5), P2 (4.0) won previous match
     const matchup = createMatchupFromPod(mockPlayers, "winners_losers", previousWinners);
 
-    // P1 on Team A with a challenger, P2 on Team B with a challenger
-    expect(matchup.teamA[0].id).toBe("p1");
-    expect(matchup.teamB[0].id).toBe("p2");
+    // P1 (4.5) gets weaker challenger P4 (3.0); P2 (4.0) gets stronger challenger P3 (3.5)
+    expect(matchup.teamA.map((p) => p.id)).toEqual(["p1", "p4"]);
+    expect(matchup.teamB.map((p) => p.id)).toEqual(["p2", "p3"]);
     expect(matchup.teamA.length).toBe(2);
     expect(matchup.teamB.length).toBe(2);
+  });
+
+  it("should split previous winners and balance with challengers in winners_stay and king_queen modes", () => {
+    const previousWinners = [mockPlayers[0], mockPlayers[1]]; // P1 (4.5), P2 (4.0)
+    // Challengers are P3 (3.5) and P4 (3.0)
+    const matchup = createMatchupFromPod(mockPlayers, "winners_stay", previousWinners);
+
+    expect(matchup.teamA.map((p) => p.id)).toEqual(["p1", "p4"]);
+    expect(matchup.teamB.map((p) => p.id)).toEqual(["p2", "p3"]);
+    expect(matchup.ratingDelta).toBe(0);
   });
 
   it("should fallback to balanced pairing when no previous winners exist in winners_losers mode", () => {

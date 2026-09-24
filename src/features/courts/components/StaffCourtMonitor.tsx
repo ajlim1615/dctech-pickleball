@@ -99,14 +99,23 @@ export function StaffCourtMonitor({
   // Active match ID
   const [activeMatchId, setActiveMatchId] = useState<string | null>(currentMatch?.id || null);
 
+  // Target Game Score: 6 points (speed play) or 11 points (standard)
+  const [targetPoints, setTargetPoints] = useState<number>(11);
+
   // Standard Pickleball Call String (e.g. "0 - 0 - 2")
   const servingScore = servingTeam === "A" ? scoreA : scoreB;
   const receivingScore = servingTeam === "A" ? scoreB : scoreA;
   const pickleballCall = `${servingScore} - ${receivingScore} - ${serverNumber}`;
 
-  // Standard Pickleball Victory Condition: 11 points and win by 2
-  const isGameWon = (scoreA >= 11 || scoreB >= 11) && Math.abs(scoreA - scoreB) >= 2;
-  const winningTeam = scoreA >= 11 && scoreA - scoreB >= 2 ? "A" : scoreB >= 11 && scoreB - scoreA >= 2 ? "B" : null;
+  // Victory Condition: Respects dynamic targetPoints (6 pts win by 1, or 11 pts win by 2)
+  const winMargin = targetPoints === 6 ? 1 : 2;
+  const isGameWon = (scoreA >= targetPoints || scoreB >= targetPoints) && Math.abs(scoreA - scoreB) >= winMargin;
+  const winningTeam =
+    scoreA >= targetPoints && scoreA - scoreB >= winMargin
+      ? "A"
+      : scoreB >= targetPoints && scoreB - scoreA >= winMargin
+      ? "B"
+      : null;
   const winningTeamName = winningTeam === "A" ? teamAName : winningTeam === "B" ? teamBName : null;
 
   const [showManualSetup, setShowManualSetup] = useState(false);
@@ -130,14 +139,14 @@ export function StaffCourtMonitor({
       const next = scoreA + 1;
       setScoreA(next);
       if (activeMatchId) updateMatchScore(activeMatchId, next, scoreB);
-      if (next >= 11 && next - scoreB >= 2) {
+      if (next >= targetPoints && next - scoreB >= winMargin) {
         showNotice(`🎉 Match Won by ${teamAName}! (${next} – ${scoreB})`);
       }
     } else {
       const next = scoreB + 1;
       setScoreB(next);
       if (activeMatchId) updateMatchScore(activeMatchId, scoreA, next);
-      if (next >= 11 && next - scoreA >= 2) {
+      if (next >= targetPoints && next - scoreA >= winMargin) {
         showNotice(`🎉 Match Won by ${teamBName}! (${next} – ${scoreA})`);
       }
     }
@@ -373,6 +382,37 @@ export function StaffCourtMonitor({
         </a>
 
         <div className="flex items-center gap-2">
+          {/* Target Score Toggle */}
+          <div className="flex items-center gap-1 font-mono text-[10px]">
+            <button
+              type="button"
+              onClick={() => {
+                setTargetPoints(6);
+                showNotice("⚡ Switched to Speed Play (Game to 6 pts)");
+              }}
+              className={`px-2 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
+                targetPoints === 6
+                  ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+              }`}
+            >
+              ⚡ 6 Pts
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTargetPoints(11);
+                showNotice("🏆 Switched to Standard Play (Game to 11 pts)");
+              }}
+              className={`px-2 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
+                targetPoints === 11
+                  ? "bg-emerald-500 text-slate-950 border-emerald-500 shadow-2xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+              }`}
+            >
+              🏆 11 Pts
+            </button>
+          </div>
           <Badge variant="volt" className="text-xs font-mono">
             STAFF UMPIRE MODE
           </Badge>

@@ -6,67 +6,69 @@ import type { Court, CourtStatus, ActiveCourtView } from "@/types";
 
 export async function getCourts(): Promise<ActiveCourtView[]> {
   const supabase = await createClient();
-  const { data: courts, error: courtsError } = await supabase
-    .from("courts")
-    .select(`
-      id,
-      name,
-      surface_type,
-      status,
-      current_match_id,
-      sort_order,
-      assigned_staff_id,
-      assigned_staff:profiles!assigned_staff_id (
+
+  const [courtsRes, matchesRes] = await Promise.all([
+    supabase
+      .from("courts")
+      .select(`
         id,
-        full_name,
-        display_name,
-        avatar_url
-      )
-    `)
-    .order("sort_order", { ascending: true });
-
-  if (courtsError) {
-    console.error("getCourts error from Supabase:", courtsError.message);
-    return [];
-  }
-
-  if (!courts || courts.length === 0) return [];
-
-  // Fetch in-progress matches for these courts to avoid ambiguous PostgREST join
-  const { data: activeMatches, error: matchesError } = await supabase
-    .from("matches")
-    .select(`
-      id,
-      session_id,
-      court_id,
-      format,
-      match_type,
-      status,
-      team_a_score,
-      team_b_score,
-      winning_team,
-      started_at,
-      ended_at,
-      players:match_players (
-        id,
-        team,
-        player:profiles (
+        name,
+        surface_type,
+        status,
+        current_match_id,
+        sort_order,
+        assigned_staff_id,
+        assigned_staff:profiles!assigned_staff_id (
           id,
           full_name,
           display_name,
-          avatar_url,
-          skill_rating
+          avatar_url
         )
-      )
-    `)
-    .eq("status", "in_progress");
+      `)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("matches")
+      .select(`
+        id,
+        session_id,
+        court_id,
+        format,
+        match_type,
+        status,
+        team_a_score,
+        team_b_score,
+        winning_team,
+        started_at,
+        ended_at,
+        players:match_players (
+          id,
+          team,
+          player:profiles (
+            id,
+            full_name,
+            display_name,
+            avatar_url,
+            skill_rating
+          )
+        )
+      `)
+      .eq("status", "in_progress"),
+  ]);
 
-  if (matchesError) {
-    console.error("activeMatches error from Supabase:", matchesError.message);
+  if (courtsRes.error) {
+    console.error("getCourts error from Supabase:", courtsRes.error.message);
+    return [];
+  }
+
+  const courts = courtsRes.data;
+  if (!courts || courts.length === 0) return [];
+
+  if (matchesRes.error) {
+    console.error("activeMatches error from Supabase:", matchesRes.error.message);
   }
 
   const matchByCourtId = new Map(
-    activeMatches?.map((m) => [m.court_id, m]) || []
+    matchesRes.data?.map((m) => [m.court_id, m]) || []
   );
 
   return courts.map((c) => ({

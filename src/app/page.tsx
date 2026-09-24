@@ -23,17 +23,16 @@ import { SessionQueueLiveBoard } from "@/features/sessions/components/SessionQue
 import { getCourts } from "@/features/courts/api/courtActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
 import { getCurrentUser } from "@/features/auth/api/authActions";
-import { getQueueForSession } from "@/features/queue/api/queueActions";
-import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
-import { cleanSessionDescription, formatRating } from "@/lib/utils";
+import { getAllEmployees } from "@/features/admin/api/adminActions";
+import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
 
 export default async function HomePage() {
-  const [courts, sessions, authData, employees, leaderboard] = await Promise.all([
+  const [courts, sessions, authData, leaderboard] = await Promise.all([
     getCourts(),
     getSessions(),
     getCurrentUser(),
-    getAllEmployees(),
     getLeaderboard(),
   ]);
 
@@ -41,11 +40,16 @@ export default async function HomePage() {
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = authData?.profile?.role === "admin" || isSystemAdmin;
   const activeSession = sessions.find((s) => s.status === "active");
+  const activeSessionMeta = activeSession ? parseSessionMetadata(activeSession.description) : null;
   const upcomingSessions = sessions.filter((s) => s.status === "scheduled");
   const activeCourtsCount = courts.filter((c) => c.status === "occupied").length;
   const totalCourtsCount = courts.length;
 
-  const rawQueue = activeSession ? await getQueueForSession(activeSession.id) : [];
+  // Only fetch full employee roster and live queue if an active session is in play
+  const [employees, rawQueue] = activeSession
+    ? await Promise.all([getAllEmployees(), getQueueForSession(activeSession.id)])
+    : [[], []];
+
   const activeDescription = cleanSessionDescription(activeSession?.description);
 
   // Top 3 players from leaderboard
@@ -242,6 +246,7 @@ export default async function HomePage() {
               employees={employees}
               isSessionActive={true}
               readOnly={true}
+              matchingMode={activeSessionMeta?.matchingMode}
             />
           </div>
         </div>

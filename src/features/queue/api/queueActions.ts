@@ -425,47 +425,7 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     };
   }
 
-  // 1. Fetch next waiting entries with player profiles and group info
-  const { data: nextEntries, error: qErr } = await supabase
-    .from("queue_entries")
-    .select(`
-      id,
-      player_id,
-      group_id,
-      player:profiles (
-        id,
-        full_name,
-        display_name,
-        skill_rating
-      )
-    `)
-    .eq("session_id", sessionId)
-    .eq("status", "waiting")
-    .order("joined_at", { ascending: true })
-    .limit(count);
-
-  if (qErr || !nextEntries || nextEntries.length === 0) {
-    return { error: "No waiting players currently in queue." };
-  }
-
-  const entryIds = nextEntries.map((e) => e.id);
-  const players = nextEntries.map((e) => ({
-    id: e.player_id,
-    skill_rating: Number((e.player as any)?.skill_rating || 3.0),
-    groupId: e.group_id,
-  }));
-
-  // 2. Mark queue entries as playing
-  await supabase
-    .from("queue_entries")
-    .update({
-      status: "playing",
-      called_at: new Date().toISOString(),
-      target_court_id: courtId,
-    })
-    .in("id", entryIds);
-
-  // 3. Determine matching style from session configuration
+  // 1. Determine matching style from session configuration
   const { data: sessionData } = await supabase
     .from("sessions")
     .select("description")
@@ -475,18 +435,156 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   const modeMatch = sessionData?.description?.match(/\[matching_mode:([a-z_]+)\]/i);
   const matchingStyle = (modeMatch ? modeMatch[1] : "balanced") as MatchingStyle;
 
-  const profiles: Profile[] = nextEntries.map((e) => ((e.player || e) as unknown) as Profile);
+  // 2. Query previous completed match on this court to find previous winners (for king_queen, winners_stay, winners_losers)
+  let previousWinners: Profile[] = [];
+  const { data: lastMatch } = await (supabase as any)
+    .from("matches")
+    .select(`
+      id,
+      winning_team,
+      players:match_players (
+        player_id,
+        team,
+        player:profiles (
+          id,
+          full_name,
+          display_name,
+          avatar_url,
+          skill_rating,
+          email,
+          role,
+          games_played,
+          games_won,
+          is_active,
+          created_at,
+          updated_at
+        )
+      )
+    `)
+    .eq("court_id", courtId)
+    .eq("status", "completed")
+    .order("ended_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastMatch && lastMatch.winning_team) {
+    const playersList = ((lastMatch as any).players || []) as any[];
+    previousWinners = playersList
+      .filter((p: any) => p.team === lastMatch.winning_team && p.player)
+      .map((p: any) => p.player as Profile);
+  }
+
+  // In King of the Court / Winners Stay, if 2 winners stay on court, only call 2 new challengers
+  const isWinnersStay =
+    (matchingStyle === "winners_stay" || matchingStyle === "king_queen") &&
+    previousWinners.length === 2;
+  const targetCount = isWinnersStay ? 2 : count;
+
+  // 3. Fetch waiting entries with player profiles and group info
+  const { data: waitingEntries, error: qErr } = await supabase
+    .from("queue_entries")
+    .select(`
+      id,
+      player_id,
+      group_id,
+      joined_at,
+      player:profiles (
+        id,
+        full_name,
+        display_name,
+        avatar_url,
+        skill_rating,
+        email,
+        role,
+        games_played,
+        games_won,
+        is_active,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq("session_id", sessionId)
+    .eq("status", "waiting")
+    .order("joined_at", { ascending: true })
+    .limit(16);
+
+  if (qErr || !waitingEntries || waitingEntries.length === 0) {
+    return { error: "No waiting players currently in queue." };
+  }
+
+  // 4. Select pod with Pair-Protection & Skill-Separation
+  let selectedEntries: typeof waitingEntries = [];
+
+  if (waitingEntries.length <= targetCount) {
+    selectedEntries = [...waitingEntries];
+  } else if (
+    (matchingStyle === "skill_separated" || matchingStyle === "skill_courts") &&
+    waitingEntries.length >= 6
+  ) {
+    // Skill-separated: Anchor to the first in line (FIFO), then find the players closest in skill
+    const anchor = waitingEntries[0];
+    const anchorRating = Number((anchor.player as any)?.skill_rating || 3.0);
+    const rest = waitingEntries.slice(1);
+    rest.sort((a, b) => {
+      const diffA = Math.abs(Number((a.player as any)?.skill_rating || 3.0) - anchorRating);
+      const diffB = Math.abs(Number((b.player as any)?.skill_rating || 3.0) - anchorRating);
+      return diffA - diffB;
+    });
+    selectedEntries = [anchor, ...rest.slice(0, targetCount - 1)];
+  } else {
+    // FIFO with Bonded-Pair Protection (Never split doubles partners across rack boundary)
+    const candidates = waitingEntries.slice(0, targetCount);
+    if (targetCount === 4 && waitingEntries.length > 4) {
+      // Check if the 4th player is the first half of a bonded pair whose partner is at index 4 (5th in line)
+      const p4 = candidates[3];
+      if (p4.group_id) {
+        const partnerIndex = waitingEntries.findIndex(
+          (w, idx) => idx >= 4 && w.group_id === p4.group_id
+        );
+        if (partnerIndex !== -1) {
+          // Find an unbonded solo player in candidates to defer so the pair stays together
+          const soloIdx = candidates.findIndex((c) => !c.group_id);
+          if (soloIdx !== -1) {
+            // Replace the solo player with the partner
+            candidates[soloIdx] = waitingEntries[partnerIndex];
+          }
+        }
+      }
+    }
+    selectedEntries = candidates;
+  }
+
+  const entryIds = selectedEntries.map((e) => e.id);
+  const challengerProfiles: Profile[] = selectedEntries.map(
+    (e) => ((e.player || e) as unknown) as Profile
+  );
+
+  // 5. Mark selected queue entries as playing
+  await supabase
+    .from("queue_entries")
+    .update({
+      status: "playing",
+      called_at: new Date().toISOString(),
+      target_court_id: courtId,
+    })
+    .in("id", entryIds);
 
   let teamA: string[] = [];
   let teamB: string[] = [];
 
-  if (players.length >= 4) {
+  if (isWinnersStay && previousWinners.length === 2 && challengerProfiles.length >= 2) {
+    // Winners Stay: Split the 2 previous winners, each partnered with 1 challenger
+    const fullPod = [...previousWinners, ...challengerProfiles];
+    const matchup = createMatchupFromPod(fullPod, matchingStyle, previousWinners);
+    teamA = matchup.teamA.map((p) => p.id);
+    teamB = matchup.teamB.map((p) => p.id);
+  } else if (challengerProfiles.length >= 4) {
     // Check if there is a locked paired group (Coworker doubles pair)
     const groups: { [gid: string]: string[] } = {};
-    players.forEach((p) => {
-      if (p.groupId) {
-        groups[p.groupId] = groups[p.groupId] || [];
-        groups[p.groupId].push(p.id);
+    selectedEntries.forEach((p) => {
+      if (p.group_id) {
+        groups[p.group_id] = groups[p.group_id] || [];
+        groups[p.group_id].push(p.player_id);
       }
     });
 
@@ -494,22 +592,25 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
 
     if (pairedGroup) {
       teamA = pairedGroup;
-      teamB = players.filter((p) => !teamA.includes(p.id)).map((p) => p.id).slice(0, 2);
+      teamB = selectedEntries
+        .filter((p) => !teamA.includes(p.player_id))
+        .map((p) => p.player_id)
+        .slice(0, 2);
     } else {
       // Execute the algorithm for the assigned MatchingStyle
-      const matchup = createMatchupFromPod(profiles, matchingStyle);
+      const matchup = createMatchupFromPod(challengerProfiles, matchingStyle, previousWinners);
       teamA = matchup.teamA.map((p) => p.id);
       teamB = matchup.teamB.map((p) => p.id);
     }
-  } else if (players.length === 2) {
-    teamA = [players[0].id];
-    teamB = [players[1].id];
+  } else if (challengerProfiles.length === 2) {
+    teamA = [challengerProfiles[0].id];
+    teamB = [challengerProfiles[1].id];
   } else {
-    teamA = [players[0].id];
-    teamB = players.slice(1).map((p) => p.id);
+    teamA = [challengerProfiles[0]?.id].filter(Boolean);
+    teamB = challengerProfiles.slice(1).map((p) => p.id);
   }
 
-  // 4. Create Match and assign to court
+  // 6. Create Match and assign to court
   // Void any previous orphaned in_progress matches on this court
   await supabase
     .from("matches")
@@ -517,12 +618,13 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     .eq("court_id", courtId)
     .eq("status", "in_progress");
 
+  const totalPlayersCount = teamA.length + teamB.length;
   const { data: match, error: matchError } = await supabase
     .from("matches")
     .insert({
       session_id: sessionId,
       court_id: courtId,
-      format: players.length >= 4 ? "doubles" : "singles",
+      format: totalPlayersCount >= 4 ? "doubles" : "singles",
       status: "in_progress",
       team_a_score: 0,
       team_b_score: 0,

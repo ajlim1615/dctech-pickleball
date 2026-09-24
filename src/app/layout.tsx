@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
+import { NavigationProgressBar } from "@/components/layout/NavigationProgressBar";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 const geistSans = Geist({
@@ -61,20 +63,16 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <Suspense fallback={null}>
+            <NavigationProgressBar />
+          </Suspense>
           <Navbar />
           <main className="flex-1 pb-20 lg:pb-0">{children}</main>
           <MobileBottomNav />
           <PWAInstallBanner />
           <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-[#070a10] py-6 text-center text-xs text-slate-500 dark:text-slate-400">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <span>© 2026 DCTECH Recreational Committee • DCTECH | Pickleball</span>
-              <div className="flex items-center gap-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  SYSTEM OPERATIONAL
-                </span>
-                <span>v1.0.0-MVP</span>
-              </div>
+              <span>© 2026 DCTECH | Pickleball</span>
             </div>
           </footer>
         </ThemeProvider>

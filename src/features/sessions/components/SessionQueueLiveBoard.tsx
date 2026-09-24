@@ -25,7 +25,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
-import { createMatchupFromPod } from "@/features/queue/utils/matchingEngine";
+import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 import {
   joinQueue,
   leaveQueue,
@@ -48,6 +48,7 @@ interface SessionQueueLiveBoardProps {
   isSessionActive?: boolean;
   onOpenBulkQueue?: () => void;
   readOnly?: boolean;
+  matchingMode?: MatchingStyle;
 }
 
 export function SessionQueueLiveBoard({
@@ -60,6 +61,7 @@ export function SessionQueueLiveBoard({
   isSessionActive = true,
   onOpenBulkQueue,
   readOnly = false,
+  matchingMode = "balanced",
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -94,8 +96,8 @@ export function SessionQueueLiveBoard({
     const nextPodProfiles: Profile[] = nextPod.map(
       (item) => ((item.player || item) as unknown) as Profile
     );
-    return createMatchupFromPod(nextPodProfiles, "balanced");
-  }, [isNextPodFull, nextPod]);
+    return createMatchupFromPod(nextPodProfiles, matchingMode || "balanced");
+  }, [isNextPodFull, nextPod, matchingMode]);
 
   async function handleQuickJoinSolo() {
     if (!sessionId || isSystemAdmin) return;
@@ -170,8 +172,13 @@ export function SessionQueueLiveBoard({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
             </CardTitle>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-              {queue.length} Queued • {pods.length} Rack{pods.length !== 1 ? "s" : ""} Active
+            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span>{queue.length} Queued • {pods.length} Rack{pods.length !== 1 ? "s" : ""}</span>
+              {matchingMode && (
+                <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 text-[9px] uppercase font-bold border border-slate-200 dark:border-slate-700">
+                  {matchingMode.replace(/_/g, " ")}
+                </span>
+              )}
             </div>
           </div>
         </div>

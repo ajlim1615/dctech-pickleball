@@ -36,7 +36,7 @@ import {
 } from "../api/sessionActions";
 import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
-import { formatRating, cleanSessionDescription } from "@/lib/utils";
+import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile } from "@/types";
 
 interface SessionDetailViewProps {
@@ -93,10 +93,13 @@ export function SessionDetailView({
 
   // Walk-In Form State
   const [walkInName, setWalkInName] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
   const [walkInIsGuest, setWalkInIsGuest] = useState(true);
   const [walkInAutoQueue, setWalkInAutoQueue] = useState(true);
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
+
+  const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
 
   useEffect(() => {
     setIsCheckedIn(isUserCheckedInDatabase);
@@ -175,6 +178,7 @@ export function SessionDetailView({
     setIsCreatingWalkIn(true);
     const res = await createWalkInPlayer({
       fullName: walkInName.trim(),
+      email: !walkInIsGuest && walkInEmail.trim() ? walkInEmail.trim() : undefined,
       isGuest: walkInIsGuest,
       skillRating: walkInRating,
     });
@@ -185,6 +189,7 @@ export function SessionDetailView({
         await bulkAddPlayersToQueue(session.id, [res.player.id]);
       }
       setWalkInName("");
+      setWalkInEmail("");
       setShowBulkModal(false);
       router.refresh();
     }
@@ -247,6 +252,27 @@ export function SessionDetailView({
                   ? "COMPLETED"
                   : "SCHEDULED"}
               </Badge>
+
+              {parseSessionMetadata(session.description).isRanked ? (
+                <Badge variant="volt" className="text-[10px] font-mono font-bold">
+                  🏆 Ranked Open Play
+                </Badge>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300 shadow-2xs">
+                  🍃 Casual / Lowkey (Unranked)
+                </span>
+              )}
+
+              {parseSessionMetadata(session.description).targetPoints === 6 ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
+                  ⚡ Speed Play (6 Pts)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                  🏆 Standard (11 Pts)
+                </span>
+              )}
+
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 shrink-0" />
                 <span>
@@ -895,6 +921,30 @@ export function SessionDetailView({
                     </div>
                   </div>
 
+                  {/* Optional Work Email for Internal Coworkers */}
+                  {!walkInIsGuest && (
+                    <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                          DCTECH Work Email
+                        </label>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                          Optional (auto-generated if empty)
+                        </span>
+                      </div>
+                      <input
+                        type="email"
+                        value={walkInEmail}
+                        onChange={(e) => setWalkInEmail(e.target.value)}
+                        placeholder="e.g. michael.chen@dctechmicro.com"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
+                      />
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Syncs match history and DUPR automatically when they log in with this email.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Skill Rating / DUPR Level */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-mono">
@@ -1007,6 +1057,7 @@ export function SessionDetailView({
             userEmail={userEmail}
             employees={employees}
             isSessionActive={currentStatus === "active"}
+            matchingMode={sessionMeta.matchingMode}
             onOpenBulkQueue={() => {
               setSelectedPlayerIds([]);
               setBulkSearch("");

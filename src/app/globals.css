@@ -128,3 +128,16 @@ button, a, input, select {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@keyframes nav-progress {
+  0% { transform: scaleX(0.08); }
+  25% { transform: scaleX(0.38); }
+  60% { transform: scaleX(0.75); }
+  85% { transform: scaleX(0.9); }
+  100% { transform: scaleX(0.97); }
+}
+
+.animate-nav-progress {
+  animation: nav-progress 2s cubic-bezier(0.1, 0.4, 0.1, 1) forwards;
+}
+

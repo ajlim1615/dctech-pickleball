@@ -52,6 +52,8 @@ export function createMatchupFromPod(
   } else {
     // 4 Players available
     switch (style) {
+      case "skill_separated":
+      case "skill_courts":
       case "balanced": {
         // Sort descending by skill rating: P1 (highest), P2, P3, P4 (lowest)
         const sorted = [...players].sort((a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0));
@@ -59,15 +61,6 @@ export function createMatchupFromPod(
         // Team B: Middle two (2 + 3)
         teamA = [sorted[0], sorted[3]];
         teamB = [sorted[1], sorted[2]];
-        break;
-      }
-
-      case "skill_separated":
-      case "skill_courts": {
-        // Keeps similar skill levels together (High vs High, Low vs Low)
-        const sorted = [...players].sort((a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0));
-        teamA = [sorted[0], sorted[1]];
-        teamB = [sorted[2], sorted[3]];
         break;
       }
 
@@ -79,8 +72,20 @@ export function createMatchupFromPod(
           const w1 = previousWinners[0];
           const w2 = previousWinners[1];
           const challengers = players.filter((p) => p.id !== w1.id && p.id !== w2.id);
-          teamA = [w1, challengers[0] || players[0]];
-          teamB = [w2, challengers[1] || players[1]];
+          const sortedChallengers = [...challengers].sort(
+            (a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0)
+          );
+          const w1Rating = w1.skill_rating || 3.0;
+          const w2Rating = w2.skill_rating || 3.0;
+
+          // Balance pairing: stronger winner gets the lower rated challenger
+          if (w1Rating >= w2Rating) {
+            teamA = [w1, sortedChallengers[1] || sortedChallengers[0] || challengers[0]];
+            teamB = [w2, sortedChallengers[0] || challengers[1]];
+          } else {
+            teamA = [w1, sortedChallengers[0] || challengers[0]];
+            teamB = [w2, sortedChallengers[1] || sortedChallengers[0] || challengers[1]];
+          }
         } else {
           // Fallback to balanced DUPR
           const sorted = [...players].sort((a, b) => (b.skill_rating || 3.0) - (a.skill_rating || 3.0));

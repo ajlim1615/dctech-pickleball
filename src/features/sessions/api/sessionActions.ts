@@ -17,36 +17,39 @@ export async function getSessions(): Promise<Session[]> {
 
 export async function getSessionById(id: string) {
   const supabase = await createClient();
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("*")
-    .eq("id", id)
-    .single();
 
-  if (sessionError || !session) return null;
-
-  const { data: checkins } = await supabase
-    .from("session_checkins")
-    .select(`
-      id,
-      session_id,
-      player_id,
-      status,
-      checkin_time,
-      player:profiles (
+  const [sessionRes, checkinsRes] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("session_checkins")
+      .select(`
         id,
-        full_name,
-        display_name,
-        avatar_url,
-        skill_rating
-      )
-    `)
-    .eq("session_id", id)
-    .eq("status", "checked_in");
+        session_id,
+        player_id,
+        status,
+        checkin_time,
+        player:profiles (
+          id,
+          full_name,
+          display_name,
+          avatar_url,
+          skill_rating,
+          email
+        )
+      `)
+      .eq("session_id", id)
+      .eq("status", "checked_in"),
+  ]);
+
+  if (sessionRes.error || !sessionRes.data) return null;
 
   return {
-    ...session,
-    checkins: checkins || [],
+    ...sessionRes.data,
+    checkins: checkinsRes.data || [],
   };
 }
 
@@ -71,7 +74,8 @@ export async function getSessionMatches(sessionId: string) {
           full_name,
           display_name,
           avatar_url,
-          skill_rating
+          skill_rating,
+          email
         )
       )
     `)
@@ -176,6 +180,9 @@ export async function createSession(formData: FormData) {
   const maxPlayersStr = formData.get("maxPlayers") as string;
   const courtCountStr = formData.get("courtCount") as string;
   const courtCount = courtCountStr ? parseInt(courtCountStr, 10) : 4;
+  const isRanked = formData.get("isRanked") !== "false";
+  const targetPointsStr = (formData.get("targetPoints") as string) || "11";
+  const targetPoints = parseInt(targetPointsStr, 10) === 6 ? 6 : 11;
 
   if (!rawTitle || !startTime || !endTime) {
     return { error: "Session title, start time, and end time are required." };
@@ -185,9 +192,9 @@ export async function createSession(formData: FormData) {
   const location = sanitizeString(rawLocation);
   const matchingStyle = sanitizeString((formData.get("matchingStyle") as string) || "balanced");
   const userDesc = sanitizeString(rawDescription || "");
-  const finalDescription = userDesc
-    ? `${userDesc} [matching_mode:${matchingStyle}]`
-    : `[matching_mode:${matchingStyle}]`;
+
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}]`;
+  const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();
   const userId = auth.context?.userId || "";
