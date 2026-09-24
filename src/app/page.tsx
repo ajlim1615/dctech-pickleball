@@ -27,6 +27,7 @@ import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
 import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
+import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 
 export default async function HomePage() {
   const [courts, sessions, authData, leaderboard] = await Promise.all([
@@ -93,14 +94,14 @@ export default async function HomePage() {
               <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
                 <span>
-                  {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
-                  {new Date(activeSession.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  {formatPHTTime(activeSession.start_time)} –{" "}
+                  {formatPHTTime(activeSession.end_time)} (PHT)
                 </span>
               </div>
             ) : upcomingSessions.length > 0 ? (
               <div className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Next Session: {new Date(upcomingSessions[0].start_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+                <span>Next Session: {formatPHTDate(upcomingSessions[0].start_time)}</span>
               </div>
             ) : null}
           </div>
@@ -314,7 +315,7 @@ export default async function HomePage() {
                             SCHEDULED
                           </Badge>
                           <span className="text-[11px] font-mono text-slate-500">
-                            {new Date(session.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            {formatPHTTime(session.start_time)}
                           </span>
                         </div>
                         <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 line-clamp-1">
@@ -328,7 +329,7 @@ export default async function HomePage() {
                       <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
                         <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-emerald-500" />
-                          {new Date(session.start_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                          {formatPHTDate(session.start_time)}
                         </span>
                         <Link href={`/sessions/${session.id}`}>
                           <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs font-mono font-bold">

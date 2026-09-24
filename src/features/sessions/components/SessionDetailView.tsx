@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
 import { SessionLeaderboard } from "./SessionLeaderboard";
+import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
 import {
@@ -284,8 +285,8 @@ export function SessionDetailView({
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {new Date(session.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
-                  {new Date(session.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  {formatPHTDate(session.start_time)} • {formatPHTTime(session.start_time)} –{" "}
+                  {formatPHTTime(session.end_time)} (PHT)
                 </span>
               </span>
             </div>

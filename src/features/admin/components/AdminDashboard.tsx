@@ -59,6 +59,12 @@ import {
 } from "../api/adminActions";
 import { createSession, updateSessionStatus } from "@/features/sessions/api/sessionActions";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
+import {
+  formatPHTDate,
+  formatPHTTime,
+  toPHTDateTimeLocal,
+  getPHTTodayString,
+} from "@/lib/timezone";
 import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView } from "@/types";
 
 interface AdminDashboardProps {
@@ -467,7 +473,7 @@ export function AdminDashboard({
       XLSX.utils.book_append_sheet(workbook, worksheet, "DCTECH Pickleball Roster");
       XLSX.writeFile(
         workbook,
-        `dctech_pickleball_roster_${new Date().toISOString().split("T")[0]}.xlsx`
+        `dctech_pickleball_roster_${getPHTTodayString()}.xlsx`
       );
       showNotice("Roster exported successfully to Excel!");
     } catch (err: any) {
@@ -691,8 +697,8 @@ export function AdminDashboard({
                     )}
                   </div>
                   <p className="text-xs font-mono text-slate-600 dark:text-slate-300">
-                    {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
-                    {new Date(activeSession.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} •{" "}
+                    {formatPHTTime(activeSession.start_time)} –{" "}
+                    {formatPHTTime(activeSession.end_time)} (PHT) •{" "}
                     {activeSession.location || "DCTECH Sports Arena"}
                   </p>
                 </div>
@@ -1306,9 +1312,9 @@ export function AdminDashboard({
                         )}
                       </div>
                       <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                        {new Date(s.start_time).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} •{" "}
-                        {new Date(s.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} –{" "}
-                        {new Date(s.end_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} •{" "}
+                        {formatPHTDate(s.start_time)} •{" "}
+                        {formatPHTTime(s.start_time)} –{" "}
+                        {formatPHTTime(s.end_time)} (PHT) •{" "}
                         {s.location || "DCTECH Sports Arena"}
                       </div>
                     </div>
@@ -1445,7 +1451,7 @@ export function AdminDashboard({
                           type="datetime-local"
                           name="startTime"
                           required
-                          defaultValue={isEditingSession.start_time ? new Date(isEditingSession.start_time).toISOString().slice(0, 16) : ""}
+                          defaultValue={toPHTDateTimeLocal(isEditingSession.start_time)}
                           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
                         />
                       </div>
@@ -1455,7 +1461,7 @@ export function AdminDashboard({
                           type="datetime-local"
                           name="endTime"
                           required
-                          defaultValue={isEditingSession.end_time ? new Date(isEditingSession.end_time).toISOString().slice(0, 16) : ""}
+                          defaultValue={toPHTDateTimeLocal(isEditingSession.end_time)}
                           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
                         />
                       </div>

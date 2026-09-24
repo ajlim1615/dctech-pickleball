@@ -32,6 +32,7 @@ import { Modal } from "@/components/ui/modal";
 import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
+import { formatPHTDate } from "@/lib/timezone";
 import type { Profile } from "@/types";
 
 interface ProfileViewProps {
@@ -319,9 +320,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
       const partner = item.partner;
       const opponents = item.opponents;
       const dateSource = match.ended_at || match.started_at || item.created_at;
-      const dateLabel = dateSource
-        ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-        : "Recent";
+      const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
       const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
 
       return {

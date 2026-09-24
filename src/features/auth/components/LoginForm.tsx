@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, User } from "lucide-react";
+import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { signInWithEmail, signUpWithEmail } from "../api/authActions";
+import { signInWithEmail } from "../api/authActions";
 
 export function LoginForm() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
@@ -20,25 +19,13 @@ export function LoginForm() {
     const formData = new FormData(e.currentTarget);
 
     try {
-      if (mode === "signin") {
-        const res = await signInWithEmail(formData);
-        if (res?.error) {
-          setMessage({ type: "error", text: res.error });
-          setLoading(false);
-        } else if (res?.success) {
-          setMessage({ type: "success", text: "Signed in! Redirecting to arena..." });
-          window.location.href = "/";
-        }
-      } else if (mode === "signup") {
-        const res = await signUpWithEmail(formData);
-        if (res?.error) {
-          setMessage({ type: "error", text: res.error });
-          setLoading(false);
-        } else if (res?.success) {
-          setMessage({ type: "success", text: res.message || "Account created! You may now sign in." });
-          setMode("signin");
-          setLoading(false);
-        }
+      const res = await signInWithEmail(formData);
+      if (res?.error) {
+        setMessage({ type: "error", text: res.error });
+        setLoading(false);
+      } else if (res?.success) {
+        setMessage({ type: "success", text: "Signed in! Redirecting to arena..." });
+        window.location.href = "/";
       }
     } catch (err) {
       console.error("Auth submit error:", err);
@@ -91,22 +78,6 @@ export function LoginForm() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === "signup" && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-slate-400" />
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="fullName"
-                required
-                placeholder="e.g. Jordan Miller"
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-          )}
-
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5 text-slate-400" />
@@ -150,62 +121,28 @@ export function LoginForm() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
                 Processing...
               </span>
-            ) : mode === "signin" ? (
-              <span className="flex items-center gap-2">
-                Sign In to Courts <ArrowRight className="h-4 w-4" />
-              </span>
             ) : (
               <span className="flex items-center gap-2">
-                Create Player Account <ArrowRight className="h-4 w-4" />
+                Sign In to Courts <ArrowRight className="h-4 w-4" />
               </span>
             )}
           </Button>
         </form>
 
-        {/* Sign In vs Sign Up Toggle & Default Password Hint */}
+        {/* Access & Password Policy Info */}
         <div className="pt-2 flex flex-col items-center gap-2 border-t border-slate-100 dark:border-slate-800/80 text-xs">
-          {mode === "signin" ? (
-            <div className="text-center space-y-1.5">
-              <p className="text-slate-500 dark:text-slate-400">
-                Default password for DCTECH colleagues:{" "}
-                <code className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
-                  dctech123
-                </code>
-              </p>
-              <div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("signup");
-                    setMessage(null);
-                  }}
-                  className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
-                >
-                  First time? Register your player account
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center">
-              <span className="text-slate-500 dark:text-slate-400">Already in the directory? </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("signin");
-                  setMessage(null);
-                }}
-                className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium cursor-pointer"
-              >
-                Sign in with existing account
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="text-center">
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">
-            Available on office Wi-Fi, home, and mobile browsers.
-          </p>
+          <div className="text-center space-y-1.5">
+            <p className="text-slate-500 dark:text-slate-400">
+              Default password for DCTECH colleagues:{" "}
+              <code className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                dctech123
+              </code>
+            </p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
+              <ShieldAlert className="h-3 w-3 text-amber-500 shrink-0" />
+              Player accounts are created and managed exclusively by administrators.
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

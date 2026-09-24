@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { parsePHTToISO } from "@/lib/timezone";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -198,7 +199,8 @@ export async function createSession(formData: FormData) {
 
   const supabase = await createClient();
   const userId = auth.context?.userId || "";
-  const isoStartTime = new Date(startTime).toISOString();
+  const isoStartTime = parsePHTToISO(startTime);
+  const isoEndTime = parsePHTToISO(endTime);
 
   // Idempotency / Duplicate Creation Guard (within last 10 seconds)
   const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
@@ -220,8 +222,7 @@ export async function createSession(formData: FormData) {
     description: finalDescription,
     location,
     start_time: isoStartTime,
-
-    end_time: new Date(endTime).toISOString(),
+    end_time: isoEndTime,
     max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
     created_by: userId,
     status: "scheduled",

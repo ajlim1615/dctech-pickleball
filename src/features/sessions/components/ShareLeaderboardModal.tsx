@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { formatRating } from "@/lib/utils";
+import { formatPHTDate } from "@/lib/timezone";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
 
 interface ShareLeaderboardModalProps {
@@ -48,11 +49,11 @@ export function ShareLeaderboardModal({
   );
   const effectiveTotalGames = Math.max(totalGames, derivedGames);
 
-  const formattedDate = new Intl.DateTimeFormat("en-US", {
+  const formattedDate = formatPHTDate(new Date(), {
     weekday: "short",
     month: "short",
     day: "numeric",
-  }).format(new Date());
+  });
 
   async function handleDownloadImage() {
     if (!cardRef.current) return;

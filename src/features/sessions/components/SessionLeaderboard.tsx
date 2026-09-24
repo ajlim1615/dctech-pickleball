@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatRating } from "@/lib/utils";
+import { formatPHTTime } from "@/lib/timezone";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
 
@@ -429,7 +430,7 @@ export function SessionLeaderboard({
 
                     {m.started_at && (
                       <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 flex items-center justify-between">
-                        <span>{new Date(m.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                        <span>{formatPHTTime(m.started_at)}</span>
                         {teamAWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 1 Victory</span>}
                         {teamBWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 2 Victory</span>}
                       </div>

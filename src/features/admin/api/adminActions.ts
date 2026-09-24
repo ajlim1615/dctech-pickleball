@@ -8,6 +8,7 @@ import type { UserRole, CourtStatus, Profile } from "@/types";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, sanitizeString } from "@/lib/security/validation";
+import { parsePHTToISO } from "@/lib/timezone";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
   // Server-side RBAC Guard
@@ -364,8 +365,8 @@ export async function editSession(sessionId: string, formData: FormData) {
       title,
       description: finalDescription,
       location,
-      start_time: new Date(startTime).toISOString(),
-      end_time: new Date(endTime).toISOString(),
+      start_time: parsePHTToISO(startTime),
+      end_time: parsePHTToISO(endTime),
       max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
       updated_at: new Date().toISOString(),
     })

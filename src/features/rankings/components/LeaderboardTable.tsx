@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { formatRating } from "@/lib/utils";
+import { formatPHTDate } from "@/lib/timezone";
 import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
 import type { RankedPlayer } from "../api/rankingActions";
 
@@ -141,9 +142,7 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
       const partner = item.partner;
       const opponents = item.opponents;
       const dateSource = match.ended_at || match.started_at || item.created_at;
-      const dateLabel = dateSource
-        ? new Date(dateSource).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-        : "Recent";
+      const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
       const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
 
       return {

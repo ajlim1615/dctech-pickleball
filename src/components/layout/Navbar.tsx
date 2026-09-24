@@ -21,20 +21,14 @@ import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/features/auth/api/authActions";
+import { formatPHTClock } from "@/lib/timezone";
 
 function LiveNavbarClock() {
   const [currentTime, setCurrentTime] = useState<string>("");
 
   useEffect(() => {
     const update = () => {
-      const now = new Date();
-      const formatted = now.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      });
-      setCurrentTime(formatted);
+      setCurrentTime(formatPHTClock(new Date()));
     };
     update();
     const interval = setInterval(update, 1000);

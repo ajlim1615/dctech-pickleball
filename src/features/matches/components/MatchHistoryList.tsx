@@ -5,6 +5,7 @@ import { Trophy, Calendar, CheckCircle2, Clock, MapPin, Plus, PlayCircle } from 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatPHTDateTime } from "@/lib/timezone";
 
 export interface MatchItem {
   id: string;
@@ -45,14 +46,7 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
       const scoreB = m.team_b_score ?? 0;
       const winner = m.winning_team || (scoreA > scoreB ? "team_a" : scoreB > scoreA ? "team_b" : "tie");
       const dateSource = m.ended_at || m.started_at || m.created_at;
-      const date = dateSource
-        ? new Date(dateSource).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "Recent";
+      const date = dateSource ? formatPHTDateTime(dateSource) : "Recent";
 
       return {
         id: m.id,

@@ -5,6 +5,7 @@ import { Calendar, MapPin, Users, PlayCircle, Clock, ChevronRight, CheckCircle2,
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cleanSessionDescription } from "@/lib/utils";
+import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import type { Session } from "@/types";
 
 interface SessionListProps {
@@ -15,16 +16,6 @@ interface SessionListProps {
 export function SessionList({ initialSessions, userRole = "player" }: SessionListProps) {
   const isAdmin = userRole === "admin";
   const sessions: Session[] = initialSessions;
-
-  function formatTime(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }
-
-  function formatDate(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
@@ -115,7 +106,7 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
 
                       <span className="text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        {formatDate(s.start_time)} • {formatTime(s.start_time)} – {formatTime(s.end_time)}
+                        {formatPHTDate(s.start_time)} • {formatPHTTime(s.start_time)} – {formatPHTTime(s.end_time)} (PHT)
                       </span>
                     </div>
 

@@ -39,6 +39,7 @@ import { useLiveQueue } from "../hooks/useLiveQueue";
 import { QueueCallupAlert } from "./QueueCallupAlert";
 import { createMatchupFromPod, type MatchingStyle } from "../utils/matchingEngine";
 import { formatRating } from "@/lib/utils";
+import { formatPHTTime } from "@/lib/timezone";
 import type { QueueEntryWithPlayer, Profile } from "@/types";
 
 interface QueueBoardProps {
@@ -1456,7 +1457,7 @@ export function QueueBoard({
 
                 <div className="flex items-center gap-2">
                   <div className="text-right font-mono text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-                    <span>Joined {new Date(item.joined_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                    <span>Joined {formatPHTTime(item.joined_at)}</span>
                   </div>
                   {isAdmin && (
                     <>
