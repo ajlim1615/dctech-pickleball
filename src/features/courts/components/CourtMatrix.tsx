@@ -62,6 +62,7 @@ interface CourtMatrixProps {
   readOnly?: boolean;
   targetPoints?: number;
   autoFill?: boolean;
+  winByTwo?: boolean;
 }
 
 export function CourtMatrix({
@@ -74,6 +75,7 @@ export function CourtMatrix({
   readOnly = false,
   targetPoints = 11,
   autoFill = true,
+  winByTwo,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
 
@@ -127,6 +129,7 @@ export function CourtMatrix({
               readOnly={readOnly}
               targetPoints={targetPoints}
               autoFill={autoFill}
+              winByTwo={winByTwo}
             />
           ))}
         </div>

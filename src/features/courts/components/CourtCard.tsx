@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { finalizeMatch } from "@/features/matches/api/matchActions";
 import { callNextUp } from "@/features/queue/api/queueActions";
+import {
+  describeRule,
+  getWinner,
+  quickWinScore,
+  type ScoringRule,
+  type ScoringTeam,
+} from "@/features/matches/utils/scoring";
 import type { ActiveCourtView, Profile } from "@/types";
 
 export function CourtDurationClock({ startedAt }: { startedAt?: string | null }) {
@@ -56,6 +63,8 @@ export interface CourtCardProps {
   targetPoints?: number;
   /** When true, submitting a result immediately calls the next group onto this court. */
   autoFill?: boolean;
+  /** Session rule: must a team lead by 2? Defaults to true at 11 pts, false at 6. */
+  winByTwo?: boolean;
 }
 
 export function CourtCard({
@@ -67,20 +76,16 @@ export function CourtCard({
   readOnly = false,
   targetPoints = 11,
   autoFill = true,
+  winByTwo,
 }: CourtCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const isAdministrator = !readOnly && (isAdmin ?? (userRole === "admin"));
 
-  // Dynamic game finish target: 6 points (speed play) or 11 points (standard)
-  const [courtTargetPoints, setCourtTargetPoints] = useState<number>(targetPoints || 11);
-
-  useEffect(() => {
-    if (targetPoints) {
-      setCourtTargetPoints(targetPoints);
-    }
-  }, [targetPoints]);
+  // The session decides the scoring rule; courts never override it.
+  const courtTargetPoints = targetPoints || 11;
+  const rule: ScoringRule = { targetPoints: courtTargetPoints, winByTwo: winByTwo ?? courtTargetPoints !== 6 };
 
   const activeMatch = court.current_match;
   const isExistingLiveMatch = Boolean(
@@ -143,15 +148,16 @@ export function CourtCard({
 
   function handleQuickWin(team: "A" | "B") {
     if (!isAdministrator) return;
-    const target = courtTargetPoints;
-    const losingScore = target === 6 ? 4 : Math.max(0, target - 2);
-    if (team === "A") {
-      setScoreA(target);
-      setScoreB((prev) => (prev >= target ? losingScore : prev));
-    } else {
-      setScoreB(target);
-      setScoreA((prev) => (prev >= target ? losingScore : prev));
-    }
+    // Smallest valid final score: 10-10 becomes 12-10 with win by 2, or 11-10 without.
+    const final = quickWinScore(team, scoreA, scoreB, rule);
+    setScoreA(final.scoreA);
+    setScoreB(final.scoreB);
+  }
+
+  /** Preview of the score Quick Win would set, e.g. "12-10". */
+  function quickWinLabel(team: ScoringTeam) {
+    const final = quickWinScore(team, scoreA, scoreB, rule);
+    return `${final.scoreA}-${final.scoreB}`;
   }
 
   function handleResetScore() {
@@ -180,17 +186,10 @@ export function CourtCard({
     });
   }
 
-  // Victory Condition: Respects dynamic targetPoints (6 pts win by 1, or 11 pts win by 2)
-  const winMargin = courtTargetPoints === 6 ? 1 : 2;
-  const isGameOver =
-    (scoreA >= courtTargetPoints && scoreA - scoreB >= winMargin) ||
-    (scoreB >= courtTargetPoints && scoreB - scoreA >= winMargin);
-  const winner =
-    scoreA >= courtTargetPoints && scoreA - scoreB >= winMargin
-      ? "Team 1"
-      : scoreB >= courtTargetPoints && scoreB - scoreA >= winMargin
-      ? "Team 2"
-      : null;
+  // Victory condition follows the session rule (win by 2, or first to target)
+  const winningTeam = getWinner(scoreA, scoreB, rule);
+  const isGameOver = winningTeam !== null;
+  const winner = winningTeam === "A" ? "Team 1" : winningTeam === "B" ? "Team 2" : null;
 
   function handleSubmitScore() {
     if (!isAdministrator || isPending) return;
@@ -204,7 +203,7 @@ export function CourtCard({
 
     if (!isGameOver) {
       setErrorMessage(
-        `Cannot submit match: Score is not finished yet. Games go to ${courtTargetPoints} (win by ${winMargin}).`
+        `Cannot submit match: Score is not finished yet. This session plays ${describeRule(rule)}.`
       );
       return;
     }
@@ -281,7 +280,7 @@ export function CourtCard({
                 )}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                {court.surface_type || "Pro Acrylic Court"} • Play to {courtTargetPoints} (Win by {winMargin})
+                {court.surface_type || "Pro Acrylic Court"} • Play {describeRule(rule)}
               </p>
             </div>
 
@@ -398,32 +397,9 @@ export function CourtCard({
                 <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
                   Live Score:
                 </span>
-                {isAdministrator && (
-                  <div className="flex items-center gap-1 font-mono text-[9px]">
-                    <button
-                      type="button"
-                      onClick={() => setCourtTargetPoints(6)}
-                      className={`px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
-                        courtTargetPoints === 6
-                          ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      ⚡ 6 Pts
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCourtTargetPoints(11)}
-                      className={`px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
-                        courtTargetPoints === 11
-                          ? "bg-emerald-500 text-slate-950 border-emerald-500 shadow-2xs"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      🏆 11 Pts
-                    </button>
-                  </div>
-                )}
+                <span className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                  {describeRule(rule)}
+                </span>
               </div>
               {isAdministrator && (
                 <button
@@ -530,17 +506,17 @@ export function CourtCard({
                   type="button"
                   onClick={() => handleQuickWin("A")}
                   className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title={`Quickly set Team 1 as the winner with ${courtTargetPoints} points`}
+                  title={`Set Team 1 as the winner (${quickWinLabel("A")})`}
                 >
-                  ⚡ Team 1 Wins ({courtTargetPoints})
+                  ⚡ Team 1 Wins ({quickWinLabel("A")})
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickWin("B")}
                   className="text-[10px] font-mono font-bold text-sky-700 dark:text-sky-400 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 border border-sky-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title={`Quickly set Team 2 as the winner with ${courtTargetPoints} points`}
+                  title={`Set Team 2 as the winner (${quickWinLabel("B")})`}
                 >
-                  ⚡ Team 2 Wins ({courtTargetPoints})
+                  ⚡ Team 2 Wins ({quickWinLabel("B")})
                 </button>
               </div>
             )}
@@ -593,7 +569,7 @@ export function CourtCard({
                   {isPending
                     ? "Submitting Score..."
                     : !isGameOver
-                    ? `In progress (to ${courtTargetPoints}, win by ${winMargin})`
+                    ? `In progress (${describeRule(rule)})`
                     : `Submit result (${winner} wins)`}
                 </Button>
 

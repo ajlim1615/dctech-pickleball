@@ -23,6 +23,7 @@ import { Modal } from "@/components/ui/modal";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import { finalizeMatch, updateMatchScore, createMatch } from "@/features/matches/api/matchActions";
 import { callNextUp } from "@/features/queue/api/queueActions";
+import { describeRule, getWinner, type ScoringRule } from "@/features/matches/utils/scoring";
 import type { ActiveCourtView, Profile, CourtStatus, MatchFormat } from "@/types";
 
 interface StaffCourtMonitorProps {
@@ -31,6 +32,9 @@ interface StaffCourtMonitorProps {
   court?: ActiveCourtView | null;
   employees?: Profile[];
   sessionId?: string;
+  /** Session scoring rule. */
+  targetPoints?: number;
+  winByTwo?: boolean;
 }
 
 export function StaffCourtMonitor({
@@ -39,6 +43,8 @@ export function StaffCourtMonitor({
   court,
   employees = [],
   sessionId,
+  targetPoints = 11,
+  winByTwo,
 }: StaffCourtMonitorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -109,23 +115,16 @@ export function StaffCourtMonitor({
     setScoreB(currentMatch.team_b_score || 0);
   }
 
-  // Target Game Score: 6 points (speed play) or 11 points (standard)
-  const [targetPoints, setTargetPoints] = useState<number>(11);
+  const rule: ScoringRule = { targetPoints, winByTwo: winByTwo ?? targetPoints !== 6 };
 
   // Standard Pickleball Call String (e.g. "0 - 0 - 2")
   const servingScore = servingTeam === "A" ? scoreA : scoreB;
   const receivingScore = servingTeam === "A" ? scoreB : scoreA;
   const pickleballCall = `${servingScore} - ${receivingScore} - ${serverNumber}`;
 
-  // Victory Condition: Respects dynamic targetPoints (6 pts win by 1, or 11 pts win by 2)
-  const winMargin = targetPoints === 6 ? 1 : 2;
-  const isGameWon = (scoreA >= targetPoints || scoreB >= targetPoints) && Math.abs(scoreA - scoreB) >= winMargin;
-  const winningTeam =
-    scoreA >= targetPoints && scoreA - scoreB >= winMargin
-      ? "A"
-      : scoreB >= targetPoints && scoreB - scoreA >= winMargin
-      ? "B"
-      : null;
+  // Victory condition follows the session rule (win by 2, or first to target)
+  const winningTeam = getWinner(scoreA, scoreB, rule);
+  const isGameWon = winningTeam !== null;
   const winningTeamName = winningTeam === "A" ? teamAName : winningTeam === "B" ? teamBName : null;
 
   const [showManualSetup, setShowManualSetup] = useState(false);
@@ -149,14 +148,14 @@ export function StaffCourtMonitor({
       const next = scoreA + 1;
       setScoreA(next);
       if (activeMatchId) updateMatchScore(activeMatchId, next, scoreB);
-      if (next >= targetPoints && next - scoreB >= winMargin) {
+      if (getWinner(next, scoreB, rule) === "A") {
         showNotice(`🎉 Match Won by ${teamAName}! (${next} – ${scoreB})`);
       }
     } else {
       const next = scoreB + 1;
       setScoreB(next);
       if (activeMatchId) updateMatchScore(activeMatchId, scoreA, next);
-      if (next >= targetPoints && next - scoreA >= winMargin) {
+      if (getWinner(scoreA, next, rule) === "B") {
         showNotice(`🎉 Match Won by ${teamBName}! (${next} – ${scoreA})`);
       }
     }
@@ -265,7 +264,11 @@ export function StaffCourtMonitor({
     setShowFinalizeConfirm(false);
     startTransition(async () => {
       if (activeMatchId) {
-        await finalizeMatch(activeMatchId, scoreA, scoreB);
+        const res = await finalizeMatch(activeMatchId, scoreA, scoreB);
+        if (res?.error) {
+          showNotice(res.error);
+          return;
+        }
       }
       setCompleted(true);
       router.refresh();
@@ -386,37 +389,10 @@ export function StaffCourtMonitor({
         </a>
 
         <div className="flex items-center gap-2">
-          {/* Target Score Toggle */}
-          <div className="flex items-center gap-1 font-mono text-[10px]">
-            <button
-              type="button"
-              onClick={() => {
-                setTargetPoints(6);
-                showNotice("⚡ Switched to Speed Play (Game to 6 pts)");
-              }}
-              className={`px-2 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
-                targetPoints === 6
-                  ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
-              }`}
-            >
-              ⚡ 6 Pts
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTargetPoints(11);
-                showNotice("🏆 Switched to Standard Play (Game to 11 pts)");
-              }}
-              className={`px-2 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
-                targetPoints === 11
-                  ? "bg-emerald-500 text-slate-950 border-emerald-500 shadow-2xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
-              }`}
-            >
-              🏆 11 Pts
-            </button>
-          </div>
+          {/* Scoring rule comes from the session settings */}
+          <span className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[10px] font-bold text-slate-600 dark:text-slate-300">
+            {describeRule(rule)}
+          </span>
           <Badge variant="volt" className="text-xs font-mono">
             STAFF UMPIRE MODE
           </Badge>
@@ -644,7 +620,7 @@ export function StaffCourtMonitor({
                 GAME WON BY {winningTeamName?.toUpperCase()} ({Math.max(scoreA, scoreB)} – {Math.min(scoreA, scoreB)})!
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 font-sans">
-                Official winning threshold reached (11 points, win by 2). Tap &quot;Complete Game & Record Score&quot; below to record the match stats and free the court for the next queue pod.
+                Game over ({describeRule(rule)}). Tap &quot;Complete Game & Record Score&quot; below to record the match stats and free the court for the next queue pod.
               </p>
             </div>
           )}
@@ -725,7 +701,7 @@ export function StaffCourtMonitor({
                   onClick={() => handlePointForTeam("A")}
                   disabled={isGameWon}
                   className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={isGameWon ? "Match won (win by 2 reached)" : "Add 1 point"}
+                  title={isGameWon ? "Game over" : "Add 1 point"}
                 >
                   <Plus className="h-6 w-6" />
                 </Button>
@@ -792,7 +768,7 @@ export function StaffCourtMonitor({
                   onClick={() => handlePointForTeam("B")}
                   disabled={isGameWon}
                   className="h-12 w-12 rounded-xl text-lg font-bold shadow-md shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={isGameWon ? "Match won (win by 2 reached)" : "Add 1 point"}
+                  title={isGameWon ? "Game over" : "Add 1 point"}
                 >
                   <Plus className="h-6 w-6" />
                 </Button>
@@ -831,7 +807,7 @@ export function StaffCourtMonitor({
                   ? "Finalizing Game..."
                   : isGameWon
                   ? `Finalize Victory (${scoreA} – ${scoreB})`
-                  : "Play to 11 (Win by 2) to Complete"}
+                  : `Play ${describeRule(rule)} to complete`}
               </span>
             </Button>
           </div>

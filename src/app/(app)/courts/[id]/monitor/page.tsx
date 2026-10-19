@@ -4,6 +4,7 @@ import { StaffCourtMonitor } from "@/features/courts/components/StaffCourtMonito
 import { getCourts } from "@/features/courts/api/courtActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
+import { parseSessionMetadata } from "@/lib/utils";
 
 export default async function CourtMonitorPage({
   params,
@@ -30,6 +31,7 @@ export default async function CourtMonitorPage({
     null;
 
   const activeSession = sessions.find((s) => s.status === "active") || sessions[0];
+  const meta = parseSessionMetadata(activeSession?.description);
 
   return (
     <StaffCourtMonitor
@@ -38,6 +40,8 @@ export default async function CourtMonitorPage({
       court={court}
       employees={employees}
       sessionId={activeSession?.id}
+      targetPoints={meta.targetPoints}
+      winByTwo={meta.winByTwo}
     />
   );
 }

@@ -124,12 +124,14 @@ export function AdminDashboard({
   const [selectedMatchingMode, setSelectedMatchingMode] = useState<string>("balanced");
   const [sessionIsRanked, setSessionIsRanked] = useState<boolean>(true);
   const [sessionTargetPoints, setSessionTargetPoints] = useState<number>(11);
+  const [sessionWinByTwo, setSessionWinByTwo] = useState<boolean>(true);
   const [showMoreMatchingModes, setShowMoreMatchingModes] = useState<boolean>(false);
 
   // Session Edit Config State
   const [editMatchingMode, setEditMatchingMode] = useState<string>("balanced");
   const [editIsRanked, setEditIsRanked] = useState<boolean>(true);
   const [editTargetPoints, setEditTargetPoints] = useState<number>(11);
+  const [editWinByTwo, setEditWinByTwo] = useState<boolean>(true);
 
   const [courts, setCourts] = useState<
     { id: string; name: string; status: CourtStatus; surface: string; assignedStaffId?: string | null }[]
@@ -154,6 +156,7 @@ export function AdminDashboard({
       setEditMatchingMode(meta.matchingMode);
       setEditIsRanked(meta.isRanked);
       setEditTargetPoints(meta.targetPoints);
+      setEditWinByTwo(meta.winByTwo);
     }
   }, [isEditingSession]);
 
@@ -947,7 +950,10 @@ export function AdminDashboard({
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setSessionTargetPoints(11)}
+                        onClick={() => {
+                          setSessionTargetPoints(11);
+                          setSessionWinByTwo(true);
+                        }}
                         className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
                           sessionTargetPoints === 11
                             ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 ring-1 ring-emerald-500/50"
@@ -959,13 +965,16 @@ export function AdminDashboard({
                           <span>🏆 11 Points</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Standard Pickleball rule (win by 2 points).
+                          Standard pickleball game length.
                         </p>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setSessionTargetPoints(6)}
+                        onClick={() => {
+                          setSessionTargetPoints(6);
+                          setSessionWinByTwo(false);
+                        }}
                         className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
                           sessionTargetPoints === 6
                             ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/40 ring-1 ring-amber-500/50"
@@ -981,6 +990,11 @@ export function AdminDashboard({
                         </p>
                       </button>
                     </div>
+                    <WinByTwoToggle
+                      checked={sessionWinByTwo}
+                      onChange={setSessionWinByTwo}
+                      targetPoints={sessionTargetPoints}
+                    />
                   </div>
                 </div>
 
@@ -1456,7 +1470,10 @@ export function AdminDashboard({
                         <div className="grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setEditTargetPoints(11)}
+                            onClick={() => {
+                              setEditTargetPoints(11);
+                              setEditWinByTwo(true);
+                            }}
                             className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
                               editTargetPoints === 11
                                 ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
@@ -1467,7 +1484,10 @@ export function AdminDashboard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setEditTargetPoints(6)}
+                            onClick={() => {
+                              setEditTargetPoints(6);
+                              setEditWinByTwo(false);
+                            }}
                             className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
                               editTargetPoints === 6
                                 ? "border-amber-500 bg-amber-50/60 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
@@ -1477,6 +1497,11 @@ export function AdminDashboard({
                             ⚡ 6 Pts
                           </button>
                         </div>
+                        <WinByTwoToggle
+                          checked={editWinByTwo}
+                          onChange={setEditWinByTwo}
+                          targetPoints={editTargetPoints}
+                        />
                       </div>
                     </div>
 
@@ -2462,5 +2487,35 @@ export function AdminDashboard({
         )}
       </Modal>
     </div>
+  );
+}
+
+function WinByTwoToggle({
+  checked,
+  onChange,
+  targetPoints,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  targetPoints: number;
+}) {
+  return (
+    <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-2.5 cursor-pointer select-none">
+      <input type="hidden" name="winByTwo" value={checked ? "true" : "false"} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 accent-emerald-500"
+      />
+      <span className="space-y-0.5">
+        <span className="block text-xs font-bold text-slate-900 dark:text-slate-100">Win by 2</span>
+        <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+          {checked
+            ? `At ${targetPoints - 1}-${targetPoints - 1} play continues until a team leads by 2 (e.g. ${targetPoints + 1}-${targetPoints - 1}).`
+            : `First to ${targetPoints} wins. At ${targetPoints - 1}-${targetPoints - 1} the next point ends the game (${targetPoints}-${targetPoints - 1}).`}
+        </span>
+      </span>
+    </label>
   );
 }

@@ -33,4 +33,12 @@ describe("utils", () => {
     const clean = cleanSessionDescription(raw);
     expect(clean).toBe("Fun friday open play");
   });
+
+  it("parses the win-by rule, defaulting by target points for older sessions", () => {
+    expect(parseSessionMetadata("[target_points:11]").winByTwo).toBe(true);
+    expect(parseSessionMetadata("[target_points:6]").winByTwo).toBe(false);
+    expect(parseSessionMetadata("[target_points:11] [win_by:1]").winByTwo).toBe(false);
+    expect(parseSessionMetadata("[target_points:6] [win_by:2]").winByTwo).toBe(true);
+    expect(cleanSessionDescription("Open play [target_points:11] [win_by:1]")).toBe("Open play");
+  });
 });

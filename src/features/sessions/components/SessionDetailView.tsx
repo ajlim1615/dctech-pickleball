@@ -1098,6 +1098,7 @@ export function SessionDetailView({
             waitingQueueCount={initialQueue.filter((q) => q.status === "waiting").length}
             targetPoints={sessionMeta.targetPoints}
             autoFill={autoFill}
+            winByTwo={sessionMeta.winByTwo}
           />
         </div>
 

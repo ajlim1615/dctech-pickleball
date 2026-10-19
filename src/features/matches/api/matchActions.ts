@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Match, MatchFormat, MatchTeam, WinningTeam } from "@/types";
 import { callNextUp } from "@/features/queue/api/queueActions";
 import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
+import { describeRule, getWinner } from "@/features/matches/utils/scoring";
+import { parseSessionMetadata } from "@/lib/utils";
 
 export async function createMatch(params: {
   sessionId: string;
@@ -131,6 +133,17 @@ export async function finalizeMatch(
   const isUnranked = Boolean(
     (matchRecord as any)?.sessions?.description?.includes("[ranked:false]")
   );
+
+  // Enforce the session's scoring rule so no unfinished or impossible score is recorded.
+  const sessionDescription = (matchRecord as { sessions?: { description?: string | null } | null } | null)
+    ?.sessions?.description;
+  const meta = parseSessionMetadata(sessionDescription);
+  const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo };
+  if (!getWinner(teamAScore, teamBScore, rule)) {
+    return {
+      error: `${teamAScore}-${teamBScore} is not a finished game. This session plays ${describeRule(rule)}.`,
+    };
+  }
 
   if (isUnranked) {
     // Unranked casual match: record official score & free court, but bypass DUPR updates
