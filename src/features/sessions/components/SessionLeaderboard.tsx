@@ -22,6 +22,7 @@ import { formatRating } from "@/lib/utils";
 import { formatPHTTime } from "@/lib/timezone";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
+import { isResultOnlyScore } from "@/features/matches/utils/scoring";
 
 interface SessionLeaderboardProps {
   initialRankings?: SessionRankedPlayer[];
@@ -412,11 +413,11 @@ export function SessionLeaderboard({
                       {/* Score */}
                       <div className="col-span-1 text-center font-extrabold text-sm flex items-center justify-center gap-1.5">
                         <span className={teamAWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}>
-                          {m.team_a_score ?? 0}
+                          {isResultOnlyScore(m.team_a_score, m.team_b_score) ? (teamAWon ? "W" : "L") : m.team_a_score ?? 0}
                         </span>
                         <span className="text-slate-300 dark:text-slate-700">:</span>
                         <span className={teamBWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}>
-                          {m.team_b_score ?? 0}
+                          {isResultOnlyScore(m.team_a_score, m.team_b_score) ? (teamBWon ? "W" : "L") : m.team_b_score ?? 0}
                         </span>
                       </div>
 

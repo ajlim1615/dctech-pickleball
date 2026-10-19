@@ -138,7 +138,7 @@ export async function finalizeMatch(
   const sessionDescription = (matchRecord as { sessions?: { description?: string | null } | null } | null)
     ?.sessions?.description;
   const meta = parseSessionMetadata(sessionDescription);
-  const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo };
+  const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo, trackScores: meta.trackScores };
   if (!getWinner(teamAScore, teamBScore, rule)) {
     return {
       error: `${teamAScore}-${teamBScore} is not a finished game. This session plays ${describeRule(rule)}.`,

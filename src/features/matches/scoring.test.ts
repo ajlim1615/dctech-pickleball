@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getWinner, quickWinScore, type ScoringRule } from "@/features/matches/utils/scoring";
+import {
+  formatMatchScore,
+  getWinner,
+  isResultOnlyScore,
+  quickWinScore,
+  type ScoringRule,
+} from "@/features/matches/utils/scoring";
 
 const winBy2: ScoringRule = { targetPoints: 11, winByTwo: true };
 const capped: ScoringRule = { targetPoints: 11, winByTwo: false };
@@ -39,5 +45,26 @@ describe("quickWinScore", () => {
         }
       }
     }
+  });
+});
+
+describe("win/loss-only sessions", () => {
+  const resultOnly: ScoringRule = { targetPoints: 11, winByTwo: true, trackScores: false };
+
+  it("accepts only a 1-0 result", () => {
+    expect(getWinner(1, 0, resultOnly)).toBe("A");
+    expect(getWinner(0, 1, resultOnly)).toBe("B");
+    expect(getWinner(11, 9, resultOnly)).toBeNull();
+  });
+
+  it("records a quick win as 1-0", () => {
+    expect(quickWinScore("B", 7, 3, resultOnly)).toEqual({ scoreA: 0, scoreB: 1 });
+  });
+
+  it("shows W/L instead of a 1-0 score", () => {
+    expect(formatMatchScore(1, 0)).toBe("W - L");
+    expect(formatMatchScore(0, 1)).toBe("L - W");
+    expect(formatMatchScore(11, 9)).toBe("11 - 9");
+    expect(isResultOnlyScore(6, 4)).toBe(false);
   });
 });

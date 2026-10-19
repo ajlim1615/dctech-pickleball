@@ -34,6 +34,7 @@ import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
 import type { Profile } from "@/types";
+import { formatMatchScore } from "@/features/matches/utils/scoring";
 
 interface ProfileViewProps {
   profile: Profile;
@@ -321,7 +322,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
       const opponents = item.opponents;
       const dateSource = match.ended_at || match.started_at || item.created_at;
       const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
-      const scoreLabel = `${match.team_a_score ?? 0} - ${match.team_b_score ?? 0}`;
+      const scoreLabel = formatMatchScore(match.team_a_score, match.team_b_score);
 
       return {
         result,

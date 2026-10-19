@@ -23,6 +23,7 @@ export function cleanSessionDescription(description?: string | null): string {
     .replace(/\s*\[ranked:[^\]]+\]/gi, "")
     .replace(/\s*\[target_points:[^\]]+\]/gi, "")
     .replace(/\s*\[win_by:[^\]]+\]/gi, "")
+    .replace(/\s*\[scoring:[^\]]+\]/gi, "")
     .trim();
 }
 
@@ -31,6 +32,8 @@ export function parseSessionMetadata(description?: string | null): {
   isRanked: boolean;
   targetPoints: number;
   winByTwo: boolean;
+  /** false = win/loss only: admins just pick the winning team. */
+  trackScores: boolean;
   cleanDescription: string;
 } {
   const desc = description || "";
@@ -38,6 +41,7 @@ export function parseSessionMetadata(description?: string | null): {
   const rankedMatch = desc.match(/\[ranked:([^\]]+)\]/i);
   const targetPointsMatch = desc.match(/\[target_points:([^\]]+)\]/i);
   const winByMatch = desc.match(/\[win_by:([12])\]/i);
+  const scoringMatch = desc.match(/\[scoring:(points|result)\]/i);
 
   const rawMode = matchingModeMatch ? matchingModeMatch[1].toLowerCase() : "balanced";
   const validModes: MatchingStyle[] = [
@@ -63,6 +67,7 @@ export function parseSessionMetadata(description?: string | null): {
     targetPoints,
     // Older sessions have no tag: 11 pts was always win by 2, 6 pts first to 6.
     winByTwo: winByMatch ? winByMatch[1] === "2" : targetPoints !== 6,
+    trackScores: scoringMatch ? scoringMatch[1].toLowerCase() !== "result" : true,
     cleanDescription: cleanSessionDescription(desc),
   };
 }

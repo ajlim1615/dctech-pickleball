@@ -42,6 +42,7 @@ export default async function CourtMonitorPage({
       sessionId={activeSession?.id}
       targetPoints={meta.targetPoints}
       winByTwo={meta.winByTwo}
+      trackScores={meta.trackScores}
     />
   );
 }

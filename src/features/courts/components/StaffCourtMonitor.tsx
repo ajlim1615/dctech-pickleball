@@ -23,7 +23,13 @@ import { Modal } from "@/components/ui/modal";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import { finalizeMatch, updateMatchScore, createMatch } from "@/features/matches/api/matchActions";
 import { callNextUp } from "@/features/queue/api/queueActions";
-import { describeRule, getWinner, type ScoringRule } from "@/features/matches/utils/scoring";
+import {
+  describeRule,
+  getWinner,
+  resultOnlyScore,
+  type ScoringRule,
+  type ScoringTeam,
+} from "@/features/matches/utils/scoring";
 import type { ActiveCourtView, Profile, CourtStatus, MatchFormat } from "@/types";
 
 interface StaffCourtMonitorProps {
@@ -35,6 +41,8 @@ interface StaffCourtMonitorProps {
   /** Session scoring rule. */
   targetPoints?: number;
   winByTwo?: boolean;
+  /** false: win/loss-only session, the umpire just picks the winning team. */
+  trackScores?: boolean;
 }
 
 export function StaffCourtMonitor({
@@ -45,6 +53,7 @@ export function StaffCourtMonitor({
   sessionId,
   targetPoints = 11,
   winByTwo,
+  trackScores = true,
 }: StaffCourtMonitorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -115,7 +124,7 @@ export function StaffCourtMonitor({
     setScoreB(currentMatch.team_b_score || 0);
   }
 
-  const rule: ScoringRule = { targetPoints, winByTwo: winByTwo ?? targetPoints !== 6 };
+  const rule: ScoringRule = { targetPoints, winByTwo: winByTwo ?? targetPoints !== 6, trackScores };
 
   // Standard Pickleball Call String (e.g. "0 - 0 - 2")
   const servingScore = servingTeam === "A" ? scoreA : scoreB;
@@ -259,6 +268,23 @@ export function StaffCourtMonitor({
     setShowFinalizeConfirm(true);
   }
 
+  /** Win/loss-only sessions: pick the winner, then confirm in the same dialog. */
+  function handlePickWinner(team: ScoringTeam) {
+    if (isPending) return;
+    const final = resultOnlyScore(team);
+    setScoreA(final.scoreA);
+    setScoreB(final.scoreB);
+    setShowFinalizeConfirm(true);
+  }
+
+  function cancelFinalize() {
+    setShowFinalizeConfirm(false);
+    if (!trackScores) {
+      setScoreA(0);
+      setScoreB(0);
+    }
+  }
+
   async function confirmFinalizeGame() {
     if (isPending) return;
     setShowFinalizeConfirm(false);
@@ -288,7 +314,7 @@ export function StaffCourtMonitor({
               Match Completed & Recorded!
             </h2>
             <p className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-              Final Score: {scoreA} – {scoreB} ({winner} Victory)
+              {trackScores ? `Final Score: ${scoreA} – ${scoreB} (${winner} Victory)` : `${winner} Victory`}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Player skill ratings and leaderboard standings have been updated.
@@ -327,7 +353,7 @@ export function StaffCourtMonitor({
     {/* Finalize Game Confirmation Modal */}
     <Modal
       isOpen={showFinalizeConfirm}
-      onClose={() => setShowFinalizeConfirm(false)}
+      onClose={cancelFinalize}
     >
       <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default">
           <div className="flex items-start justify-between gap-3">
@@ -340,7 +366,15 @@ export function StaffCourtMonitor({
                   Finalize Match Score
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Record final score: <span className="font-bold text-emerald-600 dark:text-emerald-400">{scoreA} – {scoreB}</span> for {courtName}?
+                  {trackScores ? (
+                    <>
+                      Record final score: <span className="font-bold text-emerald-600 dark:text-emerald-400">{scoreA} – {scoreB}</span> for {courtName}?
+                    </>
+                  ) : (
+                    <>
+                      Record a win for <span className="font-bold text-emerald-600 dark:text-emerald-400">{winningTeamName}</span> on {courtName}?
+                    </>
+                  )}
                 </p>
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                   This will update player ratings and free the court.
@@ -349,7 +383,7 @@ export function StaffCourtMonitor({
             </div>
             <button
               type="button"
-              onClick={() => setShowFinalizeConfirm(false)}
+              onClick={cancelFinalize}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
             >
               <ArrowLeft className="h-4 w-4 rotate-[135deg]" />
@@ -359,7 +393,7 @@ export function StaffCourtMonitor({
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
-              onClick={() => setShowFinalizeConfirm(false)}
+              onClick={cancelFinalize}
               disabled={isPending}
               className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
@@ -608,6 +642,33 @@ export function StaffCourtMonitor({
               </Button>
             </Card>
           )}
+        </div>
+      ) : !trackScores ? (
+        /* Win/loss-only session: just pick the winner */
+        <div className="space-y-4">
+          <p className="text-center text-sm text-slate-600 dark:text-slate-300">
+            Win/loss session. Tap the team that won; no score needed.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => handlePickWinner("A")}
+              disabled={isPending}
+              className="min-h-28 rounded-2xl border-2 border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 p-5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span className="block text-xs font-mono font-bold uppercase tracking-wider">Team 1 won</span>
+              <span className="block mt-1 text-lg font-extrabold">{teamAName}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePickWinner("B")}
+              disabled={isPending}
+              className="min-h-28 rounded-2xl border-2 border-sky-500/50 bg-sky-50 dark:bg-sky-950/40 p-5 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/70 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span className="block text-xs font-mono font-bold uppercase tracking-wider">Team 2 won</span>
+              <span className="block mt-1 text-lg font-extrabold">{teamBName}</span>
+            </button>
+          </div>
         </div>
       ) : (
         /* Live Scoring Arena */

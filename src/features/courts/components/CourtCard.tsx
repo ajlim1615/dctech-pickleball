@@ -24,6 +24,7 @@ import {
   describeRule,
   getWinner,
   quickWinScore,
+  resultOnlyScore,
   type ScoringRule,
   type ScoringTeam,
 } from "@/features/matches/utils/scoring";
@@ -65,6 +66,8 @@ export interface CourtCardProps {
   autoFill?: boolean;
   /** Session rule: must a team lead by 2? Defaults to true at 11 pts, false at 6. */
   winByTwo?: boolean;
+  /** false: win/loss-only session, the admin just picks the winning team. */
+  trackScores?: boolean;
 }
 
 export function CourtCard({
@@ -77,6 +80,7 @@ export function CourtCard({
   targetPoints = 11,
   autoFill = true,
   winByTwo,
+  trackScores = true,
 }: CourtCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -85,7 +89,13 @@ export function CourtCard({
 
   // The session decides the scoring rule; courts never override it.
   const courtTargetPoints = targetPoints || 11;
-  const rule: ScoringRule = { targetPoints: courtTargetPoints, winByTwo: winByTwo ?? courtTargetPoints !== 6 };
+  const rule: ScoringRule = {
+    targetPoints: courtTargetPoints,
+    winByTwo: winByTwo ?? courtTargetPoints !== 6,
+    trackScores,
+  };
+  // Win/loss-only sessions: the team the admin tapped, waiting for confirmation.
+  const [pendingWinner, setPendingWinner] = useState<ScoringTeam | null>(null);
 
   const activeMatch = court.current_match;
   const isExistingLiveMatch = Boolean(
@@ -191,7 +201,7 @@ export function CourtCard({
   const isGameOver = winningTeam !== null;
   const winner = winningTeam === "A" ? "Team 1" : winningTeam === "B" ? "Team 2" : null;
 
-  function handleSubmitScore() {
+  function handleSubmitScore(finalA = scoreA, finalB = scoreB) {
     if (!isAdministrator || isPending) return;
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -201,30 +211,42 @@ export function CourtCard({
       return;
     }
 
-    if (!isGameOver) {
+    if (!getWinner(finalA, finalB, rule)) {
       setErrorMessage(
         `Cannot submit match: Score is not finished yet. This session plays ${describeRule(rule)}.`
       );
       return;
     }
 
+    const saved = rule.trackScores === false
+      ? `${finalA > finalB ? "Team 1" : "Team 2"} win`
+      : `${finalA}-${finalB}`;
+
     startTransition(async () => {
-      const res = await finalizeMatch(activeMatch.id, scoreA, scoreB, { autoFill });
+      const res = await finalizeMatch(activeMatch.id, finalA, finalB, { autoFill });
       if (res?.error) {
         setErrorMessage(res.error);
       } else {
         setSuccessMessage(
           res?.autoFilled
-            ? `Saved ${scoreA}-${scoreB}. Players re-queued and the next group is on court.`
-            : `Saved ${scoreA}-${scoreB}. Players are back in the queue.${
+            ? `Saved ${saved}. Players re-queued and the next group is on court.`
+            : `Saved ${saved}. Players are back in the queue.${
                 autoFill && res?.autoFillMessage ? ` Court left open: ${res.autoFillMessage}` : ""
               }`
         );
         setScoreA(0);
         setScoreB(0);
+        setPendingWinner(null);
         router.refresh();
       }
     });
+  }
+
+  /** Win/loss-only sessions: record the tapped team's win once confirmed. */
+  function handleConfirmResult() {
+    if (!pendingWinner) return;
+    const final = resultOnlyScore(pendingWinner);
+    handleSubmitScore(final.scoreA, final.scoreB);
   }
 
   const cleanCourtName = court.name.replace(/\s*\(Rented Court\)/i, "");
@@ -390,7 +412,7 @@ export function CourtCard({
           )}
 
           {/* Score Board & Steppers (only while players are on court) */}
-          {hasPlayersOnCourt && (
+          {hasPlayersOnCourt && trackScores && (
           <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -551,13 +573,64 @@ export function CourtCard({
                     : `Need 4 waiting to start a game (${waitingQueueCount} in queue)`}
                 </p>
               </>
+            ) : isAdministrator && !trackScores ? (
+              pendingWinner ? (
+                <div className="space-y-2">
+                  <p className="text-center text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Record a win for {pendingWinner === "A" ? "Team 1" : "Team 2"}?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPendingWinner(null)}
+                      disabled={isPending}
+                      className="h-11 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="volt"
+                      onClick={handleConfirmResult}
+                      disabled={isPending}
+                      className="h-11 font-bold cursor-pointer"
+                    >
+                      <Trophy className="h-4 w-4 mr-1.5" />
+                      {isPending ? "Saving..." : "Confirm"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPendingWinner("A")}
+                      className="h-14 rounded-xl border-2 border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-sm font-extrabold hover:bg-emerald-100 dark:hover:bg-emerald-950/70 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      🏆 Team 1 won
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingWinner("B")}
+                      className="h-14 rounded-xl border-2 border-sky-500/50 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-sm font-extrabold hover:bg-sky-100 dark:hover:bg-sky-950/70 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      🏆 Team 2 won
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono mt-1.5">
+                    Win/loss session: tap the winning team, no score needed.
+                  </p>
+                </>
+              )
             ) : isAdministrator ? (
               <>
                 <Button
                   type="button"
                   variant="volt"
                   size="default"
-                  onClick={handleSubmitScore}
+                  onClick={() => handleSubmitScore()}
                   disabled={isPending || !isGameOver}
                   className={`w-full font-bold font-mono text-xs h-11 rounded-xl shadow-sm transition-all active:scale-[0.98] ${
                     !isGameOver

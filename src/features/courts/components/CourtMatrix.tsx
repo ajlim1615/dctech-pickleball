@@ -63,6 +63,7 @@ interface CourtMatrixProps {
   targetPoints?: number;
   autoFill?: boolean;
   winByTwo?: boolean;
+  trackScores?: boolean;
 }
 
 export function CourtMatrix({
@@ -76,6 +77,7 @@ export function CourtMatrix({
   targetPoints = 11,
   autoFill = true,
   winByTwo,
+  trackScores,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
 
@@ -130,6 +132,7 @@ export function CourtMatrix({
               targetPoints={targetPoints}
               autoFill={autoFill}
               winByTwo={winByTwo}
+              trackScores={trackScores}
             />
           ))}
         </div>

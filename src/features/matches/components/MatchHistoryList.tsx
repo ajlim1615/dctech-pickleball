@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPHTDateTime } from "@/lib/timezone";
+import { isResultOnlyScore } from "@/features/matches/utils/scoring";
 
 export interface MatchItem {
   id: string;
@@ -15,6 +16,8 @@ export interface MatchItem {
   teamB: string[];
   scoreA: number;
   scoreB: number;
+  /** Win/loss-only game: show W/L instead of 1-0. */
+  resultOnly: boolean;
   winner: "team_a" | "team_b" | "tie";
   date: string;
   duration?: string;
@@ -56,6 +59,7 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
         teamB: teamBPlayers.length > 0 ? teamBPlayers : ["Team 2"],
         scoreA,
         scoreB,
+        resultOnly: isResultOnlyScore(scoreA, scoreB),
         winner,
         date,
       };
@@ -143,11 +147,11 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
                   <div className="text-right font-mono sm:border-l sm:border-slate-200 dark:sm:border-slate-800/80 sm:pl-6">
                     <div className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                       <span className={m.winner === "team_a" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}>
-                        {m.scoreA}
+                        {m.resultOnly ? (m.scoreA > m.scoreB ? "W" : "L") : m.scoreA}
                       </span>
                       <span className="text-slate-400 dark:text-slate-600 mx-1">:</span>
                       <span className={m.winner === "team_b" ? "text-sky-600 dark:text-sky-400" : "text-slate-700 dark:text-slate-300"}>
-                        {m.scoreB}
+                        {m.resultOnly ? (m.scoreB > m.scoreA ? "W" : "L") : m.scoreB}
                       </span>
                     </div>
                     <div className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1 mt-0.5">

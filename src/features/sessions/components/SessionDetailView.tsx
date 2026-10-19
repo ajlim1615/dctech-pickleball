@@ -321,7 +321,7 @@ export function SessionDetailView({
                 </span>
               )}
 
-              {parseSessionMetadata(session.description).targetPoints === 6 ? (
+              {!sessionMeta.trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : parseSessionMetadata(session.description).targetPoints === 6 ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
                   ⚡ Speed Play (6 Pts)
                 </span>
@@ -1099,6 +1099,7 @@ export function SessionDetailView({
             targetPoints={sessionMeta.targetPoints}
             autoFill={autoFill}
             winByTwo={sessionMeta.winByTwo}
+            trackScores={sessionMeta.trackScores}
           />
         </div>
 

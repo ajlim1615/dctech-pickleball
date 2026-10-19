@@ -187,6 +187,7 @@ export async function createSession(formData: FormData) {
   // Unset means the old default: win by 2 at 11, first to 6 at 6.
   const winByRaw = formData.get("winByTwo") as string | null;
   const winByTwo = winByRaw ? winByRaw !== "false" : targetPoints !== 6;
+  const trackScores = (formData.get("trackScores") as string | null) !== "false";
 
   if (!rawTitle || !startTime || !endTime) {
     return { error: "Session title, start time, and end time are required." };
@@ -197,7 +198,7 @@ export async function createSession(formData: FormData) {
   const matchingStyle = sanitizeString((formData.get("matchingStyle") as string) || "balanced");
   const userDesc = sanitizeString(rawDescription || "");
 
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}]`;
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();

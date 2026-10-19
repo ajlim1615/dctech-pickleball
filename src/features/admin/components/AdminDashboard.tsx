@@ -125,6 +125,7 @@ export function AdminDashboard({
   const [sessionIsRanked, setSessionIsRanked] = useState<boolean>(true);
   const [sessionTargetPoints, setSessionTargetPoints] = useState<number>(11);
   const [sessionWinByTwo, setSessionWinByTwo] = useState<boolean>(true);
+  const [sessionTrackScores, setSessionTrackScores] = useState<boolean>(true);
   const [showMoreMatchingModes, setShowMoreMatchingModes] = useState<boolean>(false);
 
   // Session Edit Config State
@@ -132,6 +133,7 @@ export function AdminDashboard({
   const [editIsRanked, setEditIsRanked] = useState<boolean>(true);
   const [editTargetPoints, setEditTargetPoints] = useState<number>(11);
   const [editWinByTwo, setEditWinByTwo] = useState<boolean>(true);
+  const [editTrackScores, setEditTrackScores] = useState<boolean>(true);
 
   const [courts, setCourts] = useState<
     { id: string; name: string; status: CourtStatus; surface: string; assignedStaffId?: string | null }[]
@@ -157,6 +159,7 @@ export function AdminDashboard({
       setEditIsRanked(meta.isRanked);
       setEditTargetPoints(meta.targetPoints);
       setEditWinByTwo(meta.winByTwo);
+      setEditTrackScores(meta.trackScores);
     }
   }, [isEditingSession]);
 
@@ -671,7 +674,7 @@ export function AdminDashboard({
                       </span>
                     )}
 
-                    {parseSessionMetadata(activeSession.description).targetPoints === 6 ? (
+                    {!parseSessionMetadata(activeSession.description).trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : parseSessionMetadata(activeSession.description).targetPoints === 6 ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
                         ⚡ Speed Play (6 Pts)
                       </span>
@@ -946,7 +949,10 @@ export function AdminDashboard({
                         Match win condition
                       </span>
                     </div>
+                    <TrackScoresToggle checked={sessionTrackScores} onChange={setSessionTrackScores} />
                     <input type="hidden" name="targetPoints" value={String(sessionTargetPoints)} />
+                    {sessionTrackScores && (
+                    <>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -995,6 +1001,8 @@ export function AdminDashboard({
                       onChange={setSessionWinByTwo}
                       targetPoints={sessionTargetPoints}
                     />
+                    </>
+                    )}
                   </div>
                 </div>
 
@@ -1292,7 +1300,7 @@ export function AdminDashboard({
                           </span>
                         )}
 
-                        {meta.targetPoints === 6 ? (
+                        {!meta.trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : meta.targetPoints === 6 ? (
                           <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
                             ⚡ 6 Pts
                           </span>
@@ -1465,8 +1473,11 @@ export function AdminDashboard({
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Target Score</label>
+                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Scoring</label>
+                        <TrackScoresToggle checked={editTrackScores} onChange={setEditTrackScores} />
                         <input type="hidden" name="targetPoints" value={String(editTargetPoints)} />
+                        {editTrackScores && (
+                        <>
                         <div className="grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
@@ -1502,6 +1513,8 @@ export function AdminDashboard({
                           onChange={setEditWinByTwo}
                           targetPoints={editTargetPoints}
                         />
+                        </>
+                        )}
                       </div>
                     </div>
 
@@ -2514,6 +2527,34 @@ function WinByTwoToggle({
           {checked
             ? `At ${targetPoints - 1}-${targetPoints - 1} play continues until a team leads by 2 (e.g. ${targetPoints + 1}-${targetPoints - 1}).`
             : `First to ${targetPoints} wins. At ${targetPoints - 1}-${targetPoints - 1} the next point ends the game (${targetPoints}-${targetPoints - 1}).`}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function TrackScoresToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-2.5 cursor-pointer select-none">
+      <input type="hidden" name="trackScores" value={checked ? "true" : "false"} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 accent-emerald-500"
+      />
+      <span className="space-y-0.5">
+        <span className="block text-xs font-bold text-slate-900 dark:text-slate-100">Track scores</span>
+        <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+          {checked
+            ? "Record points for each game. Point difference breaks leaderboard ties."
+            : "Win/loss only: tap the team that won, no points to enter. Leaderboard ties go to win rate."}
         </span>
       </span>
     </label>
