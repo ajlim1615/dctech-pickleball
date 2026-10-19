@@ -37,8 +37,12 @@ function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
   return p?.full_name || p?.display_name || "Player";
 }
 
+// Stable default: a fresh [] each render would retrigger useLiveQueue's
+// setQueue(initialQueue) effect forever.
+const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
+
 export function SessionQueueLiveBoard({
-  initialQueue = [],
+  initialQueue = EMPTY_QUEUE,
   sessionId,
   currentUserId = "",
   userRole = "player",
