@@ -53,6 +53,10 @@ interface SessionDetailViewProps {
   employees?: Profile[];
 }
 
+// Stable default: it is passed down to useLiveQueue, whose sync effect would
+// loop on a fresh [] every render.
+const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
+
 export function SessionDetailView({
   session,
   userRole = "player",
@@ -61,7 +65,7 @@ export function SessionDetailView({
   courts,
   initialLeaderboard = [],
   initialMatches = [],
-  initialQueue = [],
+  initialQueue = EMPTY_QUEUE,
   employees = [],
 }: SessionDetailViewProps) {
   const router = useRouter();

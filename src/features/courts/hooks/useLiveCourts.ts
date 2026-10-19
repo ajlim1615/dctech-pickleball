@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ActiveCourtView } from "@/types";
 
-export function useLiveCourts(initialCourts: ActiveCourtView[] = []) {
+// Stable default so the sync effect below doesn't re-fire on every render.
+const EMPTY_COURTS: ActiveCourtView[] = [];
+
+export function useLiveCourts(initialCourts: ActiveCourtView[] = EMPTY_COURTS) {
   const [courts, setCourts] = useState<ActiveCourtView[]>(initialCourts);
 
   useEffect(() => {
@@ -13,9 +16,12 @@ export function useLiveCourts(initialCourts: ActiveCourtView[] = []) {
 
   useEffect(() => {
     const supabase = createClient();
+    // The browser client is a singleton and removeChannel is async, so a shared
+    // name collides when the effect re-runs or two consumers mount at once.
+    const channelName = `courts:${Math.random().toString(36).slice(2)}`;
 
     const channel = supabase
-      .channel("realtime:courts")
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "courts" },
