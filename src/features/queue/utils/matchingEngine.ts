@@ -22,13 +22,51 @@ export interface TeamMatchup {
   style: MatchingStyle;
 }
 
+export interface MatchupOptions {
+  /** Randomness for shuffled styles (social_mixer, club_wars, mixed_doubles). Defaults to Math.random. */
+  random?: () => number;
+}
+
+/**
+ * Deterministic PRNG (FNV-1a hash of the seed feeding mulberry32). The same seed always
+ * yields the same sequence, so a preview rendered on the server matches the client.
+ */
+export function seededRandom(seed: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let state = h >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Render-safe matchup preview: shuffled styles use a PRNG seeded by `seed` (e.g. the
+ * queue entry ids), so server and client agree. Real matchmaking (callNextUp) stays random.
+ */
+export function previewMatchupFromPod(
+  players: Profile[],
+  style: MatchingStyle,
+  seed: string
+): TeamMatchup {
+  return createMatchupFromPod(players, style, [], { random: seededRandom(seed) });
+}
+
 /**
  * Creates a balanced 2v2 pickleball matchup from 4 players based on the selected matching style.
  */
 export function createMatchupFromPod(
   players: Profile[],
   style: MatchingStyle = "balanced",
-  previousWinners: Profile[] = []
+  previousWinners: Profile[] = [],
+  { random = Math.random }: MatchupOptions = {}
 ): TeamMatchup {
   if (players.length === 0) {
     return {
@@ -101,7 +139,7 @@ export function createMatchupFromPod(
         // True Fisher-Yates shuffle for unbiased uniform distribution
         const shuffled = [...players];
         for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
+          const j = Math.floor(random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         teamA = [shuffled[0], shuffled[1]];
