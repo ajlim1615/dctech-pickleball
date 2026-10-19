@@ -43,6 +43,7 @@ import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
 import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile } from "@/types";
+import { describeRule } from "@/features/matches/utils/scoring";
 
 interface SessionDetailViewProps {
   session: Session & { checkins?: any[] };
@@ -294,44 +295,26 @@ export function SessionDetailView({
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 sm:gap-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 sm:p-6 backdrop-blur-md shadow-sm overflow-hidden">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-              <Badge
-                variant={currentStatus === "active" ? "default" : "secondary"}
-                className={`text-xs font-mono font-bold ${
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                   currentStatus === "active"
-                    ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
+                    ? "bg-emerald-500 text-white"
                     : currentStatus === "completed"
                     ? "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    : "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                    : "bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300"
                 }`}
               >
-                {currentStatus === "active"
-                  ? "● LIVE ACTIVE SESSION"
-                  : currentStatus === "completed"
-                  ? "COMPLETED"
-                  : "SCHEDULED"}
-              </Badge>
+                {currentStatus === "active" && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                {currentStatus === "active" ? "Live" : currentStatus === "completed" ? "Finished" : currentStatus === "cancelled" ? "Cancelled" : "Scheduled"}
+              </span>
+              <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                {sessionMeta.isRanked ? "Ranked" : "Casual"}
+              </span>
+              <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 first-letter:uppercase">
+                {describeRule(sessionMeta)}
+              </span>
 
-              {parseSessionMetadata(session.description).isRanked ? (
-                <Badge variant="volt" className="text-[10px] font-mono font-bold">
-                  🏆 Ranked Open Play
-                </Badge>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300 shadow-2xs">
-                  🍃 Casual / Lowkey (Unranked)
-                </span>
-              )}
-
-              {!sessionMeta.trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : parseSessionMetadata(session.description).targetPoints === 6 ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
-                  ⚡ Speed Play (6 Pts)
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
-                  🏆 Standard (11 Pts)
-                </span>
-              )}
-
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {formatPHTDate(session.start_time)} • {formatPHTTime(session.start_time)} –{" "}
@@ -347,7 +330,7 @@ export function SessionDetailView({
               {cleanedDescription || "DCTECH open play rotation on all facility courts."}
             </p>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono text-slate-500 dark:text-slate-400 pt-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400 pt-1">
               <span className="inline-flex items-center gap-1.5 shrink-0">
                 <MapPin className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
                 <span>{session.location}</span>
@@ -360,24 +343,24 @@ export function SessionDetailView({
                     setSearchCheckin("");
                     setShowCheckedInList(true);
                   }}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 text-xs font-mono font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all shadow-2xs cursor-pointer select-none"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all shadow-2xs cursor-pointer select-none"
                   title="Click to view all checked-in players"
                 >
                   <span className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span className="font-bold text-slate-900 dark:text-slate-100">{checkins.length}</span>
-                    <span>Players Checked In</span>
+                    <span>checked in</span>
                   </span>
                   <span className="h-3 w-px bg-slate-300 dark:bg-slate-700" />
                   <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
                     <Eye className="h-3 w-3" />
-                    <span>View Roster</span>
+                    <span>View</span>
                   </span>
                 </button>
               ) : (
                 <span className="inline-flex items-center gap-1.5 text-slate-400">
                   <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span>0 Players Checked In</span>
+                  <span>No one checked in yet</span>
                 </span>
               )}
             </div>
@@ -427,14 +410,14 @@ export function SessionDetailView({
               ) : currentStatus === "active" ? (
                 <div className="flex items-center gap-2 w-full md:w-auto">
                   <Button
-                    variant="volt"
+                    variant={isAdmin ? "outline" : "volt"}
                     size="default"
                     onClick={handleCheckIn}
                     disabled={loading}
-                    className="w-full sm:w-auto font-bold text-xs sm:text-sm shadow-sm h-11 sm:h-10 justify-center"
+                    className="w-full sm:w-auto font-bold text-xs sm:text-sm h-11 sm:h-10 justify-center"
                   >
                     <UserCheck className="h-4 w-4 mr-1.5 shrink-0" />
-                    <span>{loading ? "Checking in..." : "Check In & Enter Queue"}</span>
+                    <span>{loading ? "Checking in…" : isAdmin ? "Join as a player" : "Check in & join queue"}</span>
                   </Button>
                 </div>
               ) : null

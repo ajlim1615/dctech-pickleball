@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ShieldCheck,
   Play,
@@ -125,6 +126,7 @@ export function StaffCourtMonitor({
   }
 
   const rule: ScoringRule = { targetPoints, winByTwo: winByTwo ?? targetPoints !== 6, trackScores };
+  const backHref = sessionId ? `/sessions/${sessionId}` : "/";
 
   // Standard Pickleball Call String (e.g. "0 - 0 - 2")
   const servingScore = servingTeam === "A" ? scoreA : scoreB;
@@ -324,10 +326,10 @@ export function StaffCourtMonitor({
           <div className="pt-4 flex justify-center gap-3 font-mono">
             <Button
               variant="volt"
-              onClick={() => router.push("/")}
+              onClick={() => router.push(backHref)}
               className="font-bold text-xs"
             >
-              Back to Live Courts
+              Back to session
             </Button>
             <Button
               variant="outline"
@@ -414,13 +416,13 @@ export function StaffCourtMonitor({
     <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
       {/* Top Navigation */}
       <div className="flex items-center justify-between">
-        <a
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-mono transition-colors"
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to Live Courts
-        </a>
+          <ArrowLeft className="h-4 w-4" />
+          Back to session
+        </Link>
 
         <div className="flex items-center gap-2">
           {/* Scoring rule comes from the session settings */}

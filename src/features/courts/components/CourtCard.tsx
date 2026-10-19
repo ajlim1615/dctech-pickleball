@@ -3,21 +3,8 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Trophy,
-  Plus,
-  Minus,
-  CheckCircle2,
-  Zap,
-  Activity,
-  RotateCcw,
-  Clock,
-  AlertCircle,
-  ExternalLink,
-  ShieldCheck,
-} from "lucide-react";
+import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { finalizeMatch } from "@/features/matches/api/matchActions";
 import { callNextUp } from "@/features/queue/api/queueActions";
 import {
@@ -46,12 +33,7 @@ export function CourtDurationClock({ startedAt }: { startedAt?: string | null })
     return () => clearInterval(interval);
   }, [startedAt]);
 
-  return (
-    <div className="flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-50/80 dark:bg-rose-950/50 px-2.5 py-0.5 text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400 shadow-2xs">
-      <Clock className="h-3 w-3 text-rose-500 animate-pulse" />
-      <span>⏱️ {elapsed}</span>
-    </div>
-  );
+  return <span className="font-mono tabular-nums font-medium">{elapsed}</span>;
 }
 
 export interface CourtCardProps {
@@ -251,443 +233,365 @@ export function CourtCard({
 
   const cleanCourtName = court.name.replace(/\s*\(Rented Court\)/i, "");
 
-  // Average ratings for live matchup
-  const teamAAvg =
-    activeTeamAPlayers.length > 0
-      ? (
-          activeTeamAPlayers.reduce((sum, p) => sum + (p.skill_rating || 3.0), 0) /
-          activeTeamAPlayers.length
-        ).toFixed(2)
-      : "3.00";
-
-  const teamBAvg =
-    activeTeamBPlayers.length > 0
-      ? (
-          activeTeamBPlayers.reduce((sum, p) => sum + (p.skill_rating || 3.0), 0) /
-          activeTeamBPlayers.length
-        ).toFixed(2)
-      : "3.00";
+  const isClosed = court.status === "maintenance" || court.status === "reserved";
+  const canScore = isAdministrator && hasPlayersOnCourt && trackScores;
+  const canPickWinner = isAdministrator && hasPlayersOnCourt && !trackScores;
 
   return (
-    <div className="group/court relative rounded-[1.75rem] p-1.5 border border-slate-200/80 dark:border-slate-800/80 bg-slate-100/70 dark:bg-slate-900/60 backdrop-blur-md shadow-sm transition-all duration-300 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 flex flex-col justify-between">
-      {/* Inner Core Container */}
-      <div className="rounded-[1.4rem] bg-white dark:bg-[#0c121d] border border-slate-100 dark:border-slate-800/60 overflow-hidden flex flex-col justify-between flex-1">
-        {/* Court Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40">
-          <div className="flex items-center justify-between gap-2">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                  {cleanCourtName}
-                </span>
-                {isExistingLiveMatch ? (
-                  <Badge
-                    variant="default"
-                    className="text-[10px] py-0.5 px-2 font-mono font-bold bg-rose-600 hover:bg-rose-600 text-white shadow-2xs flex items-center gap-1"
-                  >
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-200 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
-                    </span>
-                    IN PLAY
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] py-0.5 px-2 font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 flex items-center gap-1"
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                    READY / OPEN
-                  </Badge>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                {court.surface_type || "Pro Acrylic Court"} • Play {describeRule(rule)}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {isExistingLiveMatch && (
-                <CourtDurationClock startedAt={activeMatch?.started_at} />
-              )}
-              {isAdministrator && (
-                <Link
-                  href={`/courts/${court.id}/monitor`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 px-3 py-1 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-200 hover:border-emerald-500/50 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title={`Open full-screen referee umpire monitor for ${cleanCourtName}`}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Umpire Mode</span>
-                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                </Link>
-              )}
-            </div>
-          </div>
+    <article
+      className={`flex flex-col rounded-2xl border bg-white dark:bg-slate-900/70 shadow-sm ${
+        isClosed ? "border-slate-200 dark:border-slate-800 opacity-70" : "border-slate-200 dark:border-slate-800"
+      }`}
+    >
+      {/* Header: court name, state, umpire shortcut */}
+      <header className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
+            {cleanCourtName}
+          </h3>
+          <CourtStateLabel
+            state={isClosed ? court.status : hasPlayersOnCourt ? "in_play" : "open"}
+            startedAt={activeMatch?.started_at}
+          />
         </div>
+        {isAdministrator && !isClosed && (
+          <Link
+            href={`/courts/${court.id}/monitor`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
+            title={`Open the full-screen umpire view for ${cleanCourtName}`}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span className="hidden sm:inline">Umpire</span>
+          </Link>
+        )}
+      </header>
 
-        {/* Court Body */}
-        <div className="p-4 sm:p-5 space-y-4 flex-1 flex flex-col justify-between">
-          {/* Status Messages */}
-          {errorMessage && (
-            <div className="p-2.5 rounded-xl bg-rose-50/90 dark:bg-rose-950/50 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-mono flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-              <span className="flex-1">{errorMessage}</span>
-            </div>
-          )}
+      {/* The court itself, seen from above: Team 1 | net | Team 2 */}
+      <div className="px-4">
+        <div
+          className={`relative grid grid-cols-[1fr_6px_1fr] overflow-hidden rounded-xl border-2 ${
+            isClosed
+              ? "border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60"
+              : "border-slate-300/90 dark:border-slate-600/70 bg-slate-50 dark:bg-slate-950/60"
+          }`}
+        >
+          <CourtHalf
+            side="A"
+            label="Team 1"
+            players={activeTeamAPlayers}
+            score={scoreA}
+            showScore={hasPlayersOnCourt && trackScores}
+            isWinner={winningTeam === "A" || pendingWinner === "A"}
+            closed={isClosed}
+            canScore={canScore}
+            onPlus={() => incrementScore("A")}
+            onMinus={() => decrementScore("A")}
+            plusDisabled={isGameOver || isPending}
+            minusDisabled={scoreA === 0 || isPending}
+            pickWinner={canPickWinner ? () => setPendingWinner("A") : undefined}
+            pickDisabled={isPending}
+          />
 
-          {successMessage && (
-            <div className="p-2.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-              <span className="flex-1">{successMessage}</span>
-            </div>
-          )}
-
-          {/* Court State: Match in Progress */}
-          {isExistingLiveMatch && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
-                <span className="uppercase flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
-                  <Activity className="h-3.5 w-3.5" />
-                  Live Matchup ({activeMatch?.format === "singles" ? "1v1 Singles" : "2v2 Doubles"})
-                </span>
-                <span className="text-[10px] text-slate-400">Session Rotation Active</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
-                {/* Team 1 Box */}
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 p-2.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                      TEAM 1
-                    </span>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                      Avg {teamAAvg}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {activeTeamAPlayers.map((p, i) => (
-                      <div
-                        key={p.id || i}
-                        className="flex items-center justify-between bg-white dark:bg-slate-900 px-2 py-1.5 rounded-lg border border-emerald-500/20 text-slate-900 dark:text-slate-100 shadow-2xs"
-                      >
-                        <span className="truncate max-w-[105px] text-[11px] font-semibold">
-                          {p.full_name || p.display_name || "Player"}
-                        </span>
-                        <Badge variant="secondary" className="text-[9px] py-0 px-1 font-mono font-bold shrink-0">
-                          {Number(p.skill_rating || 3.0).toFixed(2)}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Team 2 Box */}
-                <div className="rounded-xl border border-sky-500/30 bg-sky-50/40 dark:bg-sky-950/20 p-2.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 uppercase tracking-wider">
-                      TEAM 2
-                    </span>
-                    <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
-                      Avg {teamBAvg}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {activeTeamBPlayers.map((p, i) => (
-                      <div
-                        key={p.id || i}
-                        className="flex items-center justify-between bg-white dark:bg-slate-900 px-2 py-1.5 rounded-lg border border-sky-500/20 text-slate-900 dark:text-slate-100 shadow-2xs"
-                      >
-                        <span className="truncate max-w-[105px] text-[11px] font-semibold">
-                          {p.full_name || p.display_name || "Player"}
-                        </span>
-                        <Badge variant="secondary" className="text-[9px] py-0 px-1 font-mono font-bold shrink-0">
-                          {Number(p.skill_rating || 3.0).toFixed(2)}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Score Board & Steppers (only while players are on court) */}
-          {hasPlayersOnCourt && trackScores && (
-          <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">
-                  Live Score:
-                </span>
-                <span className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-mono text-[9px] font-bold text-slate-600 dark:text-slate-300">
-                  {describeRule(rule)}
-                </span>
-              </div>
-              {isAdministrator && (
-                <button
-                  type="button"
-                  onClick={handleResetScore}
-                  disabled={!hasPlayersOnCourt}
-                  className="text-[10px] font-mono text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="h-2.5 w-2.5" /> Reset 0-0
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {/* Team 1 Score */}
-              <div
-                className={`rounded-2xl border-2 p-3 text-center space-y-1.5 shadow-2xs transition-all ${
-                  winner === "Team 1"
-                    ? "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/60 ring-2 ring-emerald-500/30"
-                    : "border-emerald-500/30 bg-slate-50/70 dark:bg-slate-950/70"
-                }`}
-              >
-                <span className="text-[10px] font-bold font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                  TEAM 1 {winner === "Team 1" && "🏆 WINNER"}
-                </span>
-                <div className="text-4xl sm:text-5xl font-black font-mono text-emerald-600 dark:text-emerald-400 py-0.5">
-                  {scoreA}
-                </div>
-                {isAdministrator && (
-                  <div className="flex items-center justify-center gap-2 pt-0.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => decrementScore("A")}
-                      disabled={!hasPlayersOnCourt || scoreA === 0}
-                      className="h-8 w-8 rounded-lg text-sm font-bold disabled:opacity-40 cursor-pointer active:scale-95 transition-transform"
-                      title="Minus 1 point"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="icon"
-                      onClick={() => incrementScore("A")}
-                      disabled={!hasPlayersOnCourt || isGameOver}
-                      className="h-8 w-8 rounded-lg text-sm font-bold shadow-sm shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95 transition-transform"
-                      title={isGameOver ? "Game point reached (add disabled)" : "Add 1 point"}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Team 2 Score */}
-              <div
-                className={`rounded-2xl border-2 p-3 text-center space-y-1.5 shadow-2xs transition-all ${
-                  winner === "Team 2"
-                    ? "border-sky-500 bg-sky-50/80 dark:bg-sky-950/60 ring-2 ring-sky-500/30"
-                    : "border-sky-500/30 bg-slate-50/70 dark:bg-slate-950/70"
-                }`}
-              >
-                <span className="text-[10px] font-bold font-mono text-sky-600 dark:text-sky-400 uppercase tracking-wider block">
-                  TEAM 2 {winner === "Team 2" && "🏆 WINNER"}
-                </span>
-                <div className="text-4xl sm:text-5xl font-black font-mono text-sky-600 dark:text-sky-400 py-0.5">
-                  {scoreB}
-                </div>
-                {isAdministrator && (
-                  <div className="flex items-center justify-center gap-2 pt-0.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => decrementScore("B")}
-                      disabled={!hasPlayersOnCourt || scoreB === 0}
-                      className="h-8 w-8 rounded-lg text-sm font-bold disabled:opacity-40 cursor-pointer active:scale-95 transition-transform"
-                      title="Minus 1 point"
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="volt"
-                      size="icon"
-                      onClick={() => incrementScore("B")}
-                      disabled={!hasPlayersOnCourt || isGameOver}
-                      className="h-8 w-8 rounded-lg text-sm font-bold shadow-sm shadow-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95 transition-transform"
-                      title={isGameOver ? "Game point reached (add disabled)" : "Add 1 point"}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Win Buttons if game not yet over (Admin only) */}
-            {isAdministrator && hasPlayersOnCourt && !isGameOver && (
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickWin("A")}
-                  className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title={`Set Team 1 as the winner (${quickWinLabel("A")})`}
-                >
-                  ⚡ Team 1 Wins ({quickWinLabel("A")})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickWin("B")}
-                  className="text-[10px] font-mono font-bold text-sky-700 dark:text-sky-400 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-950/70 border border-sky-500/30 rounded-xl py-1.5 px-2 transition-colors flex items-center justify-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                  title={`Set Team 2 as the winner (${quickWinLabel("B")})`}
-                >
-                  ⚡ Team 2 Wins ({quickWinLabel("B")})
-                </button>
-              </div>
-            )}
-
-            {/* Outcome Status Banner */}
-            {isGameOver && hasPlayersOnCourt && (
-              <div className="text-center font-mono text-[11px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50/90 dark:bg-emerald-950/70 py-2 px-2.5 rounded-xl border border-emerald-500/40 shadow-xs animate-in fade-in">
-                🏆 Game Point Reached: {winner} Wins ({scoreA} - {scoreB})
-              </div>
-            )}
+          {/* Net */}
+          <div aria-hidden className="relative bg-slate-300 dark:bg-slate-600">
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/70 dark:bg-slate-400/60" />
           </div>
+
+          <CourtHalf
+            side="B"
+            label="Team 2"
+            players={activeTeamBPlayers}
+            score={scoreB}
+            showScore={hasPlayersOnCourt && trackScores}
+            isWinner={winningTeam === "B" || pendingWinner === "B"}
+            closed={isClosed}
+            canScore={canScore}
+            onPlus={() => incrementScore("B")}
+            onMinus={() => decrementScore("B")}
+            plusDisabled={isGameOver || isPending}
+            minusDisabled={scoreB === 0 || isPending}
+            pickWinner={canPickWinner ? () => setPendingWinner("B") : undefined}
+            pickDisabled={isPending}
+          />
+
+          {isClosed && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="rounded-full bg-white/90 dark:bg-slate-900/90 px-3 py-1 text-sm font-semibold text-slate-600 dark:text-slate-300 shadow-sm">
+                {court.status === "maintenance" ? "Closed for maintenance" : "Reserved"}
+              </span>
+            </div>
           )}
-
-          {/* Action Button Section: Admin Submit vs Spectator Status */}
-          <div className="pt-2">
-            {isAdministrator && !hasPlayersOnCourt ? (
-              <>
-                <Button
-                  type="button"
-                  variant="volt"
-                  size="default"
-                  onClick={handleAutoCallQueue}
-                  disabled={isPending || waitingQueueCount < 4}
-                  className="w-full font-bold text-sm h-12 rounded-xl shadow-sm active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <Zap className="h-4 w-4 mr-1.5" />
-                  {isPending ? "Calling players..." : "Call next 4 from queue"}
-                </Button>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center font-mono mt-1.5">
-                  {waitingQueueCount >= 4
-                    ? `${waitingQueueCount} players waiting`
-                    : `Need 4 waiting to start a game (${waitingQueueCount} in queue)`}
-                </p>
-              </>
-            ) : isAdministrator && !trackScores ? (
-              pendingWinner ? (
-                <div className="space-y-2">
-                  <p className="text-center text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Record a win for {pendingWinner === "A" ? "Team 1" : "Team 2"}?
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPendingWinner(null)}
-                      disabled={isPending}
-                      className="h-11 font-bold cursor-pointer"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="volt"
-                      onClick={handleConfirmResult}
-                      disabled={isPending}
-                      className="h-11 font-bold cursor-pointer"
-                    >
-                      <Trophy className="h-4 w-4 mr-1.5" />
-                      {isPending ? "Saving..." : "Confirm"}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPendingWinner("A")}
-                      className="h-14 rounded-xl border-2 border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-sm font-extrabold hover:bg-emerald-100 dark:hover:bg-emerald-950/70 active:scale-[0.98] transition-all cursor-pointer"
-                    >
-                      🏆 Team 1 won
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPendingWinner("B")}
-                      className="h-14 rounded-xl border-2 border-sky-500/50 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-sm font-extrabold hover:bg-sky-100 dark:hover:bg-sky-950/70 active:scale-[0.98] transition-all cursor-pointer"
-                    >
-                      🏆 Team 2 won
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono mt-1.5">
-                    Win/loss session: tap the winning team, no score needed.
-                  </p>
-                </>
-              )
-            ) : isAdministrator ? (
-              <>
-                <Button
-                  type="button"
-                  variant="volt"
-                  size="default"
-                  onClick={() => handleSubmitScore()}
-                  disabled={isPending || !isGameOver}
-                  className={`w-full font-bold font-mono text-xs h-11 rounded-xl shadow-sm transition-all active:scale-[0.98] ${
-                    !isGameOver
-                      ? "opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
-                      : "shadow-emerald-500/20 bg-[#d4e938] text-slate-950 hover:bg-[#c2d730] ring-2 ring-[#d4e938]/40 cursor-pointer"
-                  }`}
-                >
-                  <Trophy className="h-3.5 w-3.5 mr-1.5" />
-                  {isPending
-                    ? "Submitting Score..."
-                    : !isGameOver
-                    ? `In progress (${describeRule(rule)})`
-                    : `Submit result (${winner} wins)`}
-                </Button>
-
-                <p
-                  className={`text-[10px] text-center font-mono mt-1.5 ${
-                    isGameOver ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-slate-400 dark:text-slate-500"
-                  }`}
-                >
-                  {!isGameOver
-                    ? "Tap + per point, or use ⚡ Quick Win"
-                    : autoFill
-                    ? "✓ Players go back to the queue and the next 4 are called automatically."
-                    : "✓ Players go back to the queue. Court stays open (auto-fill is off)."}
-                </p>
-              </>
-            ) : (
-              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60 p-3 text-center font-mono space-y-0.5">
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5">
-                  {isExistingLiveMatch ? (
-                    <>
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                      </span>
-                      {isGameOver ? `Game Complete • ${winner} Won` : "Match In Progress"}
-                    </>
-                  ) : (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span>
-                      Court Available • Ready for Next Rotation
-                    </>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  {isExistingLiveMatch
-                    ? isGameOver
-                      ? "Official referee is finalizing match score & player ratings."
-                      : "Scores update live in real-time as staff referees award points."
-                    : "Next 4 players from the paddle rack will be rotated onto this court."}
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
+
+      {/* Messages */}
+      {(errorMessage || successMessage) && (
+        <div className="px-4 pt-3">
+          {errorMessage ? (
+            <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              {errorMessage}
+            </p>
+          ) : (
+            <p role="status" className="flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              {successMessage}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Footer: the one thing to do next on this court */}
+      <footer className="mt-auto px-4 pt-3 pb-4 space-y-2.5">
+        {isClosed ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Reopen it from Court setup on the Admin page.
+          </p>
+        ) : !isAdministrator ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {hasPlayersOnCourt
+              ? isGameOver
+                ? `Game over · ${winner} won`
+                : `Game in progress · ${describeRule(rule)}`
+              : "Open · the next 4 in the queue play here"}
+          </p>
+        ) : !hasPlayersOnCourt ? (
+          <>
+            <Button
+              type="button"
+              variant="volt"
+              onClick={handleAutoCallQueue}
+              disabled={isPending || waitingQueueCount < 4}
+              className="w-full h-12 text-sm font-bold rounded-xl cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Zap className="h-4 w-4 mr-1.5" />
+              {isPending ? "Calling players…" : "Call next 4"}
+            </Button>
+            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+              {waitingQueueCount >= 4
+                ? `${waitingQueueCount} waiting in the queue`
+                : `Needs 4 waiting players · ${waitingQueueCount} in the queue`}
+            </p>
+          </>
+        ) : !trackScores ? (
+          pendingWinner ? (
+            <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Record a win for {pendingWinner === "A" ? "Team 1" : "Team 2"}?
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setPendingWinner(null)} disabled={isPending} className="h-11 cursor-pointer">
+                  Cancel
+                </Button>
+                <Button type="button" variant="volt" onClick={handleConfirmResult} disabled={isPending} className="h-11 font-bold cursor-pointer">
+                  {isPending ? "Saving…" : "Record win"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+              Tap the side that won. No score needed.
+            </p>
+          )
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant={isGameOver ? "volt" : "outline"}
+              onClick={() => handleSubmitScore()}
+              disabled={isPending || !isGameOver}
+              className="w-full h-12 text-sm font-bold rounded-xl cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Trophy className="h-4 w-4 mr-1.5" />
+              {isPending
+                ? "Saving result…"
+                : isGameOver
+                ? `Submit result · ${winner} wins ${Math.max(scoreA, scoreB)}–${Math.min(scoreA, scoreB)}`
+                : `Playing ${describeRule(rule)}`}
+            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+              {!isGameOver && (
+                <>
+                  <span>Quick win:</span>
+                  <button type="button" onClick={() => handleQuickWin("A")} className="font-semibold text-emerald-700 dark:text-emerald-400 hover:underline underline-offset-2 cursor-pointer">
+                    Team 1 ({quickWinLabel("A")})
+                  </button>
+                  <button type="button" onClick={() => handleQuickWin("B")} className="font-semibold text-sky-700 dark:text-sky-400 hover:underline underline-offset-2 cursor-pointer">
+                    Team 2 ({quickWinLabel("B")})
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handleResetScore}
+                disabled={scoreA === 0 && scoreB === 0}
+                className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset
+              </button>
+            </div>
+          </>
+        )}
+      </footer>
+    </article>
+  );
+}
+
+type CourtState = "in_play" | "open" | ActiveCourtView["status"];
+
+function CourtStateLabel({ state, startedAt }: { state: CourtState; startedAt?: string | null }) {
+  if (state === "in_play") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+        In play
+        <CourtDurationClock startedAt={startedAt} />
+      </span>
+    );
+  }
+  if (state === "open" || state === "available") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Open
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+      {state === "maintenance" ? "Closed" : state === "reserved" ? "Reserved" : "Busy"}
+    </span>
+  );
+}
+
+interface CourtHalfProps {
+  side: ScoringTeam;
+  label: string;
+  players: Profile[];
+  score: number;
+  showScore: boolean;
+  isWinner: boolean;
+  closed: boolean;
+  canScore: boolean;
+  onPlus: () => void;
+  onMinus: () => void;
+  plusDisabled: boolean;
+  minusDisabled: boolean;
+  /** Win/loss sessions: the whole half is the "this team won" button. */
+  pickWinner?: () => void;
+  pickDisabled?: boolean;
+}
+
+function CourtHalf({
+  side,
+  label,
+  players,
+  score,
+  showScore,
+  isWinner,
+  closed,
+  canScore,
+  onPlus,
+  onMinus,
+  plusDisabled,
+  minusDisabled,
+  pickWinner,
+  pickDisabled,
+}: CourtHalfProps) {
+  const isA = side === "A";
+  const tone = isA
+    ? {
+        text: "text-emerald-700 dark:text-emerald-400",
+        tint: "bg-emerald-50/70 dark:bg-emerald-950/25",
+        win: "bg-emerald-100 dark:bg-emerald-900/40",
+        ring: "ring-emerald-500",
+      }
+    : {
+        text: "text-sky-700 dark:text-sky-400",
+        tint: "bg-sky-50/70 dark:bg-sky-950/25",
+        win: "bg-sky-100 dark:bg-sky-900/40",
+        ring: "ring-sky-500",
+      };
+
+  const content = (
+    <>
+      {/* Kitchen (non-volley zone) beside the net */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-y-0 ${isA ? "right-0 border-l" : "left-0 border-r"} w-[22%] border-dashed border-slate-300 dark:border-slate-600/70 bg-slate-200/30 dark:bg-slate-800/30`}
+      />
+      <div className={`relative flex min-h-36 flex-col gap-2 p-3 ${isA ? "items-start text-left pr-[24%]" : "items-end text-right pl-[24%]"}`}>
+        <span className={`text-xs font-semibold ${tone.text}`}>{label}</span>
+        <ul className="space-y-0.5 min-w-0 max-w-full">
+          {players.length > 0
+            ? players.map((p) => (
+                <li key={p.id} className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {p.full_name || p.display_name || "Player"}
+                </li>
+              ))
+            : !closed &&
+              [0, 1].map((i) => (
+                <li key={i} className="text-sm text-slate-400 dark:text-slate-500">
+                  Open spot
+                </li>
+              ))}
+        </ul>
+        {showScore && (
+          <div className={`mt-auto font-mono tabular-nums text-5xl font-bold leading-none ${tone.text}`}>
+            {score}
+          </div>
+        )}
+        {pickWinner && (
+          <span className={`mt-auto text-sm font-bold ${tone.text}`}>{isWinner ? "Winner" : `${label} won`}</span>
+        )}
+      </div>
+    </>
+  );
+
+  if (pickWinner) {
+    return (
+      <button
+        type="button"
+        onClick={pickWinner}
+        disabled={pickDisabled}
+        aria-pressed={isWinner}
+        className={`relative text-left transition-colors cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${tone.ring} ${
+          isWinner ? tone.win : `${tone.tint} hover:brightness-95 dark:hover:brightness-125`
+        }`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`relative flex flex-col ${isWinner ? tone.win : closed ? "" : tone.tint}`}>
+      {content}
+      {canScore && (
+        <div className={`relative flex gap-2 px-3 pb-3 ${isA ? "justify-start" : "justify-end"}`}>
+          <button
+            type="button"
+            onClick={onMinus}
+            disabled={minusDisabled}
+            aria-label={`Remove a point from ${label}`}
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed active:scale-95 transition-transform focus-visible:outline-2 focus-visible:outline-emerald-500"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onPlus}
+            disabled={plusDisabled}
+            aria-label={`Add a point to ${label}`}
+            className={`flex h-11 w-14 items-center justify-center rounded-lg text-white disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed active:scale-95 transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 ${
+              isA ? "bg-emerald-600 hover:bg-emerald-700" : "bg-sky-600 hover:bg-sky-700"
+            }`}
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

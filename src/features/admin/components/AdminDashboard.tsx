@@ -67,6 +67,7 @@ import {
   getPHTTodayString,
 } from "@/lib/timezone";
 import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView } from "@/types";
+import { describeRule } from "@/features/matches/utils/scoring";
 
 interface AdminDashboardProps {
   initialEmployees?: Profile[];
@@ -512,137 +513,44 @@ export function AdminDashboard({
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
       {/* Admin Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-6 backdrop-blur-md shadow-sm transition-colors">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Badge variant="volt" className="text-xs">
-              ADMIN CONTROL PANEL
-            </Badge>
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              DCTECH Recreation Committee
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            <ShieldCheck className="h-7 w-7 text-emerald-500 dark:text-emerald-400" />
-            Session & Staff Management
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Schedule open-play events, manage rented courts, assign referees, and administer player ratings.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Header Action Slot */}
-        </div>
-      </div>
-
-      {/* Live Admin Pulse KPI Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Metric 1: Session Status */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
-          <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
-            <span>ACTIVE SESSION</span>
-            {activeSession ? (
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            ) : (
-              <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700" />
-            )}
-          </div>
-          <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">
-            {activeSession ? activeSession.title : "No Active Session"}
-          </div>
-          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
-            {activeSession ? (
-              <>
-                {parseSessionMetadata(activeSession.description).isRanked ? "🏆 Ranked" : "🍃 Lowkey / Casual"} •{" "}
-                {parseSessionMetadata(activeSession.description).targetPoints} pts
-              </>
-            ) : (
-              "Schedule open play below"
-            )}
-          </div>
-        </div>
-
-        {/* Metric 2: Courts Online */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
-          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>COURTS IN USE</span>
-            <Activity className="h-3.5 w-3.5 text-emerald-500" />
-          </div>
-          <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-slate-100">
-            {courts.filter((c) => c.status === "occupied").length}{" "}
-            <span className="text-xs font-normal text-slate-500">/ {courts.length} Courts</span>
-          </div>
-          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-            {courts.filter((c) => c.status === "available").length} available for play
-          </div>
-        </div>
-
-        {/* Metric 3: Active Roster */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
-          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>ROSTER PULSE</span>
-            <Users className="h-3.5 w-3.5 text-sky-500" />
-          </div>
-          <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-slate-100">
-            {employees.filter((e) => e.is_active).length}{" "}
-            <span className="text-xs font-normal text-slate-500">/ {employees.length} Total</span>
-          </div>
-          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-            {countBeginners} Novice • {countIntermediate} Int • {countAdvanced} Adv
-          </div>
-        </div>
-      </div>
+      <header className="space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Admin</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Schedule and run open play, manage players, and look up the rules.
+        </p>
+      </header>
 
       {/* Action Notification */}
       {actionMessage && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2 font-mono">
+        <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
           <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
           <span>{actionMessage}</span>
         </div>
       )}
 
-      {/* Streamlined Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 font-mono text-xs overflow-x-auto scrollbar-none whitespace-nowrap">
-        <button
-          type="button"
-          onClick={() => setActiveTab("sessions")}
-          className={`px-5 py-2.5 font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === "sessions"
-              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-              : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          Sessions
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("players")}
-          className={`px-5 py-2.5 font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === "players"
-              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-              : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          Player & Staff Directory
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("guide")}
-          className={`px-5 py-2.5 font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === "guide"
-              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-              : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-          }`}
-        >
-          <BookOpen className="h-4 w-4" />
-          Operations & Referee Manual
-        </button>
+      {/* Tabs */}
+      <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-800 text-sm overflow-x-auto scrollbar-none whitespace-nowrap">
+        {([
+          { id: "sessions", label: "Sessions", icon: Calendar },
+          { id: "players", label: "Players", icon: Users },
+          { id: "guide", label: "Rules & guide", icon: BookOpen },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`-mb-px px-4 py-2.5 font-semibold border-b-2 transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 ${
+              activeTab === id
+                ? "border-emerald-500 text-slate-900 dark:text-slate-100"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Tab 1: Sessions & Rented Courts */}
@@ -650,66 +558,47 @@ export function AdminDashboard({
         <div className="space-y-6">
           {/* Active Session & Court Arena Section */}
           {activeSession ? (
-            <Card className="border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20 p-5 sm:p-6 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-emerald-500/20 pb-4">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+            <Card className="border-emerald-500/50 bg-white dark:bg-slate-900/80 p-5 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="space-y-2 min-w-0">
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{activeSession.title}</h3>
-                    <Badge variant="default" className="text-[10px] uppercase font-mono">
-                      ACTIVE NOW
-                    </Badge>
-
-                    {/* Mode & Target Score Badges */}
-                    {parseSessionMetadata(activeSession.description).isRanked ? (
-                      <Badge variant="volt" className="text-[10px] font-mono font-bold">
-                        🏆 Ranked
-                      </Badge>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
-                        🍃 Casual / Lowkey (Unranked)
-                      </span>
-                    )}
-
-                    {!parseSessionMetadata(activeSession.description).trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : parseSessionMetadata(activeSession.description).targetPoints === 6 ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
-                        ⚡ Speed Play (6 Pts)
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
-                        🏆 Standard (11 Pts)
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs font-mono text-slate-600 dark:text-slate-300">
-                    {formatPHTTime(activeSession.start_time)} –{" "}
-                    {formatPHTTime(activeSession.end_time)} •{" "}
-                    {activeSession.location || "DCTECH Sports Arena"}
+                    Live now, until {formatPHTTime(activeSession.end_time)}
                   </p>
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    {activeSession.title}
+                  </h2>
+                  <SessionRuleChips description={activeSession.description} />
                 </div>
 
                 {/* Everything live (queue, courts, scoring, ending) happens in the console */}
                 <Link
                   href={`/sessions/${activeSession.id}`}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-sm font-bold shadow-xs transition-colors w-full sm:w-auto"
+                  className="inline-flex items-center justify-center gap-2 px-5 h-12 rounded-xl bg-[#d4e938] hover:bg-[#c2d730] text-slate-950 text-sm font-bold transition-colors w-full sm:w-auto shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
                 >
-                  <ExternalLink className="h-4 w-4" />
                   Open session console
+                  <ExternalLink className="h-4 w-4" />
                 </Link>
               </div>
 
+              <dl className="grid grid-cols-3 gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
+                <LiveStat value={courts.filter((c) => c.status === "occupied").length} label="courts in play" />
+                <LiveStat value={courts.filter((c) => c.status === "available").length} label="courts open" />
+                <LiveStat value={courts.filter((c) => c.status === "maintenance" || c.status === "reserved").length} label="closed" />
+              </dl>
+
               {/* Court setup: rarely needed mid-session, so collapsed by default */}
               <details className="group space-y-3">
-                <summary className="flex items-center justify-between cursor-pointer list-none select-none text-xs font-bold font-mono text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                <summary className="flex items-center justify-between cursor-pointer list-none select-none text-sm font-semibold text-slate-700 dark:text-slate-300">
                   <span className="flex items-center gap-1.5">
                     <Activity className="h-4 w-4 text-emerald-500" />
-                    Court setup · {courts.length} courts · referees
+                    Court setup and referees ({courts.length} courts)
                   </span>
-                  <span className="text-[11px] normal-case font-medium text-slate-500 group-open:hidden">Show</span>
-                  <span className="text-[11px] normal-case font-medium text-slate-500 hidden group-open:inline">Hide</span>
+                  <span className="text-xs font-medium text-slate-500 group-open:hidden">Show</span>
+                  <span className="text-xs font-medium text-slate-500 hidden group-open:inline">Hide</span>
                 </summary>
               <div className="space-y-3 pt-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -807,20 +696,23 @@ export function AdminDashboard({
             </Card>
           ) : null}
 
-          {/* Schedule Session Header & Form */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              Schedule Open Play Session
-            </h3>
+          {/* Upcoming sessions header + new session form */}
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Upcoming</h2>
             <Button
-              variant="volt"
+              variant="outline"
               size="sm"
               onClick={() => setIsCreatingSession(!isCreatingSession)}
-              className="font-bold text-xs"
+              className="font-bold h-10 px-4 cursor-pointer"
             >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              {isCreatingSession ? "Close Form" : "Schedule New Session"}
+              {isCreatingSession ? (
+                "Close"
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  New session
+                </>
+              )}
             </Button>
           </div>
 
@@ -829,7 +721,7 @@ export function AdminDashboard({
               <form onSubmit={handleCreateSessionSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Session Title</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
                     <input
                       type="text"
                       name="title"
@@ -839,7 +731,7 @@ export function AdminDashboard({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Location</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Location</label>
                     <input
                       type="text"
                       name="location"
@@ -851,38 +743,38 @@ export function AdminDashboard({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Start Time</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Starts</label>
                     <input
                       type="datetime-local"
                       name="startTime"
                       required
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">End Time</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ends</label>
                     <input
                       type="datetime-local"
                       name="endTime"
                       required
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Rented Courts for this Session</label>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Courts</label>
                     <select
                       name="courtCount"
                       defaultValue="4"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-bold"
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-bold"
                     >
-                      <option value="2">2 Courts (8 Players active)</option>
-                      <option value="3">3 Courts (12 Players active)</option>
-                      <option value="4">4 Courts (16 Players active)</option>
-                      <option value="5">5 Courts (20 Players active)</option>
-                      <option value="6">6 Courts (24 Players active)</option>
+                      <option value="2">2 courts (8 players at once)</option>
+                      <option value="3">3 courts (12 players at once)</option>
+                      <option value="4">4 courts (16 players at once)</option>
+                      <option value="5">5 courts (20 players at once)</option>
+                      <option value="6">6 courts (24 players at once)</option>
                     </select>
                   </div>
                 </div>
@@ -892,11 +784,11 @@ export function AdminDashboard({
                   {/* Mode: Ranked vs Casual */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                        Session Rating Mode
+                      <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Ratings
                       </label>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        Affects global DUPR
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Ranked games change player ratings
                       </span>
                     </div>
                     <input type="hidden" name="isRanked" value={String(sessionIsRanked)} />
@@ -910,12 +802,12 @@ export function AdminDashboard({
                             : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                           {sessionIsRanked && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
-                          <span>🏆 Ranked</span>
+                          <span>Ranked</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Official match scores update DUPR & Leaderboard.
+                          Results update player ratings and the leaderboard.
                         </p>
                       </button>
 
@@ -928,12 +820,12 @@ export function AdminDashboard({
                             : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-purple-700 dark:text-purple-300 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-purple-700 dark:text-purple-300">
                           {!sessionIsRanked && <Check className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />}
-                          <span>🍃 Casual</span>
+                          <span>Casual</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Casual open-play. ZERO impact on DUPR or leaderboard.
+                          Just for fun. Ratings and the leaderboard stay the same.
                         </p>
                       </button>
                     </div>
@@ -942,11 +834,11 @@ export function AdminDashboard({
                   {/* Target Score: 11 Pts vs 6 Pts */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                        Target Game Score
+                      <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Scoring
                       </label>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        Match win condition
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        How a game is won
                       </span>
                     </div>
                     <TrackScoresToggle checked={sessionTrackScores} onChange={setSessionTrackScores} />
@@ -966,9 +858,9 @@ export function AdminDashboard({
                             : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                           {sessionTargetPoints === 11 && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
-                          <span>🏆 11 Points</span>
+                          <span>11 points</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
                           Standard pickleball game length.
@@ -987,12 +879,12 @@ export function AdminDashboard({
                             : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-700 dark:text-amber-300 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-700 dark:text-amber-300">
                           {sessionTargetPoints === 6 && <Check className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
-                          <span>⚡ 6 Pts Speed</span>
+                          <span>6 points</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Rapid finish for high attendance & quick court rotations.
+                          Shorter games for busy nights.
                         </p>
                       </button>
                     </div>
@@ -1009,11 +901,11 @@ export function AdminDashboard({
                 {/* Pickleq-Style Matching Mode Selector */}
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                      Matching mode
+                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      Matchmaking
                     </label>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      Queue rotation strategy
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      How the queue picks teams
                     </span>
                   </div>
 
@@ -1032,12 +924,12 @@ export function AdminDashboard({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                           {selectedMatchingMode === "balanced" && (
                             <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                           )}
                           <span>Balanced</span>
-                          <span className="ml-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                          <span className="ml-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
                             RECOMMENDED
                           </span>
                         </div>
@@ -1058,12 +950,12 @@ export function AdminDashboard({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                           {selectedMatchingMode === "social_mixer" && (
                             <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                           )}
                           <span>Social Mix</span>
-                          <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                          <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
                             NEW
                           </span>
                         </div>
@@ -1083,7 +975,7 @@ export function AdminDashboard({
                           : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                         {selectedMatchingMode === "skill_separated" && (
                           <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                         )}
@@ -1104,7 +996,7 @@ export function AdminDashboard({
                           : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                         {selectedMatchingMode === "winners_losers" && (
                           <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                         )}
@@ -1120,7 +1012,7 @@ export function AdminDashboard({
                       <button
                         type="button"
                         onClick={() => setShowMoreMatchingModes(!showMoreMatchingModes)}
-                        className="w-full p-3 flex items-center justify-between text-left hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors font-mono"
+                        className="w-full p-3 flex items-center justify-between text-left hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
                       >
                         <div>
                           <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
@@ -1152,7 +1044,7 @@ export function AdminDashboard({
                                 : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                               {selectedMatchingMode === "skill_courts" && (
                                 <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
@@ -1173,7 +1065,7 @@ export function AdminDashboard({
                                 : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                               {selectedMatchingMode === "mixed_doubles" && (
                                 <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
@@ -1194,7 +1086,7 @@ export function AdminDashboard({
                                 : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                               {selectedMatchingMode === "king_queen" && (
                                 <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
@@ -1215,12 +1107,12 @@ export function AdminDashboard({
                                 : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100 font-mono">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
                               {selectedMatchingMode === "club_wars" && (
                                 <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                               )}
                               <span>Club Wars</span>
-                              <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 font-mono uppercase tracking-wider">
+                              <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
                                 BETA
                               </span>
                             </div>
@@ -1235,7 +1127,7 @@ export function AdminDashboard({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Description</label>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes (optional)</label>
                   <textarea
                     name="description"
                     rows={2}
@@ -1253,130 +1145,98 @@ export function AdminDashboard({
                     disabled={isSubmittingSession}
                     className="font-bold text-xs"
                   >
-                    {isSubmittingSession ? "Provisioning Session & Courts..." : "Publish Session & Provision Courts"}
+                    {isSubmittingSession ? "Creating session…" : "Create session"}
                   </Button>
                 </div>
               </form>
             </Card>
           )}
 
-          {/* Existing Sessions Quick Controls */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Scheduled & Past Sessions ({sessions.length})
-            </h4>
+          {/* Session lists: upcoming first, past folded away */}
+          {(() => {
+            const upcoming = sessions
+              .filter((s) => s.status === "scheduled")
+              .sort((a, b) => a.start_time.localeCompare(b.start_time));
+            const past = sessions
+              .filter((s) => s.status === "completed" || s.status === "cancelled")
+              .sort((a, b) => b.start_time.localeCompare(a.start_time));
 
-            {sessions.length === 0 ? (
-              <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-8 text-center space-y-2 font-mono text-xs text-slate-500 dark:text-slate-400 shadow-sm">
-                <Calendar className="h-6 w-6 text-slate-400 dark:text-slate-600 mx-auto" />
-                <p className="text-slate-900 dark:text-slate-200 font-semibold">No Sessions Scheduled</p>
-                <p className="text-slate-500 text-[11px]">
-                  Click &quot;Schedule New Session&quot; above to schedule an open-play event.
-                </p>
-              </Card>
-            ) : (
-              sessions.map((s) => {
-                const meta = parseSessionMetadata(s.description);
-                return (
-                  <Card key={s.id} className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{s.title}</h4>
-                        <Badge
-                          variant={s.status === "active" ? "default" : "secondary"}
-                          className="text-[10px] uppercase font-mono"
-                        >
-                          {s.status}
-                        </Badge>
-
-                        {/* Mode & Target Score Badges */}
-                        {meta.isRanked ? (
-                          <Badge variant="volt" className="text-[10px] font-mono">
-                            🏆 Ranked
-                          </Badge>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/40 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
-                            🍃 Casual
-                          </span>
-                        )}
-
-                        {!meta.trackScores ? (<span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">✅ Win/Loss only</span>) : meta.targetPoints === 6 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-700 dark:text-amber-300">
-                            ⚡ 6 Pts
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
-                            11 Pts
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                        {formatPHTDate(s.start_time)} •{" "}
-                        {formatPHTTime(s.start_time)} –{" "}
-                        {formatPHTTime(s.end_time)} •{" "}
-                        {s.location || "DCTECH Sports Arena"}
-                      </div>
+            return (
+              <>
+                {upcoming.length === 0 ? (
+                  !isCreatingSession && (
+                    <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Nothing scheduled</p>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Create a session so players can see it and check in.
+                      </p>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2 font-mono text-xs w-full sm:w-auto">
-                      {s.status === "active" ? (
-                        <Link
-                          href={`/sessions/${s.id}`}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold transition-colors"
+                  )
+                ) : (
+                  <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+                    {upcoming.map((s) => (
+                      <SessionRow key={s.id} session={s}>
+                        <Button
+                          variant="volt"
+                          size="sm"
+                          loading={actionLoadingId === s.id}
+                          disabled={actionLoadingId === s.id}
+                          onClick={() => handleStartSession(s)}
+                          className="h-10 px-4 font-bold cursor-pointer"
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Open console
-                        </Link>
-                      ) : (
-                        <>
-                          {s.status === "completed" && (
+                          {actionLoadingId === s.id ? "Starting…" : "Start"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingSession(s)}
+                          className="h-10 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelSession(s)}
+                          className="h-10 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                          aria-label={`Cancel ${s.title}`}
+                        >
+                          Cancel
+                        </Button>
+                      </SessionRow>
+                    ))}
+                  </ul>
+                )}
+
+                {past.length > 0 && (
+                  <details className="group">
+                    <summary className="flex items-center justify-between cursor-pointer list-none select-none py-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Past sessions ({past.length})
+                      <span className="text-xs font-medium text-slate-500 group-open:hidden">Show</span>
+                      <span className="text-xs font-medium text-slate-500 hidden group-open:inline">Hide</span>
+                    </summary>
+                    <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+                      {past.map((s) => (
+                        <SessionRow key={s.id} session={s} muted>
+                          {s.status === "completed" ? (
                             <Link
                               href={`/sessions/${s.id}`}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono font-bold transition-colors"
+                              className="inline-flex h-10 items-center rounded-md border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             >
                               Results
                             </Link>
+                          ) : (
+                            <span className="text-sm text-slate-500 dark:text-slate-400">Cancelled</span>
                           )}
-                          {s.status !== "cancelled" && s.status !== "completed" && (
-                            <Button
-                              variant="volt"
-                              size="sm"
-                              loading={actionLoadingId === s.id}
-                              disabled={actionLoadingId === s.id}
-                              onClick={() => handleStartSession(s)}
-                              className="text-xs font-bold cursor-pointer"
-                            >
-                              {actionLoadingId === s.id ? "Activating..." : "Start Session"}
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsEditingSession(s)}
-                            className="text-xs font-mono border-slate-300 dark:border-slate-700 cursor-pointer"
-                          >
-                            <Edit3 className="h-3.5 w-3.5 mr-1 text-slate-500" />
-                            Edit
-                          </Button>
-                          {s.status !== "cancelled" && s.status !== "completed" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCancelSession(s)}
-                              className="text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-mono cursor-pointer"
-                            >
-                              <XCircle className="h-3.5 w-3.5 mr-1" />
-                              Cancel
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })
-            )}
-          </div>
+                        </SessionRow>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </>
+            );
+          })()}
 
           {/* Edit Session Modal */}
           <Modal
@@ -1388,17 +1248,17 @@ export function AdminDashboard({
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <Edit3 className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-                    Edit Session Settings
+                    Edit session
                   </CardTitle>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Update title, schedule, rating mode, and match rules for &quot;{isEditingSession.title}&quot;.
+                    Change the name, time, or game rules for &quot;{isEditingSession.title}&quot;.
                   </p>
                 </CardHeader>
                 <CardContent className="pt-5 space-y-4">
                   <form onSubmit={handleEditSessionSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Session Title</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
                         <input
                           type="text"
                           name="title"
@@ -1408,7 +1268,7 @@ export function AdminDashboard({
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Location</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Location</label>
                         <input
                           type="text"
                           name="location"
@@ -1420,23 +1280,23 @@ export function AdminDashboard({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Start Time</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Starts</label>
                         <input
                           type="datetime-local"
                           name="startTime"
                           required
                           defaultValue={toPHTDateTimeLocal(isEditingSession.start_time)}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">End Time</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ends</label>
                         <input
                           type="datetime-local"
                           name="endTime"
                           required
                           defaultValue={toPHTDateTimeLocal(isEditingSession.end_time)}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                         />
                       </div>
                     </div>
@@ -1444,36 +1304,36 @@ export function AdminDashboard({
                     {/* Mode & Target Score Selectors */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Rating Mode</label>
+                        <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rating Mode</label>
                         <input type="hidden" name="isRanked" value={String(editIsRanked)} />
                         <div className="grid grid-cols-2 gap-1.5">
                           <button
                             type="button"
                             onClick={() => setEditIsRanked(true)}
-                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                            className={`p-2 rounded-lg border text-xs font-bold text-center cursor-pointer transition-colors ${
                               editIsRanked
                                 ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                                 : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
                             }`}
                           >
-                            🏆 Ranked
+                            Ranked
                           </button>
                           <button
                             type="button"
                             onClick={() => setEditIsRanked(false)}
-                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                            className={`p-2 rounded-lg border text-xs font-bold text-center cursor-pointer transition-colors ${
                               !editIsRanked
                                 ? "border-purple-500 bg-purple-50/60 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"
                                 : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
                             }`}
                           >
-                            🍃 Casual
+                            Casual
                           </button>
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">Scoring</label>
+                        <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">Scoring</label>
                         <TrackScoresToggle checked={editTrackScores} onChange={setEditTrackScores} />
                         <input type="hidden" name="targetPoints" value={String(editTargetPoints)} />
                         {editTrackScores && (
@@ -1485,7 +1345,7 @@ export function AdminDashboard({
                               setEditTargetPoints(11);
                               setEditWinByTwo(true);
                             }}
-                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                            className={`p-2 rounded-lg border text-xs font-bold text-center cursor-pointer transition-colors ${
                               editTargetPoints === 11
                                 ? "border-emerald-500 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                                 : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
@@ -1499,7 +1359,7 @@ export function AdminDashboard({
                               setEditTargetPoints(6);
                               setEditWinByTwo(false);
                             }}
-                            className={`p-2 rounded-lg border text-xs font-mono font-bold text-center cursor-pointer transition-colors ${
+                            className={`p-2 rounded-lg border text-xs font-bold text-center cursor-pointer transition-colors ${
                               editTargetPoints === 6
                                 ? "border-amber-500 bg-amber-50/60 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                                 : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
@@ -1520,12 +1380,12 @@ export function AdminDashboard({
 
                     {/* Matching Mode */}
                     <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Matching Mode</label>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Matching Mode</label>
                       <select
                         name="matchingStyle"
                         defaultValue={editMatchingMode}
                         onChange={(e) => setEditMatchingMode(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                       >
                         <option value="balanced">Balanced (Recommended)</option>
                         <option value="social_mixer">Social Mix</option>
@@ -1539,7 +1399,7 @@ export function AdminDashboard({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Description</label>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes (optional)</label>
                       <textarea
                         name="description"
                         rows={2}
@@ -1554,7 +1414,7 @@ export function AdminDashboard({
                         variant="ghost"
                         size="sm"
                         onClick={() => setIsEditingSession(null)}
-                        className="text-xs font-mono"
+                        className="text-xs"
                       >
                         Cancel
                       </Button>
@@ -1564,9 +1424,9 @@ export function AdminDashboard({
                         size="sm"
                         loading={isSubmittingEditSession}
                         disabled={isSubmittingEditSession}
-                        className="font-bold text-xs font-mono"
+                        className="font-bold text-xs"
                       >
-                        {isSubmittingEditSession ? "Saving Changes..." : "Save Changes"}
+                        {isSubmittingEditSession ? "Saving…" : "Save changes"}
                       </Button>
                     </div>
                   </form>
@@ -1619,7 +1479,7 @@ export function AdminDashboard({
                     className="space-y-4"
                   >
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Player Full Name</label>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Player Full Name</label>
                       <input
                         type="text"
                         required
@@ -1632,7 +1492,7 @@ export function AdminDashboard({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Player Type</label>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Player Type</label>
                         <select
                           value={walkInType}
                           onChange={(e) => setWalkInType(e.target.value as any)}
@@ -2558,5 +2418,73 @@ function TrackScoresToggle({
         </span>
       </span>
     </label>
+  );
+}
+
+/** Ranked/Casual and scoring rule, as quiet chips. */
+function SessionRuleChips({ description }: { description?: string | null }) {
+  const meta = parseSessionMetadata(description);
+  const chip = "rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300";
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className={chip}>{meta.isRanked ? "Ranked" : "Casual"}</span>
+      <span className={`${chip} first-letter:uppercase`}>{describeRule(meta)}</span>
+    </div>
+  );
+}
+
+function LiveStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col-reverse">
+      <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{value}</dd>
+    </div>
+  );
+}
+
+function phtDateParts(iso: string) {
+  const d = new Date(iso);
+  const part = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", ...opts }).format(d);
+  return { weekday: part({ weekday: "short" }), day: part({ day: "numeric" }), month: part({ month: "short" }) };
+}
+
+/** One session in a list: date block, title, rules, time, and its actions. */
+function SessionRow({
+  session,
+  muted,
+  children,
+}: {
+  session: Session;
+  muted?: boolean;
+  children: React.ReactNode;
+}) {
+  const { weekday, day, month } = phtDateParts(session.start_time);
+  return (
+    <li className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4">
+      <div className="flex items-center gap-4 min-w-0 flex-1">
+        <div
+          className={`flex w-14 shrink-0 flex-col items-center rounded-lg border py-1.5 ${
+            muted
+              ? "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400"
+              : "border-emerald-500/40 text-slate-900 dark:text-slate-100"
+          }`}
+        >
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{weekday}</span>
+          <span className="text-xl font-bold leading-none tabular-nums">{day}</span>
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{month}</span>
+        </div>
+        <div className="min-w-0 space-y-1">
+          <h3 className={`truncate text-base font-semibold ${muted ? "text-slate-600 dark:text-slate-300" : "text-slate-900 dark:text-slate-100"}`}>
+            {session.title}
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {formatPHTTime(session.start_time)} – {formatPHTTime(session.end_time)}, {session.location || "DCTECH Sports Arena"}
+          </p>
+          {!muted && <SessionRuleChips description={session.description} />}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">{children}</div>
+    </li>
   );
 }
