@@ -318,14 +318,27 @@ export function SessionQueueLiveBoard({
                 <div className="space-y-1.5">
                   {nextMatchup.teamA.map((p, idx) => {
                     const isMe = p.id === currentUserId;
+                    const queueEntry = nextPod.find((item) => item.player_id === p.id);
                     return (
                       <div key={idx} className="flex items-center justify-between gap-1 text-[11px]">
                         <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
                           {p.full_name || p.display_name} {isMe && "(YOU)"}
                         </span>
-                        <span className="text-[10px] text-slate-400 shrink-0">
-                          {formatRating(p.skill_rating)}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[10px] text-slate-400">
+                            {formatRating(p.skill_rating)}
+                          </span>
+                          {isAdmin && queueEntry && (
+                            <button
+                              type="button"
+                              onClick={() => handleAdminRemove(queueEntry.id, p.full_name || "Player")}
+                              title="Remove from queue"
+                              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -341,14 +354,27 @@ export function SessionQueueLiveBoard({
                 <div className="space-y-1.5">
                   {nextMatchup.teamB.map((p, idx) => {
                     const isMe = p.id === currentUserId;
+                    const queueEntry = nextPod.find((item) => item.player_id === p.id);
                     return (
                       <div key={idx} className="flex items-center justify-between gap-1 text-[11px]">
                         <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
                           {p.full_name || p.display_name} {isMe && "(YOU)"}
                         </span>
-                        <span className="text-[10px] text-slate-400 shrink-0">
-                          {formatRating(p.skill_rating)}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[10px] text-slate-400">
+                            {formatRating(p.skill_rating)}
+                          </span>
+                          {isAdmin && queueEntry && (
+                            <button
+                              type="button"
+                              onClick={() => handleAdminRemove(queueEntry.id, p.full_name || "Player")}
+                              title="Remove from queue"
+                              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -369,17 +395,30 @@ export function SessionQueueLiveBoard({
             <div className="grid grid-cols-2 gap-2">
               {nextPod.map((item, idx) => {
                 const isMe = item.player_id === currentUserId;
+                const name = item.player?.full_name || item.player?.display_name || "Player";
                 return (
                   <div
                     key={item.id || idx}
                     className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-2 text-xs font-mono flex items-center justify-between"
                   >
                     <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                      #{idx + 1} {item.player?.full_name?.split(" ")[0] || "Player"} {isMe && "(YOU)"}
+                      #{idx + 1} {name.split(" ")[0]} {isMe && "(YOU)"}
                     </span>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {formatRating(item.player?.skill_rating || 3.0)}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                        {formatRating(item.player?.skill_rating || 3.0)}
+                      </span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleAdminRemove(item.id, name)}
+                          title="Remove from queue"
+                          className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -409,20 +448,77 @@ export function SessionQueueLiveBoard({
             <span className="text-slate-400 font-normal">Est. ~12m</span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
-            {pods[1].map((item, idx) => (
-              <div
-                key={item.id || idx}
-                className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 px-2 py-1 text-[11px] font-mono flex items-center justify-between"
-              >
-                <span className="text-slate-800 dark:text-slate-200 truncate">
-                  #{idx + 5} {item.player?.full_name?.split(" ")[0] || "Player"}
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {formatRating(item.player?.skill_rating || 3.0)}
-                </span>
-              </div>
-            ))}
+            {pods[1].map((item, idx) => {
+              const name = item.player?.full_name || item.player?.display_name || "Player";
+              return (
+                <div
+                  key={item.id || idx}
+                  className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 px-2 py-1 text-[11px] font-mono flex items-center justify-between"
+                >
+                  <span className="text-slate-800 dark:text-slate-200 truncate">
+                    #{idx + 5} {name.split(" ")[0]}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-slate-400">
+                      {formatRating(item.player?.skill_rating || 3.0)}
+                    </span>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleAdminRemove(item.id, name)}
+                        title="Remove from queue"
+                        className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
+          {pods.length > 2 && (
+            <div className="pt-1 space-y-2">
+              {pods.slice(2).map((pod, podIdx) => (
+                <div key={podIdx} className="space-y-1">
+                  <div className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                    RACK #{podIdx + 3} ({pod.length}/4)
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {pod.map((item, idx) => {
+                      const name = item.player?.full_name || item.player?.display_name || "Player";
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/40 px-2 py-1 text-[11px] font-mono flex items-center justify-between"
+                        >
+                          <span className="text-slate-700 dark:text-slate-300 truncate">
+                            #{podIdx * 4 + 8 + idx + 1} {name.split(" ")[0]}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] text-slate-400">
+                              {formatRating(item.player?.skill_rating || 3.0)}
+                            </span>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdminRemove(item.id, name)}
+                                title="Remove from queue"
+                                className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

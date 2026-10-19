@@ -48,10 +48,11 @@ describe("Philippine Timezone Utilities", () => {
     expect(dateStr).toContain("Sep 25");
   });
 
-  it("formats full date-time with PHT label", () => {
+  it("formats full date-time", () => {
     const full = formatPHTFull("2026-09-24T10:00:00.000Z");
     expect(full).toContain("Sep 24");
-    expect(full).toContain("6:00 PM PHT");
+    expect(full).toContain("6:00 PM");
+    expect(full).not.toContain("PHT");
   });
 
   it("generates correct PHT today string in YYYY-MM-DD", () => {
@@ -60,8 +61,9 @@ describe("Philippine Timezone Utilities", () => {
     expect(getPHTTodayString(testDate)).toBe("2026-09-25");
   });
 
-  it("formats live clock with PHT tag", () => {
+  it("formats live clock without PHT tag", () => {
     const clock = formatPHTClock(new Date("2026-09-24T10:05:08.000Z"));
-    expect(clock).toBe("06:05:08 PM PHT");
+    expect(clock).toBe("06:05:08 PM");
+    expect(clock).not.toContain("PHT");
   });
 });

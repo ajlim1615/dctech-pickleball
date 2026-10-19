@@ -100,6 +100,15 @@ export function StaffCourtMonitor({
   // Active match ID
   const [activeMatchId, setActiveMatchId] = useState<string | null>(currentMatch?.id || null);
 
+  // Follow matches started elsewhere (Call next / auto-fill after a submitted result).
+  const [syncedMatchId, setSyncedMatchId] = useState<string | null>(currentMatch?.id || null);
+  if (currentMatch?.id && currentMatch.status === "in_progress" && currentMatch.id !== syncedMatchId) {
+    setSyncedMatchId(currentMatch.id);
+    setActiveMatchId(currentMatch.id);
+    setScoreA(currentMatch.team_a_score || 0);
+    setScoreB(currentMatch.team_b_score || 0);
+  }
+
   // Target Game Score: 6 points (speed play) or 11 points (standard)
   const [targetPoints, setTargetPoints] = useState<number>(11);
 

@@ -61,6 +61,7 @@ interface CourtMatrixProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
+  autoFill?: boolean;
 }
 
 export function CourtMatrix({
@@ -72,6 +73,7 @@ export function CourtMatrix({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
+  autoFill = true,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
 
@@ -124,6 +126,7 @@ export function CourtMatrix({
               isAdmin={isAdministrator}
               readOnly={readOnly}
               targetPoints={targetPoints}
+              autoFill={autoFill}
             />
           ))}
         </div>

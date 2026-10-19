@@ -54,6 +54,8 @@ export interface CourtCardProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
+  /** When true, submitting a result immediately calls the next group onto this court. */
+  autoFill?: boolean;
 }
 
 export function CourtCard({
@@ -64,6 +66,7 @@ export function CourtCard({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
+  autoFill = true,
 }: CourtCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -171,7 +174,7 @@ export function CourtCard({
       if (res?.error) {
         setErrorMessage(res.error);
       } else {
-        setSuccessMessage("Next pod rotated from queue onto this court!");
+        setSuccessMessage("Next group called onto this court.");
         router.refresh();
       }
     });
@@ -201,18 +204,22 @@ export function CourtCard({
 
     if (!isGameOver) {
       setErrorMessage(
-        "Cannot submit match: Score is not finished yet. Pickleball games must reach at least 11 points and win by 2."
+        `Cannot submit match: Score is not finished yet. Games go to ${courtTargetPoints} (win by ${winMargin}).`
       );
       return;
     }
 
     startTransition(async () => {
-      const res = await finalizeMatch(activeMatch.id, scoreA, scoreB);
+      const res = await finalizeMatch(activeMatch.id, scoreA, scoreB, { autoFill });
       if (res?.error) {
         setErrorMessage(res.error);
       } else {
         setSuccessMessage(
-          `Match completed! Final Score: ${scoreA} - ${scoreB}. Court is now ready for next rotation.`
+          res?.autoFilled
+            ? `Saved ${scoreA}-${scoreB}. Players re-queued and the next group is on court.`
+            : `Saved ${scoreA}-${scoreB}. Players are back in the queue.${
+                autoFill && res?.autoFillMessage ? ` Court left open: ${res.autoFillMessage}` : ""
+              }`
         );
         setScoreA(0);
         setScoreB(0);
@@ -274,7 +281,7 @@ export function CourtCard({
                 )}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                {court.surface_type || "Pro Acrylic Court"} • Play to 11 (Win by 2)
+                {court.surface_type || "Pro Acrylic Court"} • Play to {courtTargetPoints} (Win by {winMargin})
               </p>
             </div>
 
@@ -383,7 +390,8 @@ export function CourtCard({
             </div>
           )}
 
-          {/* Score Board & Steppers */}
+          {/* Score Board & Steppers (only while players are on court) */}
+          {hasPlayersOnCourt && (
           <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -544,19 +552,39 @@ export function CourtCard({
               </div>
             )}
           </div>
+          )}
 
           {/* Action Button Section: Admin Submit vs Spectator Status */}
           <div className="pt-2">
-            {isAdministrator ? (
+            {isAdministrator && !hasPlayersOnCourt ? (
+              <>
+                <Button
+                  type="button"
+                  variant="volt"
+                  size="default"
+                  onClick={handleAutoCallQueue}
+                  disabled={isPending || waitingQueueCount < 4}
+                  className="w-full font-bold text-sm h-12 rounded-xl shadow-sm active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Zap className="h-4 w-4 mr-1.5" />
+                  {isPending ? "Calling players..." : "Call next 4 from queue"}
+                </Button>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center font-mono mt-1.5">
+                  {waitingQueueCount >= 4
+                    ? `${waitingQueueCount} players waiting`
+                    : `Need 4 waiting to start a game (${waitingQueueCount} in queue)`}
+                </p>
+              </>
+            ) : isAdministrator ? (
               <>
                 <Button
                   type="button"
                   variant="volt"
                   size="default"
                   onClick={handleSubmitScore}
-                  disabled={isPending || !hasPlayersOnCourt || !isGameOver}
+                  disabled={isPending || !isGameOver}
                   className={`w-full font-bold font-mono text-xs h-11 rounded-xl shadow-sm transition-all active:scale-[0.98] ${
-                    !hasPlayersOnCourt || !isGameOver
+                    !isGameOver
                       ? "opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"
                       : "shadow-emerald-500/20 bg-[#d4e938] text-slate-950 hover:bg-[#c2d730] ring-2 ring-[#d4e938]/40 cursor-pointer"
                   }`}
@@ -564,26 +592,22 @@ export function CourtCard({
                   <Trophy className="h-3.5 w-3.5 mr-1.5" />
                   {isPending
                     ? "Submitting Score..."
-                    : !hasPlayersOnCourt
-                    ? "No Players on Court (Disabled)"
                     : !isGameOver
-                    ? "Match In Progress (Play to 11, Win by 2)"
-                    : `Complete & Submit Match (${winner} Wins)`}
+                    ? `In progress (to ${courtTargetPoints}, win by ${winMargin})`
+                    : `Submit result (${winner} wins)`}
                 </Button>
 
-                {!hasPlayersOnCourt ? (
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono mt-1.5">
-                    ⚠️ Call players from queue to start match & record score
-                  </p>
-                ) : !isGameOver ? (
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono mt-1.5">
-                    Record points until 11 (win by 2) or use <strong>⚡ Quick Win</strong> buttons
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 text-center font-mono mt-1.5 font-semibold">
-                    ✓ Ready to submit! This updates player DUPR and pulls the next queue pod.
-                  </p>
-                )}
+                <p
+                  className={`text-[10px] text-center font-mono mt-1.5 ${
+                    isGameOver ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-slate-400 dark:text-slate-500"
+                  }`}
+                >
+                  {!isGameOver
+                    ? "Tap + per point, or use ⚡ Quick Win"
+                    : autoFill
+                    ? "✓ Players go back to the queue and the next 4 are called automatically."
+                    : "✓ Players go back to the queue. Court stays open (auto-fill is off)."}
+                </p>
               </>
             ) : (
               <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60 p-3 text-center font-mono space-y-0.5">

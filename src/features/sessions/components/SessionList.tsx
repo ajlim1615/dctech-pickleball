@@ -106,7 +106,7 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
 
                       <span className="text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        {formatPHTDate(s.start_time)} • {formatPHTTime(s.start_time)} – {formatPHTTime(s.end_time)} (PHT)
+                        {formatPHTDate(s.start_time)} • {formatPHTTime(s.start_time)} – {formatPHTTime(s.end_time)}
                       </span>
                     </div>
 

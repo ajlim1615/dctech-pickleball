@@ -300,12 +300,19 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 
   // If completing or cancelling a session, clear its active queue and free courts
   if (status === "completed" || status === "cancelled") {
-    // Clear lingering waiting/called queue entries
+    // Clear lingering queue entries, including players still on court
     await supabase
       .from("queue_entries")
       .update({ status: "left" })
       .eq("session_id", sessionId)
-      .in("status", ["waiting", "called"]);
+      .in("status", ["waiting", "called", "playing"]);
+
+    // Unfinished games are not scored
+    await supabase
+      .from("matches")
+      .update({ status: "abandoned", ended_at: new Date().toISOString() })
+      .eq("session_id", sessionId)
+      .eq("status", "in_progress");
 
     // Free courts
     await supabase
@@ -371,7 +378,7 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     .select("id")
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .in("status", ["waiting", "called"])
+    .in("status", ["waiting", "called", "playing"])
     .maybeSingle();
 
   if (!existingQueue) {
@@ -391,23 +398,51 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
 
 export async function checkOutOfSession(sessionId: string, playerId?: string) {
   const supabase = await createClient();
-  let targetPlayerId = playerId;
+  const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) {
+    return { error: "Authentication required to check out." };
+  }
+
+  let targetPlayerId = playerId;
   if (!targetPlayerId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Authentication required." };
     targetPlayerId = user.id;
   }
 
-  const { error } = await supabase
+  // If checking out someone else, ensure caller has admin privileges
+  if (targetPlayerId !== user.id) {
+    const auth = await requireAdminUser();
+    if (auth.error) {
+      return { error: auth.error };
+    }
+  }
+
+  // 1. Mark session check-in as checked_out
+  const { error: checkinError } = await supabase
     .from("session_checkins")
     .update({ status: "checked_out" })
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId);
 
-  if (error) return { error: error.message };
+  if (checkinError) {
+    return { error: checkinError.message };
+  }
+
+  // 2. Automatically remove player from the active queue so they are not matched or called
+  const { error: queueError } = await supabase
+    .from("queue_entries")
+    .update({ status: "left" })
+    .eq("session_id", sessionId)
+    .eq("player_id", targetPlayerId)
+    .in("status", ["waiting", "called"]);
+
+  if (queueError) {
+    console.error("Failed to remove player from queue on check-out:", queueError.message);
+  }
 
   revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/sessions");
+  revalidatePath("/queue");
   revalidatePath("/");
   return { success: true };
 }

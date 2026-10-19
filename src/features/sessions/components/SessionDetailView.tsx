@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Check,
   UserPlus,
+  UserMinus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -31,8 +32,10 @@ import { SessionLeaderboard } from "./SessionLeaderboard";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
+import { SessionConsoleBar, useAutoFillPreference } from "./SessionConsoleBar";
 import {
   checkInToSession,
+  checkOutOfSession,
   updateSessionStatus,
   type SessionRankedPlayer,
 } from "../api/sessionActions";
@@ -68,10 +71,17 @@ export function SessionDetailView({
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = userRole === "admin" || isSystemAdmin;
 
+  const [activeCheckins, setActiveCheckins] = useState<any[]>(session.checkins || []);
+  const [checkingOutPlayerId, setCheckingOutPlayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveCheckins(session.checkins || []);
+  }, [session.checkins]);
+
   const isUserCheckedInDatabase = Boolean(
     !isSystemAdmin &&
     currentUserId &&
-    session.checkins?.some(
+    activeCheckins.some(
       (c: any) => c.player_id === currentUserId || c.player?.id === currentUserId
     )
   );
@@ -102,6 +112,14 @@ export function SessionDetailView({
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
 
   const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
+  const [autoFill, setAutoFill] = useAutoFillPreference();
+
+  function openAddPlayers() {
+    setSelectedPlayerIds([]);
+    setBulkSearch("");
+    setModalTab("roster");
+    setShowBulkModal(true);
+  }
 
   useEffect(() => {
     setIsCheckedIn(isUserCheckedInDatabase);
@@ -111,7 +129,7 @@ export function SessionDetailView({
     setCurrentStatus(session.status);
   }, [session.status]);
 
-  const checkins = session.checkins || [];
+  const checkins = activeCheckins;
   const filteredCheckins = useMemo(() => {
     const query = searchCheckin.trim().toLowerCase();
     if (!query) return checkins;
@@ -228,6 +246,37 @@ export function SessionDetailView({
     }
   }
 
+  async function handleCheckOutPlayer(targetPlayerId: string, playerName: string) {
+    if (checkingOutPlayerId || !targetPlayerId) return;
+    const isSelf = targetPlayerId === currentUserId;
+    const confirmMessage = isSelf
+      ? "Check out of this session? You will also be removed from the active queue."
+      : `Check out ${playerName}? They will be removed from attendance and taken out of the queue.`;
+
+    if (!confirm(confirmMessage)) return;
+
+    setCheckingOutPlayerId(targetPlayerId);
+    try {
+      const res = await checkOutOfSession(session.id, targetPlayerId);
+      if (res?.error) {
+        alert(`Error checking out player: ${res.error}`);
+      } else {
+        // Optimistically remove from active checkins roster
+        setActiveCheckins((prev) =>
+          prev.filter(
+            (c) => c.player_id !== targetPlayerId && c.player?.id !== targetPlayerId
+          )
+        );
+        if (isSelf) {
+          setIsCheckedIn(false);
+        }
+        router.refresh();
+      }
+    } finally {
+      setCheckingOutPlayerId(null);
+    }
+  }
+
   const cleanedDescription = cleanSessionDescription(session.description);
 
   return (
@@ -286,7 +335,7 @@ export function SessionDetailView({
                 <Calendar className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {formatPHTDate(session.start_time)} • {formatPHTTime(session.start_time)} –{" "}
-                  {formatPHTTime(session.end_time)} (PHT)
+                  {formatPHTTime(session.end_time)}
                 </span>
               </span>
             </div>
@@ -336,57 +385,17 @@ export function SessionDetailView({
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800/80">
             {/* Admin Session Lifecycle Controls */}
-            {isAdmin && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2.5 w-full md:w-auto">
-                {currentStatus !== "active" && currentStatus !== "completed" ? (
-                  <Button
-                    variant="volt"
-                    size="default"
-                    onClick={handleStartSession}
-                    disabled={statusLoading}
-                    className="w-full md:w-auto font-bold text-xs sm:text-sm shadow-md cursor-pointer h-11 sm:h-10 px-4 justify-center"
-                  >
-                    <PlayCircle className="h-4 w-4 mr-1.5 shrink-0" />
-                    <span>{statusLoading ? "Starting..." : "Start Session"}</span>
-                  </Button>
-                ) : currentStatus === "active" ? (
-                  <Button
-                    variant="outline"
-                    size="default"
-                    onClick={() => setShowFinishConfirm(true)}
-                    disabled={statusLoading}
-                    className="w-full md:w-auto text-xs font-mono font-bold text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer shadow-xs h-11 sm:h-10 px-4 justify-center"
-                  >
-                    <span>⏹ End / Finish Session</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleStartSession}
-                    disabled={statusLoading}
-                    className="w-full md:w-auto text-xs font-mono text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 h-11 sm:h-9 justify-center"
-                  >
-                    <span>Reopen Session</span>
-                  </Button>
-                )}
-
-                {/* Add / Bulk Queue Players Header Button */}
-                <Button
-                  variant="outline"
-                  size="default"
-                  onClick={() => {
-                    setSelectedPlayerIds([]);
-                    setBulkSearch("");
-                    setModalTab("roster");
-                    setShowBulkModal(true);
-                  }}
-                  className="w-full md:w-auto font-bold text-xs sm:text-sm border-emerald-500/40 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 cursor-pointer shadow-xs h-11 sm:h-10 px-4 flex items-center justify-center whitespace-nowrap"
-                >
-                  <Users className="h-4 w-4 mr-1.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>+ Add / Queue Players</span>
-                </Button>
-              </div>
+            {/* Live admin controls live in the console bar below; only Reopen stays here. */}
+            {isAdmin && currentStatus === "completed" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStartSession}
+                disabled={statusLoading}
+                className="w-full md:w-auto text-xs font-mono text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 h-11 sm:h-9 justify-center"
+              >
+                <span>{statusLoading ? "Reopening..." : "Reopen Session"}</span>
+              </Button>
             )}
 
             {/* Non-Admin Player Check-in / Enter Queue Buttons */}
@@ -402,6 +411,18 @@ export function SessionDetailView({
                       <span>Enter Live Paddle Queue →</span>
                     </Button>
                   </a>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="default"
+                    onClick={() => handleCheckOutPlayer(currentUserId!, "yourself")}
+                    disabled={checkingOutPlayerId === currentUserId}
+                    className="w-full sm:w-auto text-xs font-mono font-bold text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 h-11 sm:h-10 cursor-pointer"
+                    title="Check out and leave session"
+                  >
+                    <UserMinus className="h-3.5 w-3.5 mr-1" />
+                    <span>{checkingOutPlayerId === currentUserId ? "Leaving..." : "Check Out"}</span>
+                  </Button>
                 </div>
               ) : currentStatus === "active" ? (
                 <div className="flex items-center gap-2 w-full md:w-auto">
@@ -438,7 +459,7 @@ export function SessionDetailView({
                     Finish {session.title} Session
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Are you sure you want to finish and complete this session?
+                    Games still in progress are not saved. All courts are freed, the queue is cleared, and final standings are shown.
                   </p>
                 </div>
               </div>
@@ -494,8 +515,12 @@ export function SessionDetailView({
           totalGames={initialMatches.length}
           onClose={() => {
             setShowFinalStandings(false);
-            router.refresh();
-            window.location.reload();
+            if (isAdmin) {
+              router.push("/admin");
+            } else {
+              router.refresh();
+              window.location.reload();
+            }
           }}
         />
       )}
@@ -605,11 +630,28 @@ export function SessionDetailView({
                           </div>
                         </div>
 
-                        {c.player?.skill_rating ? (
-                          <Badge variant="outline" className="text-[10px] font-mono font-bold shrink-0">
-                            ★ {formatRating(c.player.skill_rating)}
-                          </Badge>
-                        ) : null}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {c.player?.skill_rating ? (
+                            <Badge variant="outline" className="text-[10px] font-mono font-bold shrink-0">
+                              ★ {formatRating(c.player.skill_rating)}
+                            </Badge>
+                          ) : null}
+
+                          {(isAdmin || isCurrentUser) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={checkingOutPlayerId === (c.player_id || c.player?.id)}
+                              onClick={() => handleCheckOutPlayer(c.player_id || c.player?.id, playerName)}
+                              className="h-7 px-2 text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:border-rose-300 transition-colors shrink-0 cursor-pointer"
+                              title={isCurrentUser ? "Check out of session" : `Check out ${playerName} and remove from queue`}
+                            >
+                              <UserMinus className="h-3 w-3 mr-1 shrink-0 text-rose-500" />
+                              <span>{checkingOutPlayerId === (c.player_id || c.player?.id) ? "Checking out..." : "Check Out"}</span>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1028,16 +1070,34 @@ export function SessionDetailView({
           </div>
       </Modal>
 
+      {isAdmin && (
+        <SessionConsoleBar
+          session={session}
+          status={currentStatus}
+          courts={courts || []}
+          waitingCount={initialQueue.filter((q) => q.status === "waiting").length}
+          checkedInCount={checkins.length}
+          autoFill={autoFill}
+          onAutoFillChange={setAutoFill}
+          onStart={handleStartSession}
+          isStarting={statusLoading}
+          onAddPlayers={openAddPlayers}
+          onEnd={() => setShowFinishConfirm(true)}
+        />
+      )}
+
       {/* Main Grid: Court Matrix + Unified Live Queue Link Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <CourtMatrix
             initialCourts={courts}
             userRole={userRole}
-            isAdmin={isAdmin}
+            isAdmin={isAdmin && currentStatus === "active"}
             sessionId={session.id}
             queue={initialQueue}
             waitingQueueCount={initialQueue.filter((q) => q.status === "waiting").length}
+            targetPoints={sessionMeta.targetPoints}
+            autoFill={autoFill}
           />
         </div>
 
@@ -1052,12 +1112,7 @@ export function SessionDetailView({
             employees={employees}
             isSessionActive={currentStatus === "active"}
             matchingMode={sessionMeta.matchingMode}
-            onOpenBulkQueue={() => {
-              setSelectedPlayerIds([]);
-              setBulkSearch("");
-              setModalTab("roster");
-              setShowBulkModal(true);
-            }}
+            onOpenBulkQueue={openAddPlayers}
           />
         </div>
       </div>

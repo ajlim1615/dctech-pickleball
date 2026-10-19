@@ -95,7 +95,7 @@ export default async function HomePage() {
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
                 <span>
                   {formatPHTTime(activeSession.start_time)} –{" "}
-                  {formatPHTTime(activeSession.end_time)} (PHT)
+                  {formatPHTTime(activeSession.end_time)}
                 </span>
               </div>
             ) : upcomingSessions.length > 0 ? (

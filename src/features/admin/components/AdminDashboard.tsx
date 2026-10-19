@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ShieldCheck,
   Calendar,
@@ -387,22 +388,36 @@ export function AdminDashboard({
     });
   }
 
-  function handleFinishSession(session: Session) {
-    setConfirmModal({
-      isOpen: true,
-      title: `Finish Session: "${session.title}"`,
-      message: "Conclude this session? Active courts will be freed, pending queue entries will be cleared, and official match records will be finalized.",
-      confirmLabel: "Finish & Conclude",
-      isDestructive: false,
-      action: async () => {
-        setSessions((prev) =>
-          prev.map((item) => (item.id === session.id ? { ...item, status: "completed" } : item))
-        );
-        await updateSessionStatus(session.id, "completed");
-        showNotice(`Session "${session.title}" concluded!`);
-        router.refresh();
-      },
-    });
+  async function startSessionAndOpenConsole(session: Session) {
+    if (actionLoadingId === session.id) return;
+    setActionLoadingId(session.id);
+    try {
+      const res = await updateSessionStatus(session.id, "active");
+      if (res?.error) {
+        showNotice(`Error: ${res.error}`);
+        return;
+      }
+      // Go straight to the console: that's where players are queued and courts are run.
+      router.push(`/sessions/${session.id}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  function handleStartSession(session: Session) {
+    // Only one session can be live; starting another ends the current one.
+    if (activeSession && activeSession.id !== session.id) {
+      setConfirmModal({
+        isOpen: true,
+        title: `Start "${session.title}"?`,
+        message: `"${activeSession.title}" is still live. Starting this session will end it, free its courts and clear its queue.`,
+        confirmLabel: "End it & start this one",
+        isDestructive: true,
+        action: () => startSessionAndOpenConsole(session),
+      });
+      return;
+    }
+    startSessionAndOpenConsole(session);
   }
 
   function handleCancelSession(session: Session) {
@@ -511,20 +526,12 @@ export function AdminDashboard({
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleResetQueue}
-            className="text-xs font-mono cursor-pointer"
-          >
-            <RefreshCw className="h-3.5 w-3.5 mr-1" />
-            Reset Queue
-          </Button>
+          {/* Header Action Slot */}
         </div>
       </div>
 
       {/* Live Admin Pulse KPI Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Metric 1: Session Status */}
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
           <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
@@ -582,31 +589,6 @@ export function AdminDashboard({
             {countBeginners} Novice • {countIntermediate} Int • {countAdvanced} Adv
           </div>
         </div>
-
-        {/* Metric 4: Facility Arena Direct Navigation */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 space-y-1 shadow-2xs">
-          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>QUICK NAVIGATION</span>
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-          </div>
-          <div className="flex items-center gap-1.5 pt-1">
-            <a
-              href="/queue"
-              className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-500 transition-colors"
-            >
-              Queue →
-            </a>
-            <a
-              href="/"
-              className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-500 transition-colors"
-            >
-              Kiosk →
-            </a>
-          </div>
-          <div className="text-[10px] font-mono text-slate-400">
-            One-tap direct station links
-          </div>
-        </div>
       </div>
 
       {/* Action Notification */}
@@ -629,7 +611,7 @@ export function AdminDashboard({
           }`}
         >
           <Calendar className="h-4 w-4" />
-          Sessions & Rented Courts
+          Sessions
         </button>
         <button
           type="button"
@@ -698,44 +680,36 @@ export function AdminDashboard({
                   </div>
                   <p className="text-xs font-mono text-slate-600 dark:text-slate-300">
                     {formatPHTTime(activeSession.start_time)} –{" "}
-                    {formatPHTTime(activeSession.end_time)} (PHT) •{" "}
+                    {formatPHTTime(activeSession.end_time)} •{" "}
                     {activeSession.location || "DCTECH Sports Arena"}
                   </p>
                 </div>
 
-                {/* Direct Station Links & Finish Button */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={`/sessions/${activeSession.id}`}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold shadow-xs transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Court Station →
-                  </a>
-                  <a
-                    href="/queue"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono font-bold transition-colors"
-                  >
-                    Paddle Queue →
-                  </a>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleFinishSession(activeSession)}
-                    className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-mono cursor-pointer"
-                  >
-                    Finish Session
-                  </Button>
-                </div>
+                {/* Everything live (queue, courts, scoring, ending) happens in the console */}
+                <Link
+                  href={`/sessions/${activeSession.id}`}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-sm font-bold shadow-xs transition-colors w-full sm:w-auto"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open session console
+                </Link>
               </div>
 
-              {/* Rented Courts for this Active Session */}
-              <div className="space-y-3">
+              {/* Court setup: rarely needed mid-session, so collapsed by default */}
+              <details className="group space-y-3">
+                <summary className="flex items-center justify-between cursor-pointer list-none select-none text-xs font-bold font-mono text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Activity className="h-4 w-4 text-emerald-500" />
+                    Court setup · {courts.length} courts · referees
+                  </span>
+                  <span className="text-[11px] normal-case font-medium text-slate-500 group-open:hidden">Show</span>
+                  <span className="text-[11px] normal-case font-medium text-slate-500 hidden group-open:inline">Hide</span>
+                </summary>
+              <div className="space-y-3 pt-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <h4 className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity className="h-4 w-4" />
-                    Rented Courts for this Session ({courts.length})
-                  </h4>
+                  <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                    Courts fill from the queue automatically. Use these only to close a court or assign a referee.
+                  </p>
 
                   {/* Safe Quick Scale Buttons */}
                   <div className="flex items-center gap-1 font-mono text-xs">
@@ -769,14 +743,16 @@ export function AdminDashboard({
                         <CourtStatusIndicator status={court.status} />
                       </div>
 
-                      {/* Status Override */}
-                      <div className="grid grid-cols-4 gap-1 font-mono text-[10px]">
-                        {(["available", "occupied", "maintenance", "reserved"] as CourtStatus[]).map((st) => (
+                      {/* Status Override ("occupied" is set only by starting a game) */}
+                      <div className="grid grid-cols-3 gap-1 font-mono text-[10px]">
+                        {(["available", "maintenance", "reserved"] as CourtStatus[]).map((st) => (
                           <button
                             key={st}
                             type="button"
+                            disabled={court.status === "occupied"}
+                            title={court.status === "occupied" ? "A game is in progress on this court" : undefined}
                             onClick={() => handleToggleStatus(court.id, st)}
-                            className={`rounded py-1 px-1 uppercase font-semibold border text-center transition-all ${
+                            className={`rounded py-1 px-1 uppercase font-semibold border text-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                               court.status === st
                                 ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-500/60 font-bold shadow-2xs"
                                 : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-950/40 hover:bg-slate-100 dark:hover:bg-slate-800/60"
@@ -821,6 +797,7 @@ export function AdminDashboard({
                   ))}
                 </div>
               </div>
+              </details>
             </Card>
           ) : null}
 
@@ -1314,62 +1291,37 @@ export function AdminDashboard({
                       <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
                         {formatPHTDate(s.start_time)} •{" "}
                         {formatPHTTime(s.start_time)} –{" "}
-                        {formatPHTTime(s.end_time)} (PHT) •{" "}
+                        {formatPHTTime(s.end_time)} •{" "}
                         {s.location || "DCTECH Sports Arena"}
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 font-mono text-xs w-full sm:w-auto">
                       {s.status === "active" ? (
-                        <>
-                          <a
-                            href={`/sessions/${s.id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold transition-colors"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Station
-                          </a>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleFinishSession(s)}
-                            className="text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs w-full sm:w-auto cursor-pointer"
-                          >
-                            Finish Session
-                          </Button>
-                        </>
+                        <Link
+                          href={`/sessions/${s.id}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-mono font-bold transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open console
+                        </Link>
                       ) : (
                         <>
+                          {s.status === "completed" && (
+                            <Link
+                              href={`/sessions/${s.id}`}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-mono font-bold transition-colors"
+                            >
+                              Results
+                            </Link>
+                          )}
                           {s.status !== "cancelled" && s.status !== "completed" && (
                             <Button
                               variant="volt"
                               size="sm"
                               loading={actionLoadingId === s.id}
                               disabled={actionLoadingId === s.id}
-                              onClick={async () => {
-                                if (actionLoadingId === s.id) return;
-                                setActionLoadingId(s.id);
-                                try {
-                                  setSessions((prev) =>
-                                    prev.map((item) => (item.id === s.id ? { ...item, status: "active" } : item))
-                                  );
-                                  if (courts.length === 0) {
-                                    setCourts(
-                                      Array.from({ length: 4 }, (_, i) => ({
-                                        id: String(i + 1),
-                                        name: `Court ${i + 1}`,
-                                        status: "available" as CourtStatus,
-                                        surface: "Standard Court",
-                                      }))
-                                    );
-                                  }
-                                  await updateSessionStatus(s.id, "active");
-                                  showNotice(`Session "${s.title}" is now ACTIVE!`);
-                                  router.refresh();
-                                } finally {
-                                  setActionLoadingId(null);
-                                }
-                              }}
+                              onClick={() => handleStartSession(s)}
                               className="text-xs font-bold cursor-pointer"
                             >
                               {actionLoadingId === s.id ? "Activating..." : "Start Session"}

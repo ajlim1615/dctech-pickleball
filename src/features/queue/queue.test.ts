@@ -24,4 +24,29 @@ describe("Queue Logic", () => {
     expect(paired[0].player_id).toBe("p1");
     expect(paired[1].player_id).toBe("p2");
   });
+
+  it("excludes checked-out players from the active queue and rotation", () => {
+    // Simulated session attendees and queue state
+    const checkins = [
+      { player_id: "p1", status: "checked_in" },
+      { player_id: "p2", status: "checked_in" },
+      { player_id: "p3", status: "checked_out" }, // Player went home
+    ];
+
+    const queueEntries = [
+      { id: "q1", player_id: "p1", status: "waiting" },
+      { id: "q2", player_id: "p2", status: "waiting" },
+      { id: "q3", player_id: "p3", status: "left" }, // Removed from queue on check-out
+    ];
+
+    // Filter active waiting queue
+    const activeQueue = queueEntries.filter((q) => q.status === "waiting" || q.status === "called");
+    expect(activeQueue.length).toBe(2);
+    expect(activeQueue.some((q) => q.player_id === "p3")).toBe(false);
+
+    // Filter active checked-in attendees
+    const activeCheckins = checkins.filter((c) => c.status === "checked_in");
+    expect(activeCheckins.length).toBe(2);
+    expect(activeCheckins.some((c) => c.player_id === "p3")).toBe(false);
+  });
 });

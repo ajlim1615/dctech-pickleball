@@ -148,12 +148,12 @@ export function formatPHTFull(date?: string | Date | null): string {
     day: "numeric",
   });
   const timePart = formatPHTTime(d);
-  return `${datePart} • ${timePart} PHT`;
+  return `${datePart} • ${timePart}`;
 }
 
 /**
  * Live Navbar Clock string in Philippine Standard Time.
- * Example: "06:00:00 PM PHT"
+ * Example: "06:00:00 PM"
  */
 export function formatPHTClock(date: Date = new Date()): string {
   const timeStr = date.toLocaleTimeString("en-US", {
@@ -163,7 +163,7 @@ export function formatPHTClock(date: Date = new Date()): string {
     second: "2-digit",
     hour12: true,
   });
-  return `${timeStr} PHT`;
+  return timeStr;
 }
 
 /**

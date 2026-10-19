@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import { requireAdminUser } from "@/lib/security/authGuard";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -235,7 +236,11 @@ export async function leaveQueue(sessionId: string) {
   return { success: true };
 }
 
-export async function adminRemovePlayerFromQueue(sessionId: string, queueEntryId: string) {
+export async function adminRemovePlayerFromQueue(
+  sessionId: string,
+  queueEntryId: string,
+  alsoCheckOut: boolean = false
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -253,6 +258,17 @@ export async function adminRemovePlayerFromQueue(sessionId: string, queueEntryId
     return { error: "Only administrators can remove players from the queue." };
   }
 
+  // If checking out as well, fetch player_id from queue entry before updating
+  let targetPlayerId: string | null = null;
+  if (alsoCheckOut) {
+    const { data: entry } = await supabase
+      .from("queue_entries")
+      .select("player_id")
+      .eq("id", queueEntryId)
+      .maybeSingle();
+    targetPlayerId = entry?.player_id || null;
+  }
+
   const { error } = await supabase
     .from("queue_entries")
     .update({ status: "left" })
@@ -263,8 +279,17 @@ export async function adminRemovePlayerFromQueue(sessionId: string, queueEntryId
     return { error: error.message };
   }
 
+  if (alsoCheckOut && targetPlayerId) {
+    await supabase
+      .from("session_checkins")
+      .update({ status: "checked_out" })
+      .eq("session_id", sessionId)
+      .eq("player_id", targetPlayerId);
+  }
+
   revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/sessions");
   revalidatePath("/");
   return { success: true };
 }
@@ -428,9 +453,13 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   // 1. Determine matching style from session configuration
   const { data: sessionData } = await supabase
     .from("sessions")
-    .select("description")
+    .select("description, status")
     .eq("id", sessionId)
     .maybeSingle();
+
+  if (sessionData && sessionData.status !== "active") {
+    return { error: "Start the session before calling players onto courts." };
+  }
 
   const modeMatch = sessionData?.description?.match(/\[matching_mode:([a-z_]+)\]/i);
   const matchingStyle = (modeMatch ? modeMatch[1] : "balanced") as MatchingStyle;
@@ -474,14 +503,8 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
       .map((p: any) => p.player as Profile);
   }
 
-  // In King of the Court / Winners Stay, if 2 winners stay on court, only call 2 new challengers
-  const isWinnersStay =
-    (matchingStyle === "winners_stay" || matchingStyle === "king_queen") &&
-    previousWinners.length === 2;
-  const targetCount = isWinnersStay ? 2 : count;
-
   // 3. Fetch waiting entries with player profiles and group info
-  const { data: waitingEntries, error: qErr } = await supabase
+  const { data: allWaitingEntries, error: qErr } = await supabase
     .from("queue_entries")
     .select(`
       id,
@@ -508,8 +531,28 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     .order("joined_at", { ascending: true })
     .limit(16);
 
-  if (qErr || !waitingEntries || waitingEntries.length === 0) {
+  if (qErr || !allWaitingEntries || allWaitingEntries.length === 0) {
     return { error: "No waiting players currently in queue." };
+  }
+
+  // In King of the Court / Winners Stay, the 2 previous winners stay on court and only
+  // 2 new challengers are called. Winners are re-queued after each match, so they only
+  // stay if both are still present in this session's waiting line.
+  const winnerIds = new Set(previousWinners.map((p) => p.id));
+  const winnerEntries = allWaitingEntries.filter((w) => winnerIds.has(w.player_id));
+  const isWinnersStay =
+    (matchingStyle === "winners_stay" || matchingStyle === "king_queen") &&
+    previousWinners.length === 2 &&
+    winnerEntries.length === 2;
+  const targetCount = isWinnersStay ? 2 : count;
+  const waitingEntries = isWinnersStay
+    ? allWaitingEntries.filter((w) => !winnerIds.has(w.player_id))
+    : allWaitingEntries;
+
+  if (waitingEntries.length < targetCount) {
+    return {
+      error: `Need ${targetCount} waiting players to start a game (only ${waitingEntries.length} in queue).`,
+    };
   }
 
   // 4. Select pod with Pair-Protection & Skill-Separation
@@ -554,7 +597,10 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     selectedEntries = candidates;
   }
 
-  const entryIds = selectedEntries.map((e) => e.id);
+  const entryIds = [
+    ...selectedEntries.map((e) => e.id),
+    ...(isWinnersStay ? winnerEntries.map((e) => e.id) : []),
+  ];
   const challengerProfiles: Profile[] = selectedEntries.map(
     (e) => ((e.player || e) as unknown) as Profile
   );
@@ -669,4 +715,39 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   revalidatePath(`/courts/${courtId}/monitor`);
   revalidatePath("/");
   return { success: true, count: entryIds.length, matchId: match.id };
+}
+
+/**
+ * Calls the next group from the queue onto every open court, one court at a time,
+ * until courts or waiting players run out.
+ */
+export async function fillOpenCourts(sessionId: string) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const supabase = await createClient();
+  const { data: openCourts } = await supabase
+    .from("courts")
+    .select("id")
+    .eq("status", "available")
+    .is("current_match_id", null)
+    .order("sort_order", { ascending: true });
+
+  if (!openCourts || openCourts.length === 0) {
+    return { error: "No open courts right now." };
+  }
+
+  let filled = 0;
+  let lastError: string | undefined;
+  for (const court of openCourts) {
+    const res = await callNextUp(sessionId, court.id, 4);
+    if (res?.error) {
+      lastError = res.error;
+      break;
+    }
+    filled++;
+  }
+
+  if (filled === 0) return { error: lastError || "No courts could be filled." };
+  return { success: true, filled, remainingOpen: openCourts.length - filled };
 }
