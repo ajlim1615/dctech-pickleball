@@ -19,6 +19,8 @@ interface SessionQueueLiveBoardProps {
   userEmail?: string;
   employees?: Profile[];
   isSessionActive?: boolean;
+  /** Not started yet: players may pre-queue, but no one is called until it goes live. */
+  isSessionScheduled?: boolean;
   onOpenBulkQueue?: () => void;
   readOnly?: boolean;
   matchingMode?: MatchingStyle;
@@ -49,6 +51,7 @@ export function SessionQueueLiveBoard({
   userEmail = "",
   employees = [],
   isSessionActive = true,
+  isSessionScheduled = false,
   onOpenBulkQueue,
   readOnly = false,
   matchingMode = "balanced",
@@ -191,7 +194,7 @@ export function SessionQueueLiveBoard({
       </header>
 
       {/* Your place in line, or the join action */}
-      {!readOnly && !isSystemAdmin && isSessionActive && (
+      {!readOnly && !isSystemAdmin && (isSessionActive || isSessionScheduled) && (
         <div className="mx-4 mb-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 p-3">
           {isUserInQueue ? (
             showLeaveConfirm ? (
@@ -212,7 +215,9 @@ export function SessionQueueLiveBoard({
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
                     You&apos;re <span className="font-mono tabular-nums">#{myPosition || 1}</span>
-                    {myPosition && myPosition <= 4 ? " · up next" : " in line"}
+                    {isSessionScheduled
+                      ? " in line · games start when the session goes live"
+                      : myPosition && myPosition <= 4 ? " · up next" : " in line"}
                   </span>
                 </p>
                 <Button
@@ -228,7 +233,9 @@ export function SessionQueueLiveBoard({
             )
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Ready for the next game?</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {isSessionScheduled ? "Get in line before it starts" : "Ready for the next game?"}
+              </p>
               <div className="flex shrink-0 gap-2">
                 <Button
                   type="button"
