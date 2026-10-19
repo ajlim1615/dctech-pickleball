@@ -1,41 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Users,
-  Swords,
-  Sparkles,
-  Zap,
-  Plus,
-  UserCheck,
-  UserPlus,
-  FastForward,
-  ArrowLeftRight,
-  X,
-  ExternalLink,
-  Clock,
-  CheckCircle2,
-  ShieldCheck,
-  Check,
-  Search,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Plus, UserPlus, X, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
-import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
-import {
-  joinQueue,
-  leaveQueue,
-  bumpPlayerInQueue,
-  adminRemovePlayerFromQueue,
-  swapQueuePlayers,
-  bulkAddPlayersToQueue,
-} from "@/features/queue/api/queueActions";
-import { createWalkInPlayer } from "@/features/admin/api/adminActions";
+import { previewMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import { joinQueue, leaveQueue, adminRemovePlayerFromQueue } from "@/features/queue/api/queueActions";
 import { formatRating } from "@/lib/utils";
 import type { QueueEntryWithPlayer, Profile } from "@/types";
 
@@ -50,6 +22,19 @@ interface SessionQueueLiveBoardProps {
   onOpenBulkQueue?: () => void;
   readOnly?: boolean;
   matchingMode?: MatchingStyle;
+}
+
+/** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
+const SHUFFLED_STYLES: MatchingStyle[] = ["social_mixer", "club_wars", "mixed_doubles"];
+
+function styleLabel(style: MatchingStyle) {
+  if (style === "fifo") return "First come, first served";
+  const text = style.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
+  return p?.full_name || p?.display_name || "Player";
 }
 
 export function SessionQueueLiveBoard({
@@ -81,7 +66,7 @@ export function SessionQueueLiveBoard({
     [queue, currentUserId]
   );
 
-  // Chunk queue into 4-player match pods
+  // Chunk queue into 4-player groups
   const pods = useMemo(() => {
     const chunked: QueueEntryWithPlayer[][] = [];
     for (let i = 0; i < queue.length; i += 4) {
@@ -90,15 +75,16 @@ export function SessionQueueLiveBoard({
     return chunked;
   }, [queue]);
 
-  const nextPod = pods[0] || [];
+  const style = matchingMode || "balanced";
+  const nextPod = useMemo(() => pods[0] || [], [pods]);
   const isNextPodFull = nextPod.length === 4;
+  // Rendered on the server and the client, so it must be deterministic: seed on the queue entries.
   const nextMatchup = useMemo(() => {
     if (!isNextPodFull) return null;
-    const nextPodProfiles: Profile[] = nextPod.map(
-      (item) => ((item.player || item) as unknown) as Profile
-    );
-    return createMatchupFromPod(nextPodProfiles, matchingMode || "balanced");
-  }, [isNextPodFull, nextPod, matchingMode]);
+    const profiles = nextPod.map((item) => ((item.player || item) as unknown) as Profile);
+    return previewMatchupFromPod(profiles, style, nextPod.map((item) => item.id).join("|"));
+  }, [isNextPodFull, nextPod, style]);
+  const isPreviewOnly = SHUFFLED_STYLES.includes(style);
 
   async function handleQuickJoinSolo() {
     if (!sessionId || isSystemAdmin || isSubmitting) return;
@@ -148,14 +134,6 @@ export function SessionQueueLiveBoard({
     }
   }
 
-  async function handleBump(entryId: string, name: string) {
-    if (!isAdmin || !sessionId) return;
-    setIsSubmitting(true);
-    await bumpPlayerInQueue(sessionId, entryId);
-    setIsSubmitting(false);
-    router.refresh();
-  }
-
   async function handleAdminRemove(entryId: string, name: string) {
     if (!isAdmin || !sessionId) return;
     if (confirm(`Remove ${name} from queue?`)) {
@@ -166,458 +144,418 @@ export function SessionQueueLiveBoard({
     }
   }
 
+  const removeFor = (entry: QueueEntryWithPlayer | undefined, name: string) =>
+    isAdmin && entry ? () => handleAdminRemove(entry.id, name) : undefined;
+
   return (
-    <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-sm overflow-hidden space-y-4 p-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+    <section
+      aria-labelledby="queue-heading"
+      className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 shadow-sm"
+    >
+      {/* Header: title, live counts, admin add */}
+      <header className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+        <div className="min-w-0">
+          <h2 id="queue-heading" className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            Queue
+            <span className="relative flex h-2 w-2" aria-hidden>
+              <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            <span className="font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">{queue.length}</span> waiting
+            {" · "}
+            <span className="font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">{pods.length}</span>{" "}
+            {pods.length === 1 ? "group" : "groups"}
+            {" · "}
+            {styleLabel(style)}
+          </p>
+        </div>
+
+        {isAdmin && onOpenBulkQueue && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenBulkQueue}
+            aria-label="Add players"
+            className="h-11 min-w-11 shrink-0 px-3 font-semibold cursor-pointer"
+          >
             <Users className="h-4 w-4" />
-          </div>
-          <div>
-            <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              Live Paddle Queue
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </CardTitle>
-            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <span>{queue.length} Queued • {pods.length} Rack{pods.length !== 1 ? "s" : ""}</span>
-              {matchingMode && (
-                <span className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 text-[9px] uppercase font-bold border border-slate-200 dark:border-slate-700">
-                  {matchingMode.replace(/_/g, " ")}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+            <span className="hidden sm:inline">Add players</span>
+          </Button>
+        )}
+      </header>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {isAdmin && onOpenBulkQueue && (
-            <Button
-              type="button"
-              variant="volt"
-              size="sm"
-              onClick={onOpenBulkQueue}
-              className="text-xs h-7 px-2.5 font-bold shadow-xs flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Bulk Queue</span>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* User Queue Status & Join Actions */}
+      {/* Your place in line, or the join action */}
       {!readOnly && !isSystemAdmin && isSessionActive && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 p-3 flex items-center justify-between gap-3 text-xs font-mono">
+        <div className="mx-4 mb-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 p-3">
           {isUserInQueue ? (
-            <>
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>
-                  You are #{myPosition || 1} in queue {myPosition && myPosition <= 4 ? "(Up Next!)" : ""}
-                </span>
-              </div>
-              {showLeaveConfirm ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono text-rose-600 dark:text-rose-400 font-semibold">
-                    Lose your spot?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleLeave}
-                    disabled={isSubmitting}
-                    className="inline-flex items-center justify-center rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold px-2 py-1 transition-colors disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Leaving..." : "Yes, Leave"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLeaveConfirm(false)}
-                    disabled={isSubmitting}
-                    className="inline-flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-semibold px-2 py-1 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
+            showLeaveConfirm ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leave and lose your spot?</p>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setShowLeaveConfirm(false)} disabled={isSubmitting} className="h-11 cursor-pointer">
+                    Stay
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={handleLeave} disabled={isSubmitting} className="h-11 font-semibold cursor-pointer">
+                    {isSubmitting ? "Leaving…" : "Leave queue"}
+                  </Button>
                 </div>
-              ) : (
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>
+                    You&apos;re <span className="font-mono tabular-nums">#{myPosition || 1}</span>
+                    {myPosition && myPosition <= 4 ? " · up next" : " in line"}
+                  </span>
+                </p>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  type="button"
+                  variant="ghost"
                   onClick={() => setShowLeaveConfirm(true)}
                   disabled={isSubmitting}
-                  className="text-[11px] h-7 px-2 text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
                 >
-                  Leave Queue
+                  Leave
                 </Button>
-              )}
-            </>
+              </div>
+            )
           ) : (
-            <>
-              <span className="text-slate-600 dark:text-slate-400">Ready for next rotation?</span>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400">Ready for the next game?</p>
+              <div className="flex shrink-0 gap-2">
                 <Button
+                  type="button"
                   variant="volt"
-                  size="sm"
                   onClick={handleQuickJoinSolo}
                   loading={isSubmitting}
                   disabled={isSubmitting}
-                  className="font-bold text-xs h-8 px-3 shadow-xs"
+                  className="h-11 px-4 font-bold cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Join (Solo)
+                  {!isSubmitting && <Plus className="h-4 w-4" />}
+                  Join queue
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
-                  size="sm"
                   onClick={() => setShowJoinModal(true)}
                   disabled={isSubmitting}
-                  className="text-xs h-8 px-2.5 text-slate-700 dark:text-slate-300"
-                  title="Join with coworker partner or guest"
+                  aria-label="Join with a coworker or guest"
+                  title="Join with a coworker or guest"
+                  className="h-11 w-11 p-0 cursor-pointer"
                 >
-                  <UserPlus className="h-3.5 w-3.5" />
+                  <UserPlus className="h-4 w-4" />
                 </Button>
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
 
-      {/* RACK #1: UP NEXT STADIUM HERO */}
-      <div className="rounded-xl border-2 border-emerald-500/50 bg-emerald-50/40 dark:bg-emerald-950/20 p-3.5 space-y-3">
-        <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
-          <div className="flex items-center gap-1.5">
-            <Badge variant="volt" className="text-[9px] font-mono font-extrabold uppercase px-1.5 py-0">
-              🔥 RACK #1 • NEXT GAME
-            </Badge>
-          </div>
+      {/* Up next: the first group of four */}
+      <div className="px-4 pb-4">
+        <div className="flex items-baseline justify-between gap-2 pb-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Up next</h3>
           {nextMatchup && (
-            <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400">
-              ⚖️ {nextMatchup.balanceScorePercent}% Balanced
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {isPreviewOnly && "Preview · "}
+              <span className="font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">
+                {nextMatchup.balanceScorePercent}%
+              </span>{" "}
+              balanced
             </span>
           )}
         </div>
 
         {queue.length === 0 ? (
-          <div className="py-4 text-center space-y-1 font-mono text-xs text-slate-400">
-            <div>No players currently in line.</div>
-            <div className="text-[11px] text-slate-500">Join the queue to start the next rotation!</div>
+          <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-6 text-center">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No one is in line yet</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">The first four to join play next.</p>
           </div>
-        ) : isNextPodFull && nextMatchup ? (
-          /* Full 2v2 Teams with Player Names */
-          <div className="space-y-2.5">
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              {/* Team 1 */}
-              <div className="rounded-lg border border-emerald-500/30 bg-white dark:bg-slate-900/90 p-2.5 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-emerald-700 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 pb-1">
-                  <span>TEAM 1</span>
-                  <span>Avg {nextMatchup.teamARatingAvg.toFixed(2)}</span>
-                </div>
-                <div className="space-y-1.5">
-                  {nextMatchup.teamA.map((p, idx) => {
-                    const isMe = p.id === currentUserId;
-                    const queueEntry = nextPod.find((item) => item.player_id === p.id);
-                    return (
-                      <div key={idx} className="flex items-center justify-between gap-1 text-[11px]">
-                        <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {p.full_name || p.display_name} {isMe && "(YOU)"}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-[10px] text-slate-400">
-                            {formatRating(p.skill_rating)}
-                          </span>
-                          {isAdmin && queueEntry && (
-                            <button
-                              type="button"
-                              onClick={() => handleAdminRemove(queueEntry.id, p.full_name || "Player")}
-                              title="Remove from queue"
-                              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Team 2 */}
-              <div className="rounded-lg border border-sky-500/30 bg-white dark:bg-slate-900/90 p-2.5 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between text-[10px] font-bold text-sky-700 dark:text-sky-400 border-b border-slate-100 dark:border-slate-800 pb-1">
-                  <span>TEAM 2</span>
-                  <span>Avg {nextMatchup.teamBRatingAvg.toFixed(2)}</span>
-                </div>
-                <div className="space-y-1.5">
-                  {nextMatchup.teamB.map((p, idx) => {
-                    const isMe = p.id === currentUserId;
-                    const queueEntry = nextPod.find((item) => item.player_id === p.id);
-                    return (
-                      <div key={idx} className="flex items-center justify-between gap-1 text-[11px]">
-                        <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                          {p.full_name || p.display_name} {isMe && "(YOU)"}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-[10px] text-slate-400">
-                            {formatRating(p.skill_rating)}
-                          </span>
-                          {isAdmin && queueEntry && (
-                            <button
-                              type="button"
-                              onClick={() => handleAdminRemove(queueEntry.id, p.full_name || "Player")}
-                              title="Remove from queue"
-                              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-100/50 dark:bg-emerald-950/50 rounded-md p-1.5 text-center flex items-center justify-center gap-1 font-semibold">
-              <Zap className="h-3 w-3 text-emerald-600" />
-              <span>
-                {nextMatchup.teamA.map(p => p.full_name?.split(" ")[0]).join(" & ")} vs {nextMatchup.teamB.map(p => p.full_name?.split(" ")[0]).join(" & ")}
-              </span>
-            </div>
+        ) : nextMatchup ? (
+          <div className="space-y-2">
+            <TeamBlock
+              side="A"
+              players={nextMatchup.teamA}
+              avg={nextMatchup.teamARatingAvg}
+              currentUserId={currentUserId}
+              removeFor={(p) => removeFor(nextPod.find((item) => item.player_id === p.id), playerName(p))}
+            />
+            <TeamBlock
+              side="B"
+              players={nextMatchup.teamB}
+              avg={nextMatchup.teamBRatingAvg}
+              currentUserId={currentUserId}
+              removeFor={(p) => removeFor(nextPod.find((item) => item.player_id === p.id), playerName(p))}
+            />
           </div>
         ) : (
-          /* Partial Pod (< 4 players) */
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              {nextPod.map((item, idx) => {
-                const isMe = item.player_id === currentUserId;
-                const name = item.player?.full_name || item.player?.display_name || "Player";
-                return (
-                  <div
-                    key={item.id || idx}
-                    className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-2 text-xs font-mono flex items-center justify-between"
-                  >
-                    <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                      #{idx + 1} {name.split(" ")[0]} {isMe && "(YOU)"}
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                        {formatRating(item.player?.skill_rating || 3.0)}
-                      </span>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdminRemove(item.id, name)}
-                          title="Remove from queue"
-                          className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {Array.from({ length: 4 - nextPod.length }).map((_, emptyIdx) => (
-                <div
-                  key={`empty-${emptyIdx}`}
-                  className="rounded-lg border border-dashed border-slate-300 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-2 text-center text-[10px] font-mono text-slate-400"
-                >
-                  + Slot #{nextPod.length + emptyIdx + 1} Empty
-                </div>
+            <ol className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800">
+              {nextPod.map((item, idx) => (
+                <QueueRow
+                  key={item.id || idx}
+                  position={idx + 1}
+                  name={playerName(item.player)}
+                  rating={item.player?.skill_rating}
+                  isMe={item.player_id === currentUserId}
+                  onRemove={removeFor(item, playerName(item.player))}
+                />
               ))}
-            </div>
-
-            <div className="text-[10px] font-mono text-slate-500 text-center">
-              Waiting for {4 - nextPod.length} more player{4 - nextPod.length > 1 ? "s" : ""} to complete matchup.
-            </div>
+              {Array.from({ length: 4 - nextPod.length }).map((_, emptyIdx) => (
+                <li key={`empty-${emptyIdx}`} className="flex min-h-11 items-center gap-3 px-3 text-sm text-slate-400 dark:text-slate-500">
+                  <span className="w-5 text-right font-mono tabular-nums text-xs">{nextPod.length + emptyIdx + 1}</span>
+                  Open spot
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Needs <span className="font-mono tabular-nums">{4 - nextPod.length}</span> more{" "}
+              {4 - nextPod.length === 1 ? "player" : "players"} to make a game.
+            </p>
           </div>
         )}
       </div>
 
-      {/* RACK #2 & ON DECK (If more players queued) */}
+      {/* Later groups */}
       {pods.length > 1 && (
-        <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300">
-            <span>RACK #2 • ON DECK ({pods[1].length}/4)</span>
-            <span className="text-slate-400 font-normal">Est. ~12m</span>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {pods[1].map((item, idx) => {
-              const name = item.player?.full_name || item.player?.display_name || "Player";
-              return (
-                <div
-                  key={item.id || idx}
-                  className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 px-2 py-1 text-[11px] font-mono flex items-center justify-between"
-                >
-                  <span className="text-slate-800 dark:text-slate-200 truncate">
-                    #{idx + 5} {name.split(" ")[0]}
+        <div className="border-t border-slate-100 dark:border-slate-800 px-4 pt-3 pb-4 space-y-3">
+          {pods.slice(1).map((pod, i) => {
+            const podIndex = i + 1;
+            return (
+              <div key={podIndex}>
+                <div className="flex items-baseline justify-between gap-2 pb-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <h3 className="font-semibold text-slate-700 dark:text-slate-300">
+                    {podIndex === 1 ? "On deck" : `Group ${podIndex + 1}`}
+                  </h3>
+                  <span>
+                    <span className="font-mono tabular-nums">{pod.length}/4</span>
+                    {podIndex === 1 && " · about 12 min"}
                   </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-slate-400">
-                      {formatRating(item.player?.skill_rating || 3.0)}
-                    </span>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => handleAdminRemove(item.id, name)}
-                        title="Remove from queue"
-                        className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-
-          {pods.length > 2 && (
-            <div className="pt-1 space-y-2">
-              {pods.slice(2).map((pod, podIdx) => (
-                <div key={podIdx} className="space-y-1">
-                  <div className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
-                    RACK #{podIdx + 3} ({pod.length}/4)
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {pod.map((item, idx) => {
-                      const name = item.player?.full_name || item.player?.display_name || "Player";
-                      return (
-                        <div
-                          key={item.id || idx}
-                          className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/40 px-2 py-1 text-[11px] font-mono flex items-center justify-between"
-                        >
-                          <span className="text-slate-700 dark:text-slate-300 truncate">
-                            #{podIdx * 4 + 8 + idx + 1} {name.split(" ")[0]}
-                          </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-[10px] text-slate-400">
-                              {formatRating(item.player?.skill_rating || 3.0)}
-                            </span>
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => handleAdminRemove(item.id, name)}
-                                title="Remove from queue"
-                                className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-colors cursor-pointer"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                <ol className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800">
+                  {pod.map((item, idx) => (
+                    <QueueRow
+                      key={item.id || idx}
+                      position={podIndex * 4 + idx + 1}
+                      name={playerName(item.player)}
+                      rating={item.player?.skill_rating}
+                      isMe={item.player_id === currentUserId}
+                      onRemove={removeFor(item, playerName(item.player))}
+                      muted
+                    />
+                  ))}
+                </ol>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Modal for Joining with Partner / Guest */}
-      <Modal
-        isOpen={showJoinModal}
-        onClose={() => setShowJoinModal(false)}
-      >
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl font-mono text-xs cursor-default">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                Join Paddle Queue
-              </h3>
-              <button
-                onClick={() => setShowJoinModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleModalJoin} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-slate-600 dark:text-slate-400">Mode</label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["solo", "coworker", "guest"] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setJoinMode(mode)}
-                      className={`py-1.5 px-2 rounded-lg border text-center capitalize text-[11px] font-bold ${
-                        joinMode === mode
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "border-slate-200 dark:border-slate-800"
-                      }`}
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {joinMode === "coworker" && (
-                <div className="space-y-1">
-                  <label className="text-slate-600 dark:text-slate-400">Select Coworker</label>
-                  <select
-                    value={selectedPartnerId}
-                    onChange={(e) => setSelectedPartnerId(e.target.value)}
-                    required
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-2 text-xs text-slate-900 dark:text-slate-100"
-                  >
-                    <option value="">-- Choose Colleague --</option>
-                    {employees
-                      .filter((e) => e.id !== currentUserId && e.email?.toLowerCase() !== "admin@dctechmicro.com")
-                      .map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.full_name || emp.display_name} (DUPR {formatRating(emp.skill_rating)})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              {joinMode === "guest" && (
-                <div className="space-y-1">
-                  <label className="text-slate-600 dark:text-slate-400">Guest Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Jordan (Guest)"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-2 text-xs text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowJoinModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="volt"
-                  size="sm"
-                  disabled={isSubmitting}
-                  className="font-bold"
-                >
-                  Confirm & Enter
-                </Button>
-              </div>
-            </form>
+      {/* Join with a coworker or guest */}
+      <Modal isOpen={showJoinModal} onClose={() => setShowJoinModal(false)}>
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl cursor-default">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Join the queue</h3>
+            <button
+              type="button"
+              onClick={() => setShowJoinModal(false)}
+              aria-label="Close"
+              className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
+
+          <form onSubmit={handleModalJoin} className="space-y-4">
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium text-slate-700 dark:text-slate-300">Join as</legend>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["solo", "coworker", "guest"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setJoinMode(mode)}
+                    aria-pressed={joinMode === mode}
+                    className={`h-11 rounded-lg border text-sm font-semibold capitalize cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 ${
+                      joinMode === mode
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            {joinMode === "coworker" && (
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Partner</span>
+                <select
+                  value={selectedPartnerId}
+                  onChange={(e) => setSelectedPartnerId(e.target.value)}
+                  required
+                  className="h-11 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-slate-900 dark:text-slate-100"
+                >
+                  <option value="">Choose a coworker</option>
+                  {employees
+                    .filter((e) => e.id !== currentUserId && e.email?.toLowerCase() !== "admin@dctechmicro.com")
+                    .map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {playerName(emp)} ({formatRating(emp.skill_rating)})
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
+
+            {joinMode === "guest" && (
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Guest name</span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Jordan"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-slate-900 dark:text-slate-100"
+                />
+              </label>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setShowJoinModal(false)} className="h-11 cursor-pointer">
+                Cancel
+              </Button>
+              <Button type="submit" variant="volt" disabled={isSubmitting} className="h-11 font-bold cursor-pointer">
+                {isSubmitting ? "Joining…" : "Join queue"}
+              </Button>
+            </div>
+          </form>
+        </div>
       </Modal>
-    </Card>
+    </section>
+  );
+}
+
+function TeamBlock({
+  side,
+  players,
+  avg,
+  currentUserId,
+  removeFor,
+}: {
+  side: "A" | "B";
+  players: Profile[];
+  avg: number;
+  currentUserId: string;
+  removeFor: (p: Profile) => (() => void) | undefined;
+}) {
+  const isA = side === "A";
+  const label = isA ? "Team 1" : "Team 2";
+  return (
+    <div
+      className={`rounded-xl border-l-4 ${
+        isA
+          ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/25"
+          : "border-sky-500 bg-sky-50/70 dark:bg-sky-950/25"
+      }`}
+    >
+      <div className="flex items-baseline justify-between gap-2 px-3 pt-2.5 text-xs">
+        <span className={`font-semibold ${isA ? "text-emerald-700 dark:text-emerald-400" : "text-sky-700 dark:text-sky-400"}`}>
+          {label}
+        </span>
+        <span className="text-slate-500 dark:text-slate-400">
+          avg <span className="font-mono tabular-nums">{avg.toFixed(2)}</span>
+        </span>
+      </div>
+      <ul className="pb-1">
+        {players.map((p) => (
+          <PlayerLine
+            key={p.id}
+            name={playerName(p)}
+            rating={p.skill_rating}
+            isMe={p.id === currentUserId}
+            onRemove={removeFor(p)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function QueueRow({
+  position,
+  muted,
+  ...rest
+}: {
+  position: number;
+  name: string;
+  rating?: number | null;
+  isMe: boolean;
+  onRemove?: () => void;
+  muted?: boolean;
+}) {
+  return (
+    <PlayerLine
+      {...rest}
+      muted={muted}
+      leading={
+        <span className="w-5 shrink-0 text-right font-mono tabular-nums text-xs text-slate-400 dark:text-slate-500">
+          {position}
+        </span>
+      }
+    />
+  );
+}
+
+function PlayerLine({
+  name,
+  rating,
+  isMe,
+  onRemove,
+  leading,
+  muted,
+}: {
+  name: string;
+  rating?: number | null;
+  isMe: boolean;
+  onRemove?: () => void;
+  leading?: React.ReactNode;
+  muted?: boolean;
+}) {
+  return (
+    <li className={`flex min-h-11 items-center gap-3 ${onRemove ? "pl-3 pr-0" : "px-3"}`}>
+      {leading}
+      <span
+        className={`min-w-0 flex-1 truncate text-sm font-medium ${
+          muted ? "text-slate-700 dark:text-slate-300" : "text-slate-900 dark:text-slate-100"
+        }`}
+      >
+        {name}
+        {isMe && (
+          <span className="ml-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            You
+          </span>
+        )}
+      </span>
+      <span className="shrink-0 font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
+        {formatRating(rating ?? 3.0)}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${name} from the queue`}
+          title="Remove from queue"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </li>
   );
 }
