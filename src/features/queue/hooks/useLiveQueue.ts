@@ -14,9 +14,12 @@ export function useLiveQueue(initialQueue: QueueEntryWithPlayer[] = [], currentU
 
   useEffect(() => {
     const supabase = createClient();
+    // The browser client is a singleton and removeChannel is async, so a shared
+    // name collides when the effect re-runs or two boards mount at once.
+    const channelName = `queue_entries:${Math.random().toString(36).slice(2)}`;
 
     const channel = supabase
-      .channel("realtime:queue_entries")
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "queue_entries" },
