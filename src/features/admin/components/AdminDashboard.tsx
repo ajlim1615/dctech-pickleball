@@ -39,6 +39,7 @@ import {
   Power,
   AlertTriangle,
   Loader2,
+  History,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ import {
 } from "@/lib/timezone";
 import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView } from "@/types";
 import { SessionRow, SessionRuleChips } from "@/features/sessions/components/SessionRow";
+import { AdminAuditView } from "@/features/activity/components/AdminAuditView";
 
 interface AdminDashboardProps {
   initialEmployees?: Profile[];
@@ -84,7 +86,7 @@ export function AdminDashboard({
   rsvpCounts = {},
 }: AdminDashboardProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide">("sessions");
+  const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide" | "activity">("sessions");
   const [notification, setNotification] = useState<string | null>(null);
 
   // Fast-Add Walk In State
@@ -537,6 +539,7 @@ export function AdminDashboard({
           { id: "sessions", label: "Sessions", icon: Calendar },
           { id: "players", label: "Players", icon: Users },
           { id: "guide", label: "Rules & guide", icon: BookOpen },
+          { id: "activity", label: "Activity", icon: History },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1966,6 +1969,13 @@ export function AdminDashboard({
       )}
 
       {/* Tab 3: Operations & Referee Guide */}
+      {activeTab === "activity" && (
+        <AdminAuditView
+          sessions={sessions}
+          names={Object.fromEntries(employees.map((e) => [e.id, e.full_name || e.display_name || "A player"]))}
+        />
+      )}
+
       {activeTab === "guide" && (
         <div className="space-y-6">
           {/* Admin Workflow Overview */}
