@@ -52,7 +52,9 @@ create policy "Players log their own actions; admins log the rest"
     )
   );
 
-alter publication supabase_realtime add table public.session_events;
+-- Realtime sends published columns only, so actor_id never reaches browsers.
+alter publication supabase_realtime add table public.session_events
+  (id, session_id, type, actor_role, subject_ids, court_id, match_id, details, created_at);
 
 -- Admin audit: the same events with the acting person's name and the session title.
 create or replace function public.get_admin_audit(
