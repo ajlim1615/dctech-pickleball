@@ -83,6 +83,9 @@ export async function createMatch(params: {
 }
 
 export async function updateMatchScore(matchId: string, teamAScore: number, teamBScore: number) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -116,12 +119,12 @@ export async function finalizeMatch(
     return { error: validation.error.issues[0]?.message || "Invalid match score parameters." };
   }
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Only admins score games; complete_match enforces the same in the database.
+  const auth = await requireAdminUser();
+  if (auth.error || !auth.context) return { error: auth.error || "Authentication required to finalize match." };
+  const user = { id: auth.context.userId };
 
-  if (!user) {
-    return { error: "Authentication required to finalize match." };
-  }
+  const supabase = await createClient();
 
   // Rate Limiting on Score Submission
   const rateLimit = checkRateLimit(user.id, "match_finalize", RATE_LIMIT_CONFIGS.MATCH_ACTIONS);
