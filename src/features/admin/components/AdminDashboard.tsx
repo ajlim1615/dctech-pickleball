@@ -73,12 +73,15 @@ interface AdminDashboardProps {
   initialEmployees?: Profile[];
   initialSessions?: Session[];
   initialCourts?: ActiveCourtView[];
+  /** RSVP head count per upcoming session. */
+  rsvpCounts?: Record<string, number>;
 }
 
 export function AdminDashboard({
   initialEmployees = [],
   initialSessions = [],
   initialCourts = [],
+  rsvpCounts = {},
 }: AdminDashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide">("sessions");
@@ -1175,7 +1178,7 @@ export function AdminDashboard({
                 ) : (
                   <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
                     {upcoming.map((s) => (
-                      <SessionRow key={s.id} session={s}>
+                      <SessionRow key={s.id} session={s} rsvpCount={rsvpCounts[s.id]}>
                         <Button
                           variant="volt"
                           size="sm"

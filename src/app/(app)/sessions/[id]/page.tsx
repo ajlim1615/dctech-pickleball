@@ -8,6 +8,7 @@ import { getCourts } from "@/features/courts/api/courtActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { SessionDetailView } from "@/features/sessions/components/SessionDetailView";
+import { getSessionRsvps } from "@/features/sessions/api/rsvpActions";
 import type { Session } from "@/types";
 
 export default async function SessionDetailPage({
@@ -16,13 +17,14 @@ export default async function SessionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [sessionData, authData, courts, matches, queue, employees] = await Promise.all([
+  const [sessionData, authData, courts, matches, queue, employees, rsvps] = await Promise.all([
     getSessionById(id),
     getCurrentUser(),
     getCourts(),
     getSessionMatches(id),
     getQueueForSession(id),
     getAllEmployees(),
+    getSessionRsvps(id),
   ]);
 
   const leaderboard = computeSessionLeaderboard(
@@ -57,6 +59,7 @@ export default async function SessionDetailPage({
       initialMatches={matches}
       initialQueue={queue}
       employees={employees}
+      rsvps={rsvps}
     />
   );
 }

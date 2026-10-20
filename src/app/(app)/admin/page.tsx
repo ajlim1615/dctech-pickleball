@@ -4,6 +4,7 @@ import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
 import { getCourts } from "@/features/courts/api/courtActions";
 import { AdminDashboard } from "@/features/admin/components/AdminDashboard";
+import { getRsvpCounts } from "@/features/sessions/api/rsvpActions";
 
 export default async function AdminPage() {
   const authData = await getCurrentUser();
@@ -21,6 +22,7 @@ export default async function AdminPage() {
     getSessions(),
     getCourts(),
   ]);
+  const rsvpCounts = await getRsvpCounts(sessions.filter((s) => s.status === "scheduled").map((s) => s.id));
 
 
   return (
@@ -28,6 +30,7 @@ export default async function AdminPage() {
       initialEmployees={employees}
       initialSessions={sessions}
       initialCourts={courts}
+      rsvpCounts={rsvpCounts}
     />
   );
 }

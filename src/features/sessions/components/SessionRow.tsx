@@ -26,10 +26,13 @@ function phtDateParts(iso: string) {
 export function SessionRow({
   session,
   muted,
+  rsvpCount,
   children,
 }: {
   session: Session;
   muted?: boolean;
+  /** People who said they're going; shown when above zero. */
+  rsvpCount?: number;
   children: React.ReactNode;
 }) {
   const { weekday, day, month } = phtDateParts(session.start_time);
@@ -54,6 +57,11 @@ export function SessionRow({
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {formatPHTTime(session.start_time)} – {formatPHTTime(session.end_time)}, {session.location || "DCTECH Sports Arena"}
           </p>
+          {rsvpCount ? (
+            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              <span className="tabular-nums">{rsvpCount}</span> going
+            </p>
+          ) : null}
           {!muted && <SessionRuleChips description={session.description} />}
         </div>
       </div>

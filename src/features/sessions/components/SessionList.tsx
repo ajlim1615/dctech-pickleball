@@ -2,18 +2,23 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { formatPHTTime } from "@/lib/timezone";
 import { SessionRow, SessionRuleChips } from "@/features/sessions/components/SessionRow";
+import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import type { Session } from "@/types";
 
 interface SessionListProps {
   initialSessions: Session[];
   userRole?: string;
+  /** RSVP head count per upcoming session. */
+  rsvpCounts?: Record<string, number>;
+  /** Upcoming sessions the viewer said they're going to. */
+  myRsvps?: string[];
 }
 
 const viewLink =
   "inline-flex h-10 items-center rounded-md border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors";
 
 /** All sessions: what's live, what's coming up, and past results. */
-export function SessionList({ initialSessions, userRole = "player" }: SessionListProps) {
+export function SessionList({ initialSessions, userRole = "player", rsvpCounts = {}, myRsvps = [] }: SessionListProps) {
   const isAdmin = userRole === "admin";
   const live = initialSessions.filter((s) => s.status === "active");
   const upcoming = initialSessions
@@ -63,7 +68,10 @@ export function SessionList({ initialSessions, userRole = "player" }: SessionLis
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
             {upcoming.map((s) => (
-              <SessionRow key={s.id} session={s}>
+              <SessionRow key={s.id} session={s} rsvpCount={rsvpCounts[s.id]}>
+                {!isAdmin && (
+                  <RsvpButton sessionId={s.id} going={myRsvps.includes(s.id)} count={rsvpCounts[s.id] || 0} />
+                )}
                 <Link href={`/sessions/${s.id}`} className={viewLink}>
                   View
                 </Link>

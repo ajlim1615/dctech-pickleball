@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, Coffee, Trophy } from "lucide-react";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
 import { SessionQueueLiveBoard } from "@/features/sessions/components/SessionQueueLiveBoard";
 import { SessionRow, SessionRuleChips } from "@/features/sessions/components/SessionRow";
+import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { RankedPlayer } from "@/features/rankings/api/rankingActions";
@@ -16,6 +17,9 @@ export interface HomeViewProps {
   employees: Profile[];
   leaderboard: RankedPlayer[];
   viewer: { id?: string; email?: string; role: string; isAdmin: boolean };
+  /** RSVP head count per upcoming session, and the ones the viewer is going to. */
+  rsvpCounts?: Record<string, number>;
+  myRsvps?: string[];
 }
 
 type ViewerStatus =
@@ -42,7 +46,17 @@ function viewerStatus(viewer: HomeViewProps["viewer"], courts: ActiveCourtView[]
 }
 
 /** The player-facing home: what's happening now, where you stand, and what's next. */
-export function HomeView({ activeSession, upcomingSessions, courts, queue, employees, leaderboard, viewer }: HomeViewProps) {
+export function HomeView({
+  activeSession,
+  upcomingSessions,
+  courts,
+  queue,
+  employees,
+  leaderboard,
+  viewer,
+  rsvpCounts = {},
+  myRsvps = [],
+}: HomeViewProps) {
   const meta = activeSession ? parseSessionMetadata(activeSession.description) : null;
   const status = viewerStatus(viewer, courts, queue);
   const waiting = queue.filter((q) => q.status === "waiting").length;
@@ -131,7 +145,27 @@ export function HomeView({ activeSession, upcomingSessions, courts, queue, emplo
                 <ArrowRight className="h-4 w-4" />
               </span>
             </Link>
-          ) : (
+          ) : null}
+          {nextSession && (
+            <div className="flex flex-wrap items-center gap-3">
+              {!viewer.isAdmin && (
+                <RsvpButton
+                  sessionId={nextSession.id}
+                  going={myRsvps.includes(nextSession.id)}
+                  count={rsvpCounts[nextSession.id] || 0}
+                />
+              )}
+              {rsvpCounts[nextSession.id] ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                    {rsvpCounts[nextSession.id]}
+                  </span>{" "}
+                  going so far
+                </p>
+              ) : null}
+            </div>
+          )}
+          {!nextSession && (
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {viewer.isAdmin ? (
                 <>
@@ -169,7 +203,10 @@ export function HomeView({ activeSession, upcomingSessions, courts, queue, emplo
             ) : (
               <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
                 {list.map((s) => (
-                  <SessionRow key={s.id} session={s}>
+                  <SessionRow key={s.id} session={s} rsvpCount={rsvpCounts[s.id]}>
+                    {!viewer.isAdmin && (
+                      <RsvpButton sessionId={s.id} going={myRsvps.includes(s.id)} count={rsvpCounts[s.id] || 0} />
+                    )}
                     <Link
                       href={`/sessions/${s.id}`}
                       className="inline-flex h-10 items-center rounded-md border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

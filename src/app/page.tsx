@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { getMyRsvpSessionIds, getRsvpCounts } from "@/features/sessions/api/rsvpActions";
 import { HomeView } from "@/features/home/components/HomeView";
 
 export default async function HomePage() {
@@ -26,6 +27,8 @@ export default async function HomePage() {
   const [employees, queue] = activeSession
     ? await Promise.all([getAllEmployees(), getQueueForSession(activeSession.id)])
     : [[], []];
+  const upcomingIds = upcomingSessions.map((s) => s.id);
+  const [rsvpCounts, myRsvps] = await Promise.all([getRsvpCounts(upcomingIds), getMyRsvpSessionIds(upcomingIds)]);
 
   return (
     <HomeView
@@ -35,6 +38,8 @@ export default async function HomePage() {
       queue={queue}
       employees={employees}
       leaderboard={leaderboard || []}
+      rsvpCounts={rsvpCounts}
+      myRsvps={myRsvps}
       viewer={{
         id: authData?.user?.id,
         email: userEmail,

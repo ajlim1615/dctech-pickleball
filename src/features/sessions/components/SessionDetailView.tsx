@@ -33,6 +33,8 @@ import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
 import { SessionConsoleBar, useAutoFillPreference } from "./SessionConsoleBar";
+import { RsvpButton } from "./RsvpButton";
+import { canRsvp } from "@/features/sessions/utils/rsvp";
 import {
   checkInToSession,
   checkOutOfSession,
@@ -55,7 +57,11 @@ interface SessionDetailViewProps {
   initialMatches?: any[];
   initialQueue?: QueueEntryWithPlayer[];
   employees?: Profile[];
+  /** People who said they're going (upcoming sessions). */
+  rsvps?: { playerId: string; name: string }[];
 }
+
+const NO_RSVPS: { playerId: string; name: string }[] = [];
 
 // Stable default: it is passed down to useLiveQueue, whose sync effect would
 // loop on a fresh [] every render.
@@ -71,7 +77,9 @@ export function SessionDetailView({
   initialMatches = [],
   initialQueue = EMPTY_QUEUE,
   employees = [],
+  rsvps = NO_RSVPS,
 }: SessionDetailViewProps) {
+  const iAmGoing = Boolean(currentUserId && rsvps.some((r) => r.playerId === currentUserId));
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = userRole === "admin" || isSystemAdmin;
@@ -419,11 +427,43 @@ export function SessionDetailView({
                     <span>{loading ? "Checking in…" : isAdmin ? "Join as a player" : "Check in & join queue"}</span>
                   </Button>
                 </div>
+              ) : canRsvp(currentStatus) && currentUserId ? (
+                <RsvpButton sessionId={session.id} going={iAmGoing} count={rsvps.length} />
               ) : null
             )}
           </div>
         </div>
       </div>
+
+      {/* Who said they're coming */}
+      {canRsvp(currentStatus) && (
+        <section aria-labelledby="rsvp-heading" className="space-y-2">
+          <h2 id="rsvp-heading" className="text-base font-bold text-slate-900 dark:text-slate-100">
+            Who&apos;s going ({rsvps.length})
+          </h2>
+          {rsvps.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No one yet. Tap I&apos;m going to let the organizers know.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {rsvps.map((r) => (
+                <li
+                  key={r.playerId}
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    r.playerId === currentUserId
+                      ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-300"
+                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  {r.name}
+                  {r.playerId === currentUserId && " (you)"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* Finish Session Confirmation Modal */}
       <Modal
