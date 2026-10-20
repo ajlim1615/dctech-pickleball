@@ -9,7 +9,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, sanitizeString } from "@/lib/security/validation";
 import { parsePHTToISO } from "@/lib/timezone";
-import { logSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
   // Server-side RBAC Guard
@@ -164,17 +164,20 @@ export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
   if (error) return { error: error.message };
 
   if (status !== "occupied") {
-    const [{ data: court }, { data: live }] = await Promise.all([
-      supabase.from("courts").select("name").eq("id", courtId).maybeSingle(),
+    const actorId = auth.context!.userId;
+    recordSessionEvent(async () => {
+      const [{ data: court }, { data: live }] = await Promise.all([
+        supabase.from("courts").select("name").eq("id", courtId).maybeSingle(),
       supabase.from("sessions").select("id").eq("status", "active").maybeSingle(),
-    ]);
-    await logSessionEvent(supabase, {
-      sessionId: live?.id ?? null,
-      type: status === "available" ? "court_reopened" : "court_closed",
-      actorId: auth.context!.userId,
-      actorRole: "admin",
-      courtId,
-      details: { courtName: court?.name ?? null, status },
+      ]);
+      return {
+        sessionId: live?.id ?? null,
+        type: status === "available" ? "court_reopened" : "court_closed",
+        actorId,
+        actorRole: "admin",
+        courtId,
+        details: { courtName: court?.name ?? null, status },
+      };
     });
   }
 

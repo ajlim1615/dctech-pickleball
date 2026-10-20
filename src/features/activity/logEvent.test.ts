@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { logSessionEvent, type SupabaseLike } from "@/features/activity/server/logEvent";
+import { logSessionEvent, recordSessionEvent, type SupabaseLike } from "@/features/activity/server/logEvent";
 
 function fakeClient(result: () => Promise<{ error: { message: string } | null }>) {
   const rows: object[] = [];
@@ -49,6 +49,44 @@ describe("logSessionEvent", () => {
     await expect(
       logSessionEvent(client, { sessionId: null, type: "court_closed", actorId: "a1", actorRole: "admin" })
     ).resolves.toBeUndefined();
+    spy.mockRestore();
+  });
+});
+
+describe("recordSessionEvent", () => {
+  it("writes nothing until the scheduled callback runs", async () => {
+    const { client, rows } = fakeClient(async () => ({ error: null }));
+    let scheduled: (() => Promise<void>) | null = null;
+    recordSessionEvent(
+      { sessionId: "s1", type: "left_queue", actorId: "p1", actorRole: "self" },
+      { schedule: (cb) => { scheduled = cb; }, client: () => client }
+    );
+    expect(rows).toHaveLength(0);
+    await scheduled!();
+    expect(rows).toHaveLength(1);
+  });
+
+  it("builds the event lazily and skips it when the builder returns null", async () => {
+    const { client, rows } = fakeClient(async () => ({ error: null }));
+    const callbacks: (() => Promise<void>)[] = [];
+    const deps = { schedule: (cb: () => Promise<void>) => { callbacks.push(cb); }, client: () => client };
+    recordSessionEvent(async () => ({ sessionId: "s1", type: "game_result", actorId: "a1", actorRole: "admin" }), deps);
+    recordSessionEvent(async () => null, deps);
+    for (const cb of callbacks) await cb();
+    expect(rows).toHaveLength(1);
+  });
+
+  it("never throws when building the event fails", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { client } = fakeClient(async () => ({ error: null }));
+    let scheduled: (() => Promise<void>) | null = null;
+    recordSessionEvent(
+      async () => {
+        throw new Error("lookup failed");
+      },
+      { schedule: (cb) => { scheduled = cb; }, client: () => client }
+    );
+    await expect(scheduled!()).resolves.toBeUndefined();
     spy.mockRestore();
   });
 });

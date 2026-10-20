@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { SessionEventActorRole, SessionEventType } from "@/types";
 
 /** The slice of the Supabase client this needs, so tests can pass a fake. */
@@ -40,4 +42,33 @@ export async function logSessionEvent(supabase: SupabaseLike, event: SessionEven
   } catch (err) {
     console.error(`Failed to log ${event.type}:`, err);
   }
+}
+
+type EventSource = SessionEventInput | (() => Promise<SessionEventInput | null>);
+
+interface RecordDeps {
+  schedule: (callback: () => Promise<void>) => void;
+  client: () => SupabaseLike;
+}
+
+const defaultDeps: RecordDeps = {
+  // After the response is sent, so logging never slows the action down.
+  schedule: (callback) => after(callback),
+  // Server-only service key: players can't write events themselves, so they can't forge them.
+  client: () => createAdminClient() as unknown as SupabaseLike,
+};
+
+/**
+ * Records a session event after the response is sent. Pass a builder function to do
+ * any lookups (names, courts) off the critical path; return null to skip.
+ */
+export function recordSessionEvent(source: EventSource, deps: RecordDeps = defaultDeps): void {
+  deps.schedule(async () => {
+    try {
+      const event = typeof source === "function" ? await source() : source;
+      if (event) await logSessionEvent(deps.client(), event);
+    } catch (err) {
+      console.error("Failed to build session event:", err);
+    }
+  });
 }

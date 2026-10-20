@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parsePHTToISO } from "@/lib/timezone";
-import { logSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent } from "@/features/activity/server/logEvent";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -304,7 +304,7 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   if (error) return { error: error.message };
 
   if (status === "active" || status === "completed") {
-    await logSessionEvent(supabase, {
+    recordSessionEvent({
       sessionId,
       type: status === "active" ? "session_started" : "session_ended",
       actorId: auth.context!.userId,
@@ -386,16 +386,18 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
 
   if (error) return { error: error.message };
 
-  const { data: { user: caller } } = await supabase.auth.getUser();
-  if (caller) {
-    await logSessionEvent(supabase, {
+  const checkedInId = targetPlayerId;
+  recordSessionEvent(async () => {
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    if (!caller) return null;
+    return {
       sessionId,
       type: "checked_in",
       actorId: caller.id,
-      actorRole: caller.id === targetPlayerId ? "self" : "admin",
-      subjectIds: [targetPlayerId],
-    });
-  }
+      actorRole: caller.id === checkedInId ? "self" : "admin",
+      subjectIds: [checkedInId],
+    };
+  });
 
   // Also auto-enter the waiting queue if not already queued
   const { data: existingQueue } = await supabase
@@ -453,7 +455,7 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
     return { error: checkinError.message };
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "checked_out",
     actorId: user.id,

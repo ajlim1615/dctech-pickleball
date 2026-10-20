@@ -2,8 +2,8 @@
 -- 20261020030000_session_events.sql
 -- Activity log for each session: what happened, to whom, and when.
 -- Players can read every event but never who acted (actor_id isn't granted to
--- them); admins get names through get_admin_audit(). Players can only log
--- their own actions; everything else needs an admin.
+-- them); admins get names through get_admin_audit(). Only the server writes
+-- events (service key), so nobody can post a fake event.
 -- ==============================================================================
 
 create table if not exists public.session_events (
@@ -34,23 +34,14 @@ alter table public.session_events enable row level security;
 revoke all on public.session_events from anon, authenticated;
 grant select (id, session_id, type, actor_role, subject_ids, court_id, match_id, details, created_at)
   on public.session_events to authenticated;
-grant insert on public.session_events to authenticated;
 
 create policy "Signed-in users can read session activity"
   on public.session_events for select
   to authenticated
   using (true);
 
-create policy "Players log their own actions; admins log the rest"
-  on public.session_events for insert
-  to authenticated
-  with check (
-    actor_id = auth.uid()
-    and (
-      (actor_role = 'self' and subject_ids = array[auth.uid()])
-      or public.is_admin()
-    )
-  );
+-- No insert policy: signed-in users can't write events. The app writes them with the
+-- server-only service key after checking who is allowed to do the action.
 
 -- Realtime sends published columns only, so actor_id never reaches browsers.
 alter publication supabase_realtime add table public.session_events
@@ -80,7 +71,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_admin() then
+  -- Same admin rule as the app: an admin role, or the root system admin account.
+  if not (public.is_admin() or lower(coalesce(auth.jwt() ->> 'email', '')) = 'admin@dctechmicro.com') then
     return;
   end if;
 

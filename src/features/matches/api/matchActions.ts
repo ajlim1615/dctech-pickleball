@@ -106,7 +106,7 @@ export async function updateMatchScore(matchId: string, teamAScore: number, team
 
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { FinalizeMatchSchema } from "@/lib/security/validation";
-import { logSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function finalizeMatch(
   matchId: string,
@@ -228,13 +228,12 @@ export async function finalizeMatch(
     await applyRatingChanges(supabase, matchId, ratedTeams, teamAScore, teamBScore, meta.targetPoints);
   }
 
-  const players = await matchPlayerIds(supabase, matchId);
-  await logSessionEvent(supabase, {
+  recordSessionEvent(async () => ({
     sessionId: matchRecord?.session_id ?? null,
     type: "game_result",
     actorId: user.id,
     actorRole: "admin",
-    subjectIds: players,
+    subjectIds: await matchPlayerIds(supabase, matchId),
     courtId: matchRecord?.court_id ?? null,
     matchId,
     details: {
@@ -243,7 +242,7 @@ export async function finalizeMatch(
       scoreB: teamBScore,
       winner: teamAScore > teamBScore ? "team_a" : "team_b",
     },
-  });
+  }));
 
   // Everyone who just played rejoins the back of the line, then the freed court
   // pulls the next group so the admin doesn't have to.
@@ -258,7 +257,7 @@ export async function finalizeMatch(
     await requeueMatchPlayers(supabase, matchId, sessionId);
 
     if (autoFill && courtId) {
-      const next = await callNextUp(sessionId, courtId, 4, { automatic: true });
+      const next = await callNextUp(sessionId, courtId, 4);
       autoFilled = Boolean(next?.success);
       autoFillMessage = next?.error;
     }
@@ -545,7 +544,7 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
   const outcome = result as { error?: string } | null;
   if (outcome?.error) return { error: outcome.error };
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent(async () => ({
     sessionId: match.session_id,
     type: "result_corrected",
     actorId: auth.context!.userId,
@@ -554,7 +553,7 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
     matchId,
     courtId: match.court_id,
     details: { courtName: await courtName(supabase, match.court_id), from: oldScore, to: { a: scoreA, b: scoreB } },
-  });
+  }));
 
   if (match.session_id) revalidatePath(`/sessions/${match.session_id}`);
   revalidatePath("/");

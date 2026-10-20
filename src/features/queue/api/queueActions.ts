@@ -6,7 +6,7 @@ import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/t
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
-import { logSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -147,7 +147,7 @@ export async function joinQueue(params: {
     });
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId: params.sessionId,
     type: "joined_queue",
     actorId: user.id,
@@ -216,7 +216,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     return { error: queueError.message };
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "players_added",
     actorId: user!.id,
@@ -250,7 +250,7 @@ export async function leaveQueue(sessionId: string) {
     return { error: error.message };
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "left_queue",
     actorId: user.id,
@@ -313,7 +313,7 @@ export async function adminRemovePlayerFromQueue(
   }
 
   if (targetPlayerId) {
-    await logSessionEvent(supabase, {
+    recordSessionEvent({
       sessionId,
       type: "removed_from_queue",
       actorId: user.id,
@@ -382,7 +382,7 @@ export async function bumpPlayerInQueue(sessionId: string, queueEntryId: string,
   }
 
   const moved = entries[currentIndex];
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "moved_in_queue",
     actorId: user.id,
@@ -430,7 +430,7 @@ export async function swapQueuePlayers(sessionId: string, entryId1: string, entr
   await supabase.from("queue_entries").update({ joined_at: time2 }).eq("id", entries[0].id);
   await supabase.from("queue_entries").update({ joined_at: time1 }).eq("id", entries[1].id);
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "players_swapped",
     actorId: user.id,
@@ -489,7 +489,7 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
     return { error: error.message };
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: "players_swapped",
     actorId: user.id,
@@ -504,13 +504,7 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
   return { success: true };
 }
 
-export async function callNextUp(
-  sessionId: string,
-  courtId: string,
-  count: number = 4,
-  /** automatic: called by auto-fill after a result, logged as "system" rather than an admin action. */
-  options: { automatic?: boolean } = {}
-) {
+export async function callNextUp(sessionId: string, courtId: string, count: number = 4) {
   const supabase = await createClient();
 
   // 0. Guard: Verify court is available and not currently in-play with an active match
@@ -786,19 +780,21 @@ export async function callNextUp(
 
   await supabase.from("match_players").insert(matchPlayersToInsert);
 
-  const { data: { user: caller } } = await supabase.auth.getUser();
-  if (caller) {
-    await logSessionEvent(supabase, {
+  // Logged as the signed-in admin who called the group (or whose saved result auto-filled the court).
+  recordSessionEvent(async () => {
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    if (!caller) return null;
+    return {
       sessionId,
       type: "game_started",
       actorId: caller.id,
-      actorRole: options.automatic ? "system" : "admin",
+      actorRole: "admin",
       subjectIds: [...teamA, ...teamB],
       courtId,
       matchId: match.id,
       details: { courtName: court?.name ?? null, teamA, teamB },
-    });
-  }
+    };
+  });
 
   revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
@@ -886,7 +882,7 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
     };
   }
 
-  await logSessionEvent(supabase, {
+  recordSessionEvent({
     sessionId,
     type: onBreak ? "break_started" : "break_ended",
     actorId: user.id,
@@ -981,16 +977,19 @@ export async function swapNoShow(matchId: string, noShowPlayerId: string) {
     .eq("player_id", noShowPlayerId)
     .eq("status", "playing");
 
-  const { data: swapCourt } = await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle();
-  await logSessionEvent(supabase, {
-    sessionId: match.session_id,
-    type: "no_show_swapped",
-    actorId: auth.context!.userId,
-    actorRole: "admin",
-    subjectIds: [noShowPlayerId, replacement.player_id],
-    courtId: match.court_id,
-    matchId,
-    details: { courtName: swapCourt?.name ?? null, out: noShowPlayerId, in: replacement.player_id },
+  const actorId = auth.context!.userId;
+  recordSessionEvent(async () => {
+    const { data: swapCourt } = await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle();
+    return {
+      sessionId: match.session_id,
+      type: "no_show_swapped",
+      actorId,
+      actorRole: "admin",
+      subjectIds: [noShowPlayerId, replacement.player_id],
+      courtId: match.court_id,
+      matchId,
+      details: { courtName: swapCourt?.name ?? null, out: noShowPlayerId, in: replacement.player_id },
+    };
   });
 
   revalidatePath(`/sessions/${match.session_id}`);
