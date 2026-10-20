@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
-import { canSwapNoShow, claimFirstAvailable, pickReplacement } from "@/features/queue/utils/noShow";
+import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -813,13 +813,13 @@ export async function swapNoShow(matchId: string, noShowPlayerId: string) {
   const supabase = await createClient();
   const { data: match } = await supabase
     .from("matches")
-    .select("id, session_id, court_id, status, team_a_score, team_b_score")
+    .select("id, session_id, court_id, status, team_a_score, team_b_score, started_at")
     .eq("id", matchId)
     .single();
 
   if (!match || match.status !== "in_progress") return { error: "This game is no longer in progress." };
-  if (!canSwapNoShow(Number(match.team_a_score ?? 0), Number(match.team_b_score ?? 0))) {
-    return { error: "Players can only be swapped before the first point." };
+  if (!canSwapNoShow(Number(match.team_a_score ?? 0), Number(match.team_b_score ?? 0), match.started_at)) {
+    return { error: `Players can only be swapped before the first point, in the first ${NO_SHOW_WINDOW_MINUTES} minutes.` };
   }
 
   const { data: matchPlayers } = await supabase

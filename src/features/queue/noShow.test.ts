@@ -43,3 +43,13 @@ describe("claimFirstAvailable", () => {
     expect(await claimFirstAvailable(["q1", "q2"], async () => false)).toBeNull();
   });
 });
+
+describe("canSwapNoShow time window", () => {
+  const start = "2026-10-20T10:00:00.000Z";
+  it("allows a swap in the first five minutes", () => {
+    expect(canSwapNoShow(0, 0, start, new Date("2026-10-20T10:04:00.000Z"))).toBe(true);
+  });
+  it("refuses a swap once the game has been going five minutes", () => {
+    expect(canSwapNoShow(0, 0, start, new Date("2026-10-20T10:06:00.000Z"))).toBe(false);
+  });
+});

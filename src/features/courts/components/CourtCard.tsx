@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { finalizeMatch } from "@/features/matches/api/matchActions";
+import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
 import { callNextUp, swapNoShow } from "@/features/queue/api/queueActions";
 import { canSwapNoShow } from "@/features/queue/utils/noShow";
 import {
@@ -124,7 +124,7 @@ export function CourtCard({
 
   // Before the first point an admin can swap out someone who never showed up.
   const canReportNoShow = Boolean(
-    isAdministrator && hasPlayersOnCourt && activeMatch && !pendingWinner && canSwapNoShow(scoreA, scoreB)
+    isAdministrator && hasPlayersOnCourt && activeMatch && !pendingWinner && canSwapNoShow(scoreA, scoreB, activeMatch?.started_at)
   );
 
   function handleNoShow(player: Profile) {
@@ -145,10 +145,18 @@ export function CourtCard({
     });
   }
 
+  // Save every change so other screens (and the no-show check) see the live score,
+  // and a refresh doesn't reset it.
+  function setScores(a: number, b: number) {
+    setScoreA(a);
+    setScoreB(b);
+    if (activeMatch?.id && hasPlayersOnCourt) void updateMatchScore(activeMatch.id, a, b);
+  }
+
   function incrementScore(team: "A" | "B") {
     if (!isAdministrator) return;
-    if (team === "A") setScoreA((prev) => prev + 1);
-    else setScoreB((prev) => prev + 1);
+    if (team === "A") setScores(scoreA + 1, scoreB);
+    else setScores(scoreA, scoreB + 1);
 
     if (typeof window !== "undefined" && "vibrate" in navigator) {
       try {
@@ -159,16 +167,15 @@ export function CourtCard({
 
   function decrementScore(team: "A" | "B") {
     if (!isAdministrator) return;
-    if (team === "A") setScoreA((prev) => Math.max(0, prev - 1));
-    else setScoreB((prev) => Math.max(0, prev - 1));
+    if (team === "A") setScores(Math.max(0, scoreA - 1), scoreB);
+    else setScores(scoreA, Math.max(0, scoreB - 1));
   }
 
   function handleQuickWin(team: "A" | "B") {
     if (!isAdministrator) return;
     // Smallest valid final score: 10-10 becomes 12-10 with win by 2, or 11-10 without.
     const final = quickWinScore(team, scoreA, scoreB, rule);
-    setScoreA(final.scoreA);
-    setScoreB(final.scoreB);
+    setScores(final.scoreA, final.scoreB);
   }
 
   /** Preview of the score Quick Win would set, e.g. "12-10". */
@@ -179,8 +186,7 @@ export function CourtCard({
 
   function handleResetScore() {
     if (!isAdministrator) return;
-    setScoreA(0);
-    setScoreB(0);
+    setScores(0, 0);
   }
 
   function handleAutoCallQueue() {
