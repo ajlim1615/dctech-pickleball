@@ -7,7 +7,14 @@ import { callNextUp } from "@/features/queue/api/queueActions";
 import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
 import { describeRule, getWinner } from "@/features/matches/utils/scoring";
 import { parseSessionMetadata } from "@/lib/utils";
-import { calculateRatingChanges, type RatedPlayer } from "@/features/rankings/utils/ratingEngine";
+import {
+  calculateRatingChanges,
+  RATING_MAX,
+  RATING_MIN,
+  type RatedPlayer,
+} from "@/features/rankings/utils/ratingEngine";
+import { planResultCorrection } from "@/features/matches/utils/resultCorrection";
+import { requireAdminUser } from "@/lib/security/authGuard";
 
 export async function createMatch(params: {
   sessionId: string;
@@ -430,4 +437,97 @@ async function applyRatingChanges(
     }))
   );
   if (error) console.error("Failed to record rating history:", error.message);
+}
+
+/** Admin fix for a saved game: new score, winner, ratings and wins follow. */
+export async function correctMatchResult(matchId: string, scoreA: number, scoreB: number) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const validation = FinalizeMatchSchema.safeParse({ matchId, teamAScore: scoreA, teamBScore: scoreB });
+  if (!validation.success) {
+    return { error: validation.error.issues[0]?.message || "Invalid score." };
+  }
+
+  const supabase = await createClient();
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, session_id, status, team_a_score, team_b_score, sessions:session_id (description)")
+    .eq("id", matchId)
+    .single();
+
+  if (!match) return { error: "Game not found." };
+  if (match.status !== "completed") return { error: "Only finished games can be corrected." };
+
+  const description = (match as { sessions?: { description?: string | null } | null }).sessions?.description;
+  const meta = parseSessionMetadata(description);
+  const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo, trackScores: meta.trackScores };
+
+  const [{ teamA, teamB }, { data: historyRows }] = await Promise.all([
+    loadRatedTeams(supabase, matchId),
+    supabase.from("player_ratings_history").select("id, player_id, old_rating, rating_change").eq("match_id", matchId),
+  ]);
+
+  const plan = planResultCorrection({
+    rule,
+    isRanked: meta.isRanked,
+    oldScore: { a: Number(match.team_a_score ?? 0), b: Number(match.team_b_score ?? 0) },
+    newScore: { a: scoreA, b: scoreB },
+    teamA,
+    teamB,
+    history: (historyRows || []).map((h) => ({
+      playerId: h.player_id,
+      oldRating: Number(h.old_rating),
+      change: Number(h.rating_change),
+    })),
+  });
+  if (plan.error || !plan.winningTeam) return { error: plan.error || "Invalid result." };
+
+  const now = new Date().toISOString();
+  const { error: updateError } = await supabase
+    .from("matches")
+    .update({ team_a_score: scoreA, team_b_score: scoreB, winning_team: plan.winningTeam, updated_at: now })
+    .eq("id", matchId);
+  if (updateError) return { error: updateError.message };
+
+  const affected = [...new Set([...plan.ratingUpdates.map((u) => u.playerId), ...plan.winsMoves.map((m) => m.playerId)])];
+  if (affected.length > 0) {
+    const { data: profiles } = await supabase.from("profiles").select("id, skill_rating, games_won").in("id", affected);
+    const historyByPlayer = new Map((historyRows || []).map((h) => [h.player_id, h]));
+
+    await Promise.all(
+      (profiles || []).map((profile) => {
+        const rating = plan.ratingUpdates.find((u) => u.playerId === profile.id);
+        const wins = plan.winsMoves.find((m) => m.playerId === profile.id);
+        const updates: { skill_rating?: number; games_won?: number; updated_at: string } = { updated_at: now };
+        if (rating && rating.delta !== 0) {
+          updates.skill_rating =
+            Math.round(Math.min(RATING_MAX, Math.max(RATING_MIN, Number(profile.skill_rating) + rating.delta)) * 100) / 100;
+        }
+        if (wins) updates.games_won = Math.max(0, Number(profile.games_won) + wins.by);
+        return supabase.from("profiles").update(updates).eq("id", profile.id);
+      })
+    );
+
+    await Promise.all(
+      plan.ratingUpdates.map((u) => {
+        const row = historyByPlayer.get(u.playerId);
+        if (!row) return null;
+        return supabase
+          .from("player_ratings_history")
+          .update({
+            rating_change: u.newChange,
+            new_rating: Math.round((Number(row.old_rating) + u.newChange) * 100) / 100,
+          })
+          .eq("id", row.id);
+      })
+    );
+  }
+
+  if (match.session_id) revalidatePath(`/sessions/${match.session_id}`);
+  revalidatePath("/");
+  revalidatePath("/matches");
+  revalidatePath("/rankings");
+  revalidatePath("/profile");
+  return { success: true as const };
 }
