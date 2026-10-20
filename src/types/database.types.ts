@@ -170,6 +170,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      session_rsvps: {
+        Row: {
+          id: string;
+          session_id: string;
+          player_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          player_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          player_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       queue_entries: {
         Row: {
           id: string;

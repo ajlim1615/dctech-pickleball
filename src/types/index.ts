@@ -6,6 +6,7 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Court = Database["public"]["Tables"]["courts"]["Row"];
 export type Session = Database["public"]["Tables"]["sessions"]["Row"];
 export type SessionCheckin = Database["public"]["Tables"]["session_checkins"]["Row"];
+export type SessionRsvp = Database["public"]["Tables"]["session_rsvps"]["Row"];
 export type QueueEntry = Database["public"]["Tables"]["queue_entries"]["Row"];
 export type Match = Database["public"]["Tables"]["matches"]["Row"];
 export type MatchPlayer = Database["public"]["Tables"]["match_players"]["Row"];
