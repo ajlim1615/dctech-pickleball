@@ -14,6 +14,8 @@ export interface ResultCorrectionInput {
 
 export interface ResultCorrectionPlan {
   error?: string;
+  /** The new score is the stored score: nothing to write. */
+  unchanged?: boolean;
   winningTeam?: "team_a" | "team_b";
   ratingUpdates: { playerId: string; delta: number; newChange: number }[];
   winsMoves: { playerId: string; by: 1 | -1 }[];
@@ -34,6 +36,9 @@ export function planResultCorrection(input: ResultCorrectionInput): ResultCorrec
     };
   }
   const winningTeam = newWinner === "A" ? "team_a" : "team_b";
+  if (newScore.a === oldScore.a && newScore.b === oldScore.b) {
+    return { unchanged: true, winningTeam, ratingUpdates: [], winsMoves: [] };
+  }
   if (!isRanked) return { winningTeam, ratingUpdates: [], winsMoves: [] };
 
   // Ratings: recompute from each player's rating before this game. Games saved before
@@ -58,4 +63,12 @@ export function planResultCorrection(input: ResultCorrectionInput): ResultCorrec
         ];
 
   return { winningTeam, ratingUpdates, winsMoves };
+}
+
+/**
+ * How many ranked games a player had before a given game: today's total minus the
+ * games recorded after it, minus the game itself. Rates provisional players correctly.
+ */
+export function gamesPlayedBefore(currentGamesPlayed: number, gamesAfter: number): number {
+  return Math.max(0, currentGamesPlayed - gamesAfter - 1);
 }

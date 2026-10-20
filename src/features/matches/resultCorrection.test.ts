@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planResultCorrection } from "@/features/matches/utils/resultCorrection";
+import { gamesPlayedBefore, planResultCorrection } from "@/features/matches/utils/resultCorrection";
 import { calculateRatingChanges, type RatedPlayer } from "@/features/rankings/utils/ratingEngine";
 import type { ScoringRule } from "@/features/matches/utils/scoring";
 
@@ -51,5 +51,32 @@ describe("planResultCorrection", () => {
     const plan = planResultCorrection({ ...base, newScore: { a: 11, b: 9 } });
     expect(plan.ratingUpdates.every((u) => u.delta === 0)).toBe(true);
     expect(plan.winsMoves).toEqual([]);
+  });
+});
+
+describe("planResultCorrection — unchanged and provisional players", () => {
+  it("flags a correction to the stored score as unchanged", () => {
+    const plan = planResultCorrection({ ...base, newScore: { a: 11, b: 9 } });
+    expect(plan.unchanged).toBe(true);
+  });
+
+  it("uses the player's game count from when the game was played", () => {
+    // Saved while a1 was provisional (2 games), so their change was 1.5x.
+    const then = [{ id: "a1", rating: 3.5, gamesPlayed: 2 }, p("a2")];
+    const savedChanges = calculateRatingChanges(then, teamB, 11, 9, 11);
+    const savedHistory = savedChanges.map((c) => ({ playerId: c.playerId, oldRating: c.oldRating, change: c.change }));
+    // Correcting the margin only, with a1's game count from back then, must not
+    // shrink their change to the established-player rate.
+    const plan = planResultCorrection({ ...base, teamA: then, history: savedHistory, newScore: { a: 11, b: 8 } });
+    const a1 = plan.ratingUpdates.find((u) => u.playerId === "a1")!;
+    const a2 = plan.ratingUpdates.find((u) => u.playerId === "a2")!;
+    expect(a1.newChange).toBeGreaterThan(a2.newChange);
+  });
+});
+
+describe("gamesPlayedBefore", () => {
+  it("counts games played before this one", () => {
+    expect(gamesPlayedBefore(12, 3)).toBe(8);
+    expect(gamesPlayedBefore(0, 0)).toBe(0);
   });
 });

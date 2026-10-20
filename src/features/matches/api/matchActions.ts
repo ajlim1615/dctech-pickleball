@@ -9,11 +9,9 @@ import { describeRule, getWinner } from "@/features/matches/utils/scoring";
 import { parseSessionMetadata } from "@/lib/utils";
 import {
   calculateRatingChanges,
-  RATING_MAX,
-  RATING_MIN,
   type RatedPlayer,
 } from "@/features/rankings/utils/ratingEngine";
-import { planResultCorrection } from "@/features/matches/utils/resultCorrection";
+import { gamesPlayedBefore, planResultCorrection } from "@/features/matches/utils/resultCorrection";
 import { requireAdminUser } from "@/lib/security/authGuard";
 
 export async function createMatch(params: {
@@ -462,19 +460,39 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
   const description = (match as { sessions?: { description?: string | null } | null }).sessions?.description;
   const meta = parseSessionMetadata(description);
   const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo, trackScores: meta.trackScores };
+  const oldScore = { a: Number(match.team_a_score ?? 0), b: Number(match.team_b_score ?? 0) };
 
   const [{ teamA, teamB }, { data: historyRows }] = await Promise.all([
     loadRatedTeams(supabase, matchId),
-    supabase.from("player_ratings_history").select("id, player_id, old_rating, rating_change").eq("match_id", matchId),
+    supabase
+      .from("player_ratings_history")
+      .select("player_id, old_rating, rating_change, recorded_at")
+      .eq("match_id", matchId),
   ]);
+
+  // Rate each player as they were when the game was played: count only the ranked
+  // games they had before it, so provisional players keep their faster rate.
+  const gamesAfter = new Map<string, number>();
+  await Promise.all(
+    (historyRows || []).map(async (h) => {
+      const { count } = await supabase
+        .from("player_ratings_history")
+        .select("id", { count: "exact", head: true })
+        .eq("player_id", h.player_id)
+        .gt("recorded_at", h.recorded_at);
+      gamesAfter.set(h.player_id, count || 0);
+    })
+  );
+  const asPlayedThen = (team: RatedPlayer[]) =>
+    team.map((p) => (gamesAfter.has(p.id) ? { ...p, gamesPlayed: gamesPlayedBefore(p.gamesPlayed, gamesAfter.get(p.id)!) } : p));
 
   const plan = planResultCorrection({
     rule,
     isRanked: meta.isRanked,
-    oldScore: { a: Number(match.team_a_score ?? 0), b: Number(match.team_b_score ?? 0) },
+    oldScore,
     newScore: { a: scoreA, b: scoreB },
-    teamA,
-    teamB,
+    teamA: asPlayedThen(teamA),
+    teamB: asPlayedThen(teamB),
     history: (historyRows || []).map((h) => ({
       playerId: h.player_id,
       oldRating: Number(h.old_rating),
@@ -482,47 +500,29 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
     })),
   });
   if (plan.error || !plan.winningTeam) return { error: plan.error || "Invalid result." };
+  if (plan.unchanged) return { success: true as const };
 
-  const now = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from("matches")
-    .update({ team_a_score: scoreA, team_b_score: scoreB, winning_team: plan.winningTeam, updated_at: now })
-    .eq("id", matchId);
-  if (updateError) return { error: updateError.message };
-
-  const affected = [...new Set([...plan.ratingUpdates.map((u) => u.playerId), ...plan.winsMoves.map((m) => m.playerId)])];
-  if (affected.length > 0) {
-    const { data: profiles } = await supabase.from("profiles").select("id, skill_rating, games_won").in("id", affected);
-    const historyByPlayer = new Map((historyRows || []).map((h) => [h.player_id, h]));
-
-    await Promise.all(
-      (profiles || []).map((profile) => {
-        const rating = plan.ratingUpdates.find((u) => u.playerId === profile.id);
-        const wins = plan.winsMoves.find((m) => m.playerId === profile.id);
-        const updates: { skill_rating?: number; games_won?: number; updated_at: string } = { updated_at: now };
-        if (rating && rating.delta !== 0) {
-          updates.skill_rating =
-            Math.round(Math.min(RATING_MAX, Math.max(RATING_MIN, Number(profile.skill_rating) + rating.delta)) * 100) / 100;
-        }
-        if (wins) updates.games_won = Math.max(0, Number(profile.games_won) + wins.by);
-        return supabase.from("profiles").update(updates).eq("id", profile.id);
-      })
-    );
-
-    await Promise.all(
-      plan.ratingUpdates.map((u) => {
-        const row = historyByPlayer.get(u.playerId);
-        if (!row) return null;
-        return supabase
-          .from("player_ratings_history")
-          .update({
-            rating_change: u.newChange,
-            new_rating: Math.round((Number(row.old_rating) + u.newChange) * 100) / 100,
-          })
-          .eq("id", row.id);
-      })
-    );
+  // One locked transaction: only applies if the score is still what we read, and
+  // ratings/wins move by relative amounts so a game finishing meanwhile isn't lost.
+  const { data: result, error } = await supabase.rpc("apply_result_correction", {
+    p_match_id: matchId,
+    p_expected_a: oldScore.a,
+    p_expected_b: oldScore.b,
+    p_new_a: scoreA,
+    p_new_b: scoreB,
+    p_winning_team: plan.winningTeam,
+    p_rating_updates: plan.ratingUpdates.map((u) => ({ player_id: u.playerId, delta: u.delta, new_change: u.newChange })),
+    p_wins_moves: plan.winsMoves.map((m) => ({ player_id: m.playerId, by: m.by })),
+  });
+  if (error) {
+    return {
+      error: error.message.includes("apply_result_correction")
+        ? "Result fixes aren't set up yet: apply the apply_result_correction database migration."
+        : error.message,
+    };
   }
+  const outcome = result as { error?: string } | null;
+  if (outcome?.error) return { error: outcome.error };
 
   if (match.session_id) revalidatePath(`/sessions/${match.session_id}`);
   revalidatePath("/");

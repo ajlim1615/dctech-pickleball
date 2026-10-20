@@ -365,6 +365,19 @@ export interface Database {
         };
         Returns: Json;
       };
+      apply_result_correction: {
+        Args: {
+          p_match_id: string;
+          p_expected_a: number;
+          p_expected_b: number;
+          p_new_a: number;
+          p_new_b: number;
+          p_winning_team: WinningTeam;
+          p_rating_updates: Json;
+          p_wins_moves: Json;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       user_role: UserRole;
