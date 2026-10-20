@@ -4,19 +4,11 @@ import { useState, useMemo } from "react";
 import {
   Trophy,
   Search,
-  User,
-  Eye,
   X,
   CheckCircle2,
   Loader2,
-  Award,
-  Calendar,
-  Activity,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -28,12 +20,14 @@ import { formatMatchScore } from "@/features/matches/utils/scoring";
 
 interface LeaderboardTableProps {
   initialRankings?: RankedPlayer[];
+  /** The signed-in player, highlighted and pinned at the top. */
+  currentUserId?: string;
 }
 
 type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate";
 type SortOrder = "asc" | "desc";
 
-export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps) {
+export function LeaderboardTable({ initialRankings = [], currentUserId }: LeaderboardTableProps) {
   const [search, setSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<RankedPlayer | null>(null);
   const [playerMatches, setPlayerMatches] = useState<any[]>([]);
@@ -42,15 +36,7 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
 
   const rankings: RankedPlayer[] = initialRankings;
-
-  function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortOrder(field === "name" || field === "rank" ? "asc" : "desc");
-    }
-  }
+  const me = currentUserId ? rankings.find((p) => p.id === currentUserId) : undefined;
 
   const sorted = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -160,258 +146,127 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
     });
   }, [playerMatches]);
 
-  function renderSortIcon(field: SortField) {
-    if (sortField !== field) {
-      return <ArrowUpDown className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />;
-    }
-    return sortOrder === "asc" ? (
-      <ArrowUp className="h-3 w-3 text-emerald-600 dark:text-[#d4e938]" />
-    ) : (
-      <ArrowDown className="h-3 w-3 text-emerald-600 dark:text-[#d4e938]" />
-    );
-  }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
+    <div className="mx-auto max-w-3xl px-4 py-8 space-y-6 pb-24 sm:pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-amber-500" />
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              Employee Rankings
-            </h1>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">
-            Official DUPR Dynamic Ratings & Performance Standings
+      <header className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Rankings</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Ratings move after every ranked game. Casual games don&apos;t count.
           </p>
         </div>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search player..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-4 py-2 text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-2xs"
-          />
+        <div className="flex flex-col sm:flex-row gap-2">
+          <label className="relative flex-1">
+            <span className="sr-only">Search players</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="search"
+              placeholder="Search players"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+            Sort by
+            <select
+              value={sortField}
+              onChange={(e) => {
+                const field = e.target.value as SortField;
+                setSortField(field);
+                setSortOrder(field === "rank" || field === "name" ? "asc" : "desc");
+              }}
+              className="h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-sm font-medium text-slate-900 dark:text-slate-100"
+            >
+              <option value="rank">Rank</option>
+              <option value="win_rate">Win rate</option>
+              <option value="games">Games played</option>
+              <option value="won">Wins</option>
+              <option value="name">Name</option>
+            </select>
+          </label>
         </div>
-      </div>
+      </header>
 
       {rankings.length === 0 ? (
-        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-12 text-center shadow-sm">
-          <Trophy className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-            No rankings recorded yet
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1 max-w-md mx-auto">
-            Rankings will update as soon as matches are played and scores are verified.
-          </p>
-        </Card>
+        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-8 text-center">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No rankings yet</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">They appear after the first ranked games are played.</p>
+        </div>
       ) : (
         <>
-          {/* Top 3 Podium Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {rankings.slice(0, 3).map((topPlayer, idx) => {
-              const medals = ["🥇 GOLD", "🥈 SILVER", "🥉 BRONZE"];
-              const borders = [
-                "border-amber-400/50 bg-amber-50/20 dark:bg-amber-950/20 shadow-amber-500/5",
-                "border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50",
-                "border-amber-700/30 bg-amber-900/10 dark:bg-amber-950/10",
-              ];
+          {/* Where you stand */}
+          {me && (
+            <button
+              type="button"
+              onClick={() => handleViewPlayer(me)}
+              className="flex w-full items-center gap-4 rounded-2xl border border-emerald-500/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-4 text-left hover:border-emerald-500 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+            >
+              <span className="font-mono text-3xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">#{me.rank}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Your rank</span>
+                <span className="block text-sm text-slate-600 dark:text-slate-400">
+                  {me.games_played} games, {me.win_rate}% wins
+                </span>
+              </span>
+              <span className="font-mono text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                {formatRating(me.skill_rating)}
+              </span>
+            </button>
+          )}
 
-              return (
-                <Card
-                  key={topPlayer.id}
-                  className={`p-5 text-center space-y-3 relative overflow-hidden transition-all hover:scale-[1.02] shadow-sm ${borders[idx]}`}
-                >
-                  <div className="text-xs font-mono font-bold tracking-wider text-emerald-700 dark:text-[#d4e938]">
-                    {medals[idx]}
-                  </div>
-
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 font-mono text-lg font-bold text-slate-800 dark:text-slate-100 shadow-xs overflow-hidden">
-                    {topPlayer.avatar_url ? (
-                      <img
-                        src={topPlayer.avatar_url}
-                        alt={topPlayer.full_name || "Avatar"}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      topPlayer.full_name?.slice(0, 2).toUpperCase() || "DC"
-                    )}
-                  </div>
-
-                  <div className="font-bold text-base text-slate-900 dark:text-slate-100">
-                    {topPlayer.full_name || topPlayer.display_name}
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2 pt-1">
-                    <Badge variant="volt" className="text-xs font-mono font-bold">
-                      ★ DUPR {formatRating(topPlayer.skill_rating)}
-                    </Badge>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 grid grid-cols-2 text-xs font-mono text-slate-500 dark:text-slate-400">
-                    <div>
-                      <span className="text-[10px] block">WINS</span>
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{topPlayer.games_won}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] block">WIN RATE</span>
-                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{topPlayer.win_rate}%</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewPlayer(topPlayer)}
-                      className="w-full text-xs font-mono text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+          {sorted.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No players match &quot;{search}&quot;.</p>
+          ) : (
+            <ol className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+              {sorted.map((player) => {
+                const isMe = player.id === currentUserId;
+                return (
+                  <li key={player.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleViewPlayer(player)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-500 ${
+                        isMe ? "bg-emerald-50/70 dark:bg-emerald-950/30" : ""
+                      }`}
                     >
-                      <Eye className="h-3.5 w-3.5 mr-1.5" /> View Player Stats
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Full Leaderboard Table with Interactive Column Sorting */}
-          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs">
-                <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[11px] text-slate-500 dark:text-slate-400 uppercase select-none">
-                  <tr>
-                    <th className="px-5 py-3.5 font-bold">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("rank")}
-                        className="flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
+                      <span
+                        className={`w-7 shrink-0 text-right font-mono text-sm tabular-nums ${
+                          player.rank <= 3 ? "font-bold text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400"
+                        }`}
                       >
-                        <span>Rank</span>
-                        {renderSortIcon("rank")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("name")}
-                        className="flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
-                      >
-                        <span>Player</span>
-                        {renderSortIcon("name")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("rating")}
-                        className="flex items-center justify-center gap-1.5 mx-auto hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
-                      >
-                        <span>DUPR Rating</span>
-                        {renderSortIcon("rating")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("games")}
-                        className="flex items-center justify-center gap-1.5 mx-auto hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
-                      >
-                        <span>Games</span>
-                        {renderSortIcon("games")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("won")}
-                        className="flex items-center justify-center gap-1.5 mx-auto hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
-                      >
-                        <span>Won</span>
-                        {renderSortIcon("won")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold text-right">
-                      <button
-                        type="button"
-                        onClick={() => toggleSort("win_rate")}
-                        className="flex items-center justify-end gap-1.5 ml-auto hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
-                      >
-                        <span>Win Rate</span>
-                        {renderSortIcon("win_rate")}
-                      </button>
-                    </th>
-                    <th className="px-5 py-3.5 font-bold text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                  {sorted.map((player) => (
-                    <tr
-                      key={player.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <td className="px-5 py-3.5 font-bold text-slate-500 dark:text-slate-400">
-                        #{player.rank}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 overflow-hidden shrink-0">
-                            {player.avatar_url ? (
-                              <img
-                                src={player.avatar_url}
-                                alt={player.full_name || "Avatar"}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              player.full_name?.slice(0, 2).toUpperCase() || "DC"
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-sans font-bold text-slate-900 dark:text-slate-100 text-sm">
-                              {player.full_name || player.display_name}
-                            </div>
-                            <div className="text-[11px] text-slate-400 dark:text-slate-500">
-                              {player.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <Badge variant="default" className="font-mono text-xs font-bold">
-                          {formatRating(player.skill_rating)}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-3.5 text-center text-slate-700 dark:text-slate-300">
-                        {player.games_played}
-                      </td>
-                      <td className="px-5 py-3.5 text-center text-slate-700 dark:text-slate-300">
-                        {player.games_won}
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {player.win_rate}%
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewPlayer(player)}
-                          className="text-xs text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          <Eye className="h-3.5 w-3.5 mr-1" /> View
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                        {player.rank}
+                      </span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {player.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={player.avatar_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          (player.full_name || player.display_name || "?").slice(0, 2).toUpperCase()
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {player.full_name || player.display_name}
+                          {isMe && <span className="ml-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">You</span>}
+                        </span>
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">
+                          {player.games_played} games, {player.win_rate}% wins
+                        </span>
+                      </span>
+                      <span className="font-mono text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {formatRating(player.skill_rating)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </>
       )}
-
       {/* View Player Stats & History Modal */}
       <Modal
         isOpen={Boolean(selectedPlayer)}

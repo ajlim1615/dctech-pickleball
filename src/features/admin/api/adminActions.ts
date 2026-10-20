@@ -177,7 +177,7 @@ export async function resetSessionQueue(sessionId: string) {
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
-    .in("status", ["waiting", "called"]);
+    .not("status", "in", "(playing,left)"); // waiting, called or on_break
 
   if (error) return { error: error.message };
 
@@ -315,7 +315,7 @@ export async function cancelSession(sessionId: string) {
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
-    .in("status", ["waiting", "called"]);
+    .not("status", "in", "(playing,left)"); // waiting, called or on_break
 
   // Free courts if this was the active session
   await supabase

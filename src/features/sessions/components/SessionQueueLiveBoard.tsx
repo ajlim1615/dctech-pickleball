@@ -2,14 +2,15 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, UserPlus, X, CheckCircle2, Users } from "lucide-react";
+import { Plus, UserPlus, X, CheckCircle2, Users, Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
 import { previewMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
-import { joinQueue, leaveQueue, adminRemovePlayerFromQueue } from "@/features/queue/api/queueActions";
+import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
+import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
-import type { QueueEntryWithPlayer, Profile } from "@/types";
+import type { ActiveCourtView, QueueEntryWithPlayer, Profile } from "@/types";
 
 interface SessionQueueLiveBoardProps {
   initialQueue?: QueueEntryWithPlayer[];
@@ -22,6 +23,8 @@ interface SessionQueueLiveBoardProps {
   onOpenBulkQueue?: () => void;
   readOnly?: boolean;
   matchingMode?: MatchingStyle;
+  /** Courts in this session, to name the court in "You're up" and spot a player who is on court. */
+  courts?: ActiveCourtView[];
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -40,6 +43,10 @@ function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
 // Stable default: a fresh [] each render would retrigger useLiveQueue's
 // setQueue(initialQueue) effect forever.
 const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
+const EMPTY_COURTS: ActiveCourtView[] = [];
+
+const courtLabel = (court?: Pick<ActiveCourtView, "name"> | null) =>
+  court?.name.replace(/\s*\(Rented Court\)/i, "") || undefined;
 
 export function SessionQueueLiveBoard({
   initialQueue = EMPTY_QUEUE,
@@ -52,12 +59,29 @@ export function SessionQueueLiveBoard({
   onOpenBulkQueue,
   readOnly = false,
   matchingMode = "balanced",
+  courts = EMPTY_COURTS,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = !readOnly && (userRole === "admin" || isSystemAdmin);
 
-  const { queue, myPosition } = useLiveQueue(initialQueue, currentUserId);
+  const { queue: allEntries, myPosition, calledAlert, dismissAlert } = useLiveQueue(initialQueue, currentUserId);
+  // Players on a break keep their entry (and place) but are not in line.
+  const queue = useMemo(() => allEntries.filter((q) => q.status !== "on_break"), [allEntries]);
+  const onBreak = useMemo(() => allEntries.filter((q) => q.status === "on_break"), [allEntries]);
+  const myEntry = allEntries.find((q) => q.player_id === currentUserId);
+  const isMeOnBreak = myEntry?.status === "on_break";
+  const myCourt = useMemo(
+    () =>
+      currentUserId
+        ? courts.find((c) =>
+            c.current_match?.status === "in_progress" &&
+            c.current_match.players?.some((p) => p.player_id === currentUserId)
+          )
+        : undefined,
+    [courts, currentUserId]
+  );
+  const calledCourtName = calledAlert ? courtLabel(courts.find((c) => c.id === calledAlert.courtId)) : undefined;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -65,10 +89,7 @@ export function SessionQueueLiveBoard({
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [guestName, setGuestName] = useState("");
 
-  const isUserInQueue = useMemo(
-    () => queue.some((q) => q.player_id === currentUserId),
-    [queue, currentUserId]
-  );
+  const isUserInQueue = Boolean(myEntry);
 
   // Chunk queue into 4-player groups
   const pods = useMemo(() => {
@@ -92,6 +113,7 @@ export function SessionQueueLiveBoard({
 
   async function handleQuickJoinSolo() {
     if (!sessionId || isSystemAdmin || isSubmitting) return;
+    requestCallupNotifications();
     setIsSubmitting(true);
     try {
       const res = await joinQueue({ sessionId });
@@ -108,6 +130,7 @@ export function SessionQueueLiveBoard({
   async function handleModalJoin(e: React.FormEvent) {
     e.preventDefault();
     if (!sessionId || isSystemAdmin || isSubmitting) return;
+    requestCallupNotifications();
     setIsSubmitting(true);
     try {
       const res = await joinQueue({
@@ -119,6 +142,21 @@ export function SessionQueueLiveBoard({
         alert(`Error joining queue: ${res.error}`);
       } else {
         setShowJoinModal(false);
+        router.refresh();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleBreak(takeBreak: boolean) {
+    if (!sessionId || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await setQueueBreak(sessionId, takeBreak);
+      if (res?.error) {
+        alert(res.error);
+      } else {
         router.refresh();
       }
     } finally {
@@ -190,10 +228,20 @@ export function SessionQueueLiveBoard({
         )}
       </header>
 
-      {/* Your place in line, or the join action */}
+      {calledAlert && <QueueCallupAlert courtName={calledCourtName} onAcknowledge={dismissAlert} />}
+
+      {/* Your status: on court, on a break, in line, or not in line yet */}
       {!readOnly && !isSystemAdmin && isSessionActive && (
         <div className="mx-4 mb-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 p-3">
-          {isUserInQueue ? (
+          {myCourt ? (
+            <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+                <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              You&apos;re playing on {courtLabel(myCourt)}. You rejoin the line after the game.
+            </p>
+          ) : isUserInQueue ? (
             showLeaveConfirm ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leave and lose your spot?</p>
@@ -206,8 +254,35 @@ export function SessionQueueLiveBoard({
                   </Button>
                 </div>
               </div>
+            ) : isMeOnBreak ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  <Coffee className="h-4 w-4 shrink-0" />
+                  On a break. Your place is saved.
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="volt"
+                    onClick={() => handleBreak(false)}
+                    disabled={isSubmitting}
+                    className="h-11 px-4 font-bold cursor-pointer"
+                  >
+                    {isSubmitting ? "Saving…" : "I'm back"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowLeaveConfirm(true)}
+                    disabled={isSubmitting}
+                    className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
+                  >
+                    Leave
+                  </Button>
+                </div>
+              </div>
             ) : (
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
@@ -215,15 +290,28 @@ export function SessionQueueLiveBoard({
                     {myPosition && myPosition <= 4 ? " · up next" : " in line"}
                   </span>
                 </p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setShowLeaveConfirm(true)}
-                  disabled={isSubmitting}
-                  className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
-                >
-                  Leave
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleBreak(true)}
+                    disabled={isSubmitting}
+                    title="Skip games until you're back, without losing your place"
+                    className="h-11 px-3 font-semibold cursor-pointer"
+                  >
+                    <Coffee className="h-4 w-4 mr-1.5" />
+                    Take a break
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowLeaveConfirm(true)}
+                    disabled={isSubmitting}
+                    className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
+                  >
+                    Leave
+                  </Button>
+                </div>
               </div>
             )
           ) : (
@@ -355,6 +443,31 @@ export function SessionQueueLiveBoard({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Players on a break: their place is saved, they're skipped until they return */}
+      {onBreak.length > 0 && (
+        <div className="border-t border-slate-100 dark:border-slate-800 px-4 pt-3 pb-4">
+          <h3 className="flex items-center gap-1.5 pb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <Coffee className="h-3.5 w-3.5 text-amber-500" />
+            On a break ({onBreak.length})
+          </h3>
+          <ul className="flex flex-wrap gap-1.5">
+            {onBreak.map((item) => (
+              <li
+                key={item.id}
+                className={`rounded-full border px-2.5 py-1 text-xs ${
+                  item.player_id === currentUserId
+                    ? "border-amber-500/50 text-amber-700 dark:text-amber-300"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                {playerName(item.player)}
+                {item.player_id === currentUserId && " (you)"}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

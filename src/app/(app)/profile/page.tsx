@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/features/auth/api/authActions";
-import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
+import { getPlayerMatchHistory, getPlayerRatingHistory } from "@/features/players/api/playerActions";
 import { ProfileView } from "@/features/players/components/ProfileView";
 import type { Profile } from "@/types";
 
@@ -26,7 +26,10 @@ export default async function ProfilePage() {
     updated_at: new Date().toISOString(),
   };
 
-  const matches = await getPlayerMatchHistory(authData.user.id);
+  const [matches, ratingHistory] = await Promise.all([
+    getPlayerMatchHistory(authData.user.id),
+    getPlayerRatingHistory(authData.user.id),
+  ]);
 
-  return <ProfileView profile={profile} matches={matches} />;
+  return <ProfileView profile={profile} matches={matches} ratingHistory={ratingHistory} />;
 }

@@ -345,7 +345,7 @@ export function CourtCard({
       <footer className="mt-auto px-4 pt-3 pb-4 space-y-2.5">
         {isClosed ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Reopen it from Court setup on the Admin page.
+            {isAdministrator ? "Reopen it from Court setup on the Admin page." : "Not in use right now."}
           </p>
         ) : !isAdministrator ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">

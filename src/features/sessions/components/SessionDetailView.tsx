@@ -388,27 +388,22 @@ export function SessionDetailView({
             {/* Non-Admin Player Check-in / Enter Queue Buttons */}
             {!isSystemAdmin && (
               isCheckedIn ? (
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
-                  <div className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono shadow-xs">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>Checked In</span>
-                  </div>
-                  <a href="#live-queue-station" className="w-full sm:w-auto">
-                    <Button variant="volt" size="default" className="w-full sm:w-auto font-bold text-xs shadow-sm h-11 sm:h-10">
-                      <span>Enter Live Paddle Queue →</span>
-                    </Button>
-                  </a>
+                // Your place in line and break controls live in the queue panel; this is just check-in state.
+                <div className="flex items-center justify-between gap-3 w-full md:w-auto">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    You&apos;re checked in
+                  </p>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="default"
+                    variant="ghost"
                     onClick={() => handleCheckOutPlayer(currentUserId!, "yourself")}
                     disabled={checkingOutPlayerId === currentUserId}
-                    className="w-full sm:w-auto text-xs font-mono font-bold text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 h-11 sm:h-10 cursor-pointer"
-                    title="Check out and leave session"
+                    className="h-11 px-3 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
+                    title="Check out and leave the queue"
                   >
-                    <UserMinus className="h-3.5 w-3.5 mr-1" />
-                    <span>{checkingOutPlayerId === currentUserId ? "Leaving..." : "Check Out"}</span>
+                    <UserMinus className="h-4 w-4 mr-1.5" />
+                    {checkingOutPlayerId === currentUserId ? "Checking out…" : "Check out"}
                   </Button>
                 </div>
               ) : currentStatus === "active" ? (
@@ -1091,7 +1086,8 @@ export function SessionDetailView({
         </div>
 
         {/* Live Queue Station Card */}
-        <div id="live-queue-station" className="scroll-mt-20">
+        {/* Players care most about their place in line, so on phones it comes before the courts. */}
+        <div id="live-queue-station" className={`scroll-mt-20 ${isAdmin ? "" : "order-first lg:order-none"}`}>
           <SessionQueueLiveBoard
             initialQueue={initialQueue}
             sessionId={session.id}
@@ -1101,6 +1097,7 @@ export function SessionDetailView({
             employees={employees}
             isSessionActive={currentStatus === "active"}
             matchingMode={sessionMeta.matchingMode}
+            courts={courts || []}
             onOpenBulkQueue={openAddPlayers}
           />
         </div>

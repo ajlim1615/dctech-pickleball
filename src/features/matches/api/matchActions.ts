@@ -7,6 +7,7 @@ import { callNextUp } from "@/features/queue/api/queueActions";
 import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
 import { describeRule, getWinner } from "@/features/matches/utils/scoring";
 import { parseSessionMetadata } from "@/lib/utils";
+import { calculateRatingChanges, type RatedPlayer } from "@/features/rankings/utils/ratingEngine";
 
 export async function createMatch(params: {
   sessionId: string;
@@ -126,9 +127,14 @@ export async function finalizeMatch(
   // Check if this match belongs to a Casual / Unranked session ([ranked:false])
   const { data: matchRecord } = await supabase
     .from("matches")
-    .select("session_id, court_id, sessions:session_id (description, status)")
+    .select("session_id, court_id, status, sessions:session_id (description, status)")
     .eq("id", matchId)
     .single();
+
+  // A double tap must not record (and re-rate) the same game twice.
+  if (matchRecord && matchRecord.status !== "in_progress") {
+    return { error: "This game was already saved." };
+  }
 
   const isUnranked = Boolean(
     (matchRecord as any)?.sessions?.description?.includes("[ranked:false]")
@@ -170,6 +176,9 @@ export async function finalizeMatch(
         .eq("id", matchRecord.court_id);
     }
   } else {
+    // Read ratings before the game is recorded (the RPC bumps games_played).
+    const ratedTeams = await loadRatedTeams(supabase, matchId);
+
     // Call the database complete_match stored procedure for ranked matches
     const { error } = await supabase.rpc("complete_match", {
       p_match_id: matchId,
@@ -205,6 +214,9 @@ export async function finalizeMatch(
           .eq("id", match.court_id);
       }
     }
+
+    // Ranked games move player ratings and leave a history row per player.
+    await applyRatingChanges(supabase, matchId, ratedTeams, teamAScore, teamBScore, meta.targetPoints);
   }
 
   // Everyone who just played rejoins the back of the line, then the freed court
@@ -284,7 +296,7 @@ async function requeueMatchPlayers(
     matchPlayerIds: playerIds,
     checkedInIds: (checkins || []).map((c) => c.player_id),
     activeQueueIds: (entries || [])
-      .filter((e) => e.status === "waiting" || e.status === "called" || e.status === "playing")
+      .filter((e) => e.status === "waiting" || e.status === "called" || e.status === "playing" || e.status === "on_break")
       .map((e) => e.player_id),
     previousGroupIds,
   });
@@ -358,3 +370,64 @@ export async function getMatchesList(limit = 20) {
 }
 
 export const getMatches = getMatchesList;
+
+type RatedTeams = { teamA: RatedPlayer[]; teamB: RatedPlayer[] };
+
+async function loadRatedTeams(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matchId: string
+): Promise<RatedTeams> {
+  const { data: rows } = await supabase
+    .from("match_players")
+    .select("player_id, team")
+    .eq("match_id", matchId);
+  const teams: RatedTeams = { teamA: [], teamB: [] };
+  if (!rows || rows.length === 0) return teams;
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, skill_rating, games_played")
+    .in("id", rows.map((r) => r.player_id));
+  const byId = new Map((profiles || []).map((p) => [p.id, p]));
+
+  for (const row of rows) {
+    const profile = byId.get(row.player_id);
+    const player: RatedPlayer = {
+      id: row.player_id,
+      rating: Number(profile?.skill_rating ?? 3.0),
+      gamesPlayed: Number(profile?.games_played ?? 0),
+    };
+    (row.team === "team_a" ? teams.teamA : teams.teamB).push(player);
+  }
+  return teams;
+}
+
+async function applyRatingChanges(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matchId: string,
+  { teamA, teamB }: RatedTeams,
+  scoreA: number,
+  scoreB: number,
+  targetPoints: number
+) {
+  const changes = calculateRatingChanges(teamA, teamB, scoreA, scoreB, targetPoints);
+  if (changes.length === 0) return;
+
+  const now = new Date().toISOString();
+  await Promise.all(
+    changes.map((c) =>
+      supabase.from("profiles").update({ skill_rating: c.newRating, updated_at: now }).eq("id", c.playerId)
+    )
+  );
+
+  const { error } = await supabase.from("player_ratings_history").insert(
+    changes.map((c) => ({
+      player_id: c.playerId,
+      match_id: matchId,
+      old_rating: c.oldRating,
+      new_rating: c.newRating,
+      rating_change: c.change,
+    }))
+  );
+  if (error) console.error("Failed to record rating history:", error.message);
+}

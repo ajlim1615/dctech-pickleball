@@ -21,7 +21,7 @@ export async function getQueueForSession(sessionId?: string): Promise<QueueEntry
         skill_rating
       )
     `)
-    .in("status", ["waiting", "called"])
+    .not("status", "in", "(playing,left)") // waiting, called or on_break
     .order("joined_at", { ascending: true });
 
   if (sessionId) {
@@ -75,7 +75,7 @@ export async function joinQueue(params: {
     .select("id")
     .eq("session_id", params.sessionId)
     .eq("player_id", user.id)
-    .in("status", ["waiting", "called"])
+    .not("status", "in", "(playing,left)") // waiting, called or on_break
     .maybeSingle();
 
   if (!existingQueue) {
@@ -110,7 +110,7 @@ export async function joinQueue(params: {
       .select("id")
       .eq("session_id", params.sessionId)
       .eq("player_id", params.partnerId)
-      .in("status", ["waiting", "called"])
+      .not("status", "in", "(playing,left)") // waiting, called or on_break
       .maybeSingle();
 
     if (!existingPartnerQueue) {
@@ -174,7 +174,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     .from("queue_entries")
     .select("player_id")
     .eq("session_id", sessionId)
-    .in("status", ["waiting", "called", "playing"]);
+    .neq("status", "left"); // waiting, called, playing or on_break
 
   const alreadyQueued = new Set(currentEntries?.map((e) => e.player_id) || []);
   const toAdd = validPlayerIds.filter((id) => !alreadyQueued.has(id));
@@ -224,7 +224,7 @@ export async function leaveQueue(sessionId: string) {
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", user.id)
-    .in("status", ["waiting", "called"]);
+    .not("status", "in", "(playing,left)"); // waiting, called or on_break
 
   if (error) {
     return { error: error.message };
@@ -750,4 +750,53 @@ export async function fillOpenCourts(sessionId: string) {
 
   if (filled === 0) return { error: lastError || "No courts could be filled." };
   return { success: true, filled, remainingOpen: openCourts.length - filled };
+}
+
+/**
+ * Puts a player on a break (skipped by "Call next" but keeps their place) or brings
+ * them back. Players change their own entry; admins can change anyone's.
+ */
+export async function setQueueBreak(sessionId: string, onBreak: boolean, playerId?: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in to change your queue status." };
+
+  let targetPlayerId = user.id;
+  if (playerId && playerId !== user.id) {
+    const auth = await requireAdminUser();
+    if (auth.error) return { error: "Only admins can put other players on a break." };
+    targetPlayerId = playerId;
+  }
+
+  const { data: entry } = await supabase
+    .from("queue_entries")
+    .select("id, status")
+    .eq("session_id", sessionId)
+    .eq("player_id", targetPlayerId)
+    .not("status", "in", "(playing,left)")
+    .order("joined_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!entry) {
+    return { error: "You're not in the queue. Check in to join it." };
+  }
+
+  // joined_at is untouched, so coming back keeps the same place in line.
+  const { error } = await supabase
+    .from("queue_entries")
+    .update({ status: onBreak ? "on_break" : "waiting" })
+    .eq("id", entry.id);
+
+  if (error) {
+    return {
+      error: error.message.includes("on_break")
+        ? "Breaks aren't set up yet: apply the queue_on_break database migration."
+        : error.message,
+    };
+  }
+
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/");
+  return { success: true };
 }

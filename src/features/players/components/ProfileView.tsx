@@ -33,15 +33,21 @@ import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
-import type { Profile } from "@/types";
+import type { PlayerRatingHistory, Profile } from "@/types";
+import { RatingTrend } from "@/features/players/components/RatingTrend";
 import { formatMatchScore } from "@/features/matches/utils/scoring";
 
 interface ProfileViewProps {
   profile: Profile;
   matches?: any[];
+  /** Rating after each ranked game, oldest first. */
+  ratingHistory?: PlayerRatingHistory[];
 }
 
-export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
+const NO_HISTORY: PlayerRatingHistory[] = [];
+
+export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY }: ProfileViewProps) {
+  const isSystemAdminProfile = profile.email?.toLowerCase() === "admin@dctechmicro.com";
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url || null);
   const [isUploading, setIsUploading] = useState(false);
@@ -405,7 +411,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                   {profile.full_name || profile.display_name || "DCTECH Employee"}
                 </h1>
-                <Badge variant={profile.role === "admin" ? "volt" : "secondary"} className="text-xs uppercase font-mono">
+                <Badge variant={profile.role === "admin" ? "volt" : "secondary"} className="text-xs capitalize">
                   {profile.email?.toLowerCase() === "admin@dctechmicro.com" ? "System Admin" : profile.role}
                 </Badge>
               </div>
@@ -417,65 +423,12 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
                 </p>
               )}
 
-              <div className="flex items-center gap-2 pt-1">
-                {profile.email?.toLowerCase() === "admin@dctechmicro.com" ? (
-                  <Badge variant="outline" className="text-xs font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30">
-                    🛡️ Non-Playing Administrator
-                  </Badge>
-                ) : (
-                  <>
-                    <Badge variant="default" className="text-xs font-mono">
-                      ★ DUPR {formatRating(profile.skill_rating)}
-                    </Badge>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Verified Employee
-                    </span>
-                  </>
-                )}
-              </div>
+              {isSystemAdminProfile && (
+                <p className="pt-1 text-sm text-amber-700 dark:text-amber-400">Non-playing administrator</p>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="text-xs text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <Camera className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
-              Change Photo
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsChangingPasswordModal(true);
-                setPasswordError(null);
-                setPasswordSuccess(null);
-                setCurrentPassword("");
-                setNewPassword("");
-                setConfirmPassword("");
-              }}
-              className="text-xs text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-mono"
-            >
-              <KeyRound className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
-              Change Password
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="text-xs text-rose-500 dark:text-red-400 hover:bg-rose-50 dark:hover:bg-red-950/40 border-rose-500/30"
-            >
-              <LogOut className="h-3.5 w-3.5 mr-1.5" />
-              {isLoggingOut ? "Signing out..." : "Sign Out"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -790,36 +743,24 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
           </div>
       </Modal>
 
-      {/* Player Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 text-center shadow-xs">
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">GAMES PLAYED</div>
-          <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
-            {profile.games_played}
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 text-center shadow-xs">
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">GAMES WON</div>
-          <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
-            {profile.games_won}
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 text-center shadow-xs">
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">WIN RATE</div>
-          <div className="text-3xl font-extrabold text-emerald-700 dark:text-[#d4e938] mt-1">
-            {winRate}%
-          </div>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 text-center shadow-xs">
-          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">SKILL RATING</div>
-          <div className="text-3xl font-extrabold text-sky-600 dark:text-sky-400 mt-1 font-mono">
-            {formatRating(profile.skill_rating)}
-          </div>
-        </Card>
-      </div>
+      {/* Rating trend and totals */}
+      {!isSystemAdminProfile && (
+        <section aria-label="Your stats" className="grid gap-4 md:grid-cols-[1fr_minmax(0,280px)]">
+          <RatingTrend history={ratingHistory} currentRating={Number(profile.skill_rating || 3)} />
+          <dl className="grid grid-cols-3 md:grid-cols-1 gap-3">
+            {[
+              { label: "Games played", value: String(profile.games_played) },
+              { label: "Wins", value: String(profile.games_won) },
+              { label: "Win rate", value: `${winRate}%` },
+            ].map((s) => (
+              <div key={s.label} className="flex flex-col-reverse rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 px-4 py-3">
+                <dt className="text-xs text-slate-500 dark:text-slate-400">{s.label}</dt>
+                <dd className="font-mono text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       {/* Match History Table */}
       <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-sm">
@@ -827,24 +768,24 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
           <div>
             <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              Recent Match History
+              Recent games
             </CardTitle>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Verified game scores & open-play log
+              Your last games, newest first.
             </p>
           </div>
           <Badge variant="outline" className="font-mono text-xs">
-            {displayMatches.length} Matches Logged
+            {displayMatches.length} games
           </Badge>
         </CardHeader>
 
         <CardContent className="pt-3 divide-y divide-slate-200 dark:divide-slate-800/60">
           {displayMatches.length === 0 ? (
-            <div className="py-8 text-center font-mono text-xs text-slate-400 space-y-2">
+            <div className="py-8 text-center text-xs text-slate-400 space-y-2">
               <Trophy className="h-6 w-6 text-slate-400 dark:text-slate-600 mx-auto" />
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">No Matches Played Yet</p>
+              <p className="text-slate-700 dark:text-slate-300 font-semibold">No games yet</p>
               <p className="text-slate-500 text-[11px]">
-                Check in to an open-play session and record your first match to start tracking your DUPR progress!
+                Check in to a session to play. Your games show up here.
               </p>
             </div>
           ) : (
@@ -852,7 +793,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
               <div key={idx} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold mt-0.5 ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold mt-0.5 ${
                       m.result === "WIN"
                         ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                         : m.result === "LIVE"
@@ -867,24 +808,24 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
                       <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                         {m.court} • {m.format}
                       </span>
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-mono text-slate-600 dark:text-slate-400">
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 text-slate-600 dark:text-slate-400">
                         {m.sessionTitle}
                       </Badge>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
                         {m.date}
                       </span>
                     </div>
 
-                    <div className="text-xs font-mono text-slate-600 dark:text-slate-400 space-y-0.5">
+                    <div className="text-xs text-slate-600 dark:text-slate-400 space-y-0.5">
                       {m.partner && (
                         <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                          <span className="font-semibold text-slate-500 dark:text-slate-400">🤝 Partner:</span>
+                          <span className="text-slate-500 dark:text-slate-400">With</span>
                           <span className="font-bold">{m.partner}</span>
                         </div>
                       )}
                       {m.opponents && (
                         <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                          <span className="font-semibold text-slate-400">⚔️ vs:</span>
+                          <span className="text-slate-500 dark:text-slate-400">vs</span>
                           <span className="font-medium text-slate-700 dark:text-slate-200">{m.opponents}</span>
                         </div>
                       )}
@@ -892,7 +833,7 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
                   </div>
                 </div>
 
-                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800/60 font-mono shrink-0 pl-11 sm:pl-0">
+                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800/60 shrink-0 pl-11 sm:pl-0">
                   <div className="text-base font-black text-slate-900 dark:text-slate-100">
                     {m.score}
                   </div>
@@ -905,6 +846,46 @@ export function ProfileView({ profile, matches = [] }: ProfileViewProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Account */}
+      <section aria-labelledby="account-heading" className="space-y-3">
+        <h2 id="account-heading" className="text-lg font-bold text-slate-900 dark:text-slate-100">Account</h2>
+        <div className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 disabled:opacity-50 cursor-pointer"
+          >
+            <Camera className="h-4 w-4 text-slate-500" />
+            {avatarUrl ? "Change photo" : "Add a photo"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsChangingPasswordModal(true);
+              setPasswordError(null);
+              setPasswordSuccess(null);
+              setCurrentPassword("");
+              setNewPassword("");
+              setConfirmPassword("");
+            }}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
+          >
+            <KeyRound className="h-4 w-4 text-slate-500" />
+            Change password
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50 cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+            {isLoggingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

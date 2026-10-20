@@ -37,8 +37,12 @@ export function useLiveQueue(initialQueue: QueueEntryWithPlayer[] = [], currentU
               );
             }
 
-            // Check if current user is called up!
-            if (currentUserId && updated.player_id === currentUserId && updated.status === "called") {
+            // The current player was just put on a court ("called" is kept for older data).
+            if (
+              currentUserId &&
+              updated.player_id === currentUserId &&
+              (updated.status === "playing" || updated.status === "called")
+            ) {
               setCalledAlert({ courtId: updated.target_court_id });
               if (typeof window !== "undefined" && "vibrate" in navigator) {
                 try {
@@ -60,8 +64,9 @@ export function useLiveQueue(initialQueue: QueueEntryWithPlayer[] = [], currentU
     };
   }, [currentUserId]);
 
+  // Players on a break keep their entry but are not in line.
   const myPosition = currentUserId
-    ? queue.findIndex((q) => q.player_id === currentUserId) + 1
+    ? queue.filter((q) => q.status !== "on_break").findIndex((q) => q.player_id === currentUserId) + 1
     : 0;
 
   return {

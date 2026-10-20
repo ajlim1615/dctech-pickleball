@@ -309,7 +309,7 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
       .from("queue_entries")
       .update({ status: "left" })
       .eq("session_id", sessionId)
-      .in("status", ["waiting", "called", "playing"]);
+      .neq("status", "left"); // waiting, called, playing or on_break
 
     // Unfinished games are not scored
     await supabase
@@ -382,7 +382,7 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     .select("id")
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .in("status", ["waiting", "called", "playing"])
+    .neq("status", "left") // waiting, called, playing or on_break
     .maybeSingle();
 
   if (!existingQueue) {
@@ -438,7 +438,7 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .in("status", ["waiting", "called"]);
+    .not("status", "in", "(playing,left)"); // waiting, called or on_break
 
   if (queueError) {
     console.error("Failed to remove player from queue on check-out:", queueError.message);
