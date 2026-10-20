@@ -471,7 +471,7 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
   const supabase = await createClient();
   const { data: match } = await supabase
     .from("matches")
-    .select("id, session_id, status, team_a_score, team_b_score, sessions:session_id (description)")
+    .select("id, session_id, court_id, status, team_a_score, team_b_score, sessions:session_id (description)")
     .eq("id", matchId)
     .single();
 
@@ -552,7 +552,8 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
     actorRole: "admin",
     subjectIds: [...teamA, ...teamB].map((p) => p.id),
     matchId,
-    details: { from: oldScore, to: { a: scoreA, b: scoreB } },
+    courtId: match.court_id,
+    details: { courtName: await courtName(supabase, match.court_id), from: oldScore, to: { a: scoreA, b: scoreB } },
   });
 
   if (match.session_id) revalidatePath(`/sessions/${match.session_id}`);
