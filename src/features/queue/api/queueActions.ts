@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
-import { requireAdminUser } from "@/lib/security/authGuard";
+import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
+import { canSwapNoShow, pickReplacement } from "@/features/queue/utils/noShow";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -799,4 +800,78 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
+}
+
+/**
+ * Swaps a called player who didn't turn up for the next person in line, before the
+ * first point. The no-show goes on a break at the back of the line.
+ */
+export async function swapNoShow(matchId: string, noShowPlayerId: string) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const supabase = await createClient();
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, session_id, court_id, status, team_a_score, team_b_score")
+    .eq("id", matchId)
+    .single();
+
+  if (!match || match.status !== "in_progress") return { error: "This game is no longer in progress." };
+  if (!canSwapNoShow(Number(match.team_a_score ?? 0), Number(match.team_b_score ?? 0))) {
+    return { error: "Players can only be swapped before the first point." };
+  }
+
+  const { data: matchPlayers } = await supabase
+    .from("match_players")
+    .select("id, player_id")
+    .eq("match_id", matchId);
+  const slot = (matchPlayers || []).find((mp) => mp.player_id === noShowPlayerId);
+  if (!slot) return { error: "That player isn't in this game." };
+
+  const { data: waiting } = await supabase
+    .from("queue_entries")
+    .select("id, player_id, joined_at, player:profiles (email, full_name, display_name)")
+    .eq("session_id", match.session_id)
+    .eq("status", "waiting")
+    .order("joined_at", { ascending: true })
+    .limit(20);
+
+  const candidates = (waiting || []).filter(
+    (w) => !isRootSystemAdmin((w.player as { email?: string | null } | null)?.email)
+  );
+  const replacement = pickReplacement(candidates, (matchPlayers || []).map((mp) => mp.player_id));
+  if (!replacement) return { error: "No one is waiting to swap in." };
+
+  const { error: swapError } = await supabase
+    .from("match_players")
+    .update({ player_id: replacement.player_id })
+    .eq("id", slot.id);
+  if (swapError) return { error: swapError.message };
+
+  const now = new Date().toISOString();
+  await supabase
+    .from("queue_entries")
+    .update({ status: "playing", called_at: now, target_court_id: match.court_id })
+    .eq("id", replacement.id);
+
+  // The no-show keeps a spot but is skipped until they tap "I'm back".
+  await supabase
+    .from("queue_entries")
+    .update({ status: "on_break", joined_at: now, target_court_id: null })
+    .eq("session_id", match.session_id)
+    .eq("player_id", noShowPlayerId)
+    .eq("status", "playing");
+
+  revalidatePath(`/sessions/${match.session_id}`);
+  revalidatePath(`/courts/${match.court_id}/monitor`);
+  revalidatePath("/");
+
+  const replacementProfile = candidates.find((c) => c.id === replacement.id)?.player as
+    | { full_name?: string | null; display_name?: string | null }
+    | null;
+  return {
+    success: true as const,
+    replacementName: replacementProfile?.full_name || replacementProfile?.display_name || "The next player",
+  };
 }
