@@ -10,7 +10,8 @@ import { previewMatchupFromPod, type MatchingStyle } from "@/features/queue/util
 import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
-import type { ActiveCourtView, QueueEntryWithPlayer, Profile } from "@/types";
+import type { ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
+import { WaitCard } from "@/features/activity/components/WaitCard";
 
 interface SessionQueueLiveBoardProps {
   initialQueue?: QueueEntryWithPlayer[];
@@ -25,6 +26,8 @@ interface SessionQueueLiveBoardProps {
   matchingMode?: MatchingStyle;
   /** Courts in this session, to name the court in "You're up" and spot a player who is on court. */
   courts?: ActiveCourtView[];
+  /** Session activity for the "Why the wait?" card. */
+  activity?: { events: SessionEvent[]; names: Record<string, string>; avgGameMinutes: number | null };
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -60,6 +63,7 @@ export function SessionQueueLiveBoard({
   readOnly = false,
   matchingMode = "balanced",
   courts = EMPTY_COURTS,
+  activity,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -312,6 +316,18 @@ export function SessionQueueLiveBoard({
                     Leave
                   </Button>
                 </div>
+                {activity && currentUserId && (
+                  <div className="basis-full">
+                    <WaitCard
+                      position={myPosition}
+                      courtsInPlay={courts.filter((c) => c.status === "occupied").length}
+                      avgGameMinutes={activity.avgGameMinutes}
+                      events={activity.events}
+                      names={activity.names}
+                      viewerId={currentUserId}
+                    />
+                  </div>
+                )}
               </div>
             )
           ) : (

@@ -44,7 +44,9 @@ import {
 import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
 import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
-import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile } from "@/types";
+import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
+import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
+import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
 
 interface SessionDetailViewProps {
@@ -59,9 +61,13 @@ interface SessionDetailViewProps {
   employees?: Profile[];
   /** People who said they're going (upcoming sessions). */
   rsvps?: { playerId: string; name: string }[];
+  /** Session activity, newest first, and the average game length so far. */
+  initialEvents?: SessionEvent[];
+  avgGameMinutes?: number | null;
 }
 
 const NO_RSVPS: { playerId: string; name: string }[] = [];
+const NO_EVENTS: SessionEvent[] = [];
 
 // Stable default: it is passed down to useLiveQueue, whose sync effect would
 // loop on a fresh [] every render.
@@ -78,7 +84,22 @@ export function SessionDetailView({
   initialQueue = EMPTY_QUEUE,
   employees = [],
   rsvps = NO_RSVPS,
+  initialEvents = NO_EVENTS,
+  avgGameMinutes = null,
 }: SessionDetailViewProps) {
+  const events = useLiveFeed(session.id, initialEvents);
+  // Names for the activity feed: everyone the page knows about.
+  const activityNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    const add = (p?: { id?: string; full_name?: string | null; display_name?: string | null } | null) => {
+      if (p?.id) map[p.id] = p.full_name || p.display_name || map[p.id] || "A player";
+    };
+    employees.forEach(add);
+    (session.checkins || []).forEach((c: { player?: Profile }) => add(c.player));
+    initialQueue.forEach((q) => add(q.player));
+    (courts || []).forEach((c) => c.current_match?.players?.forEach((p) => add(p.profile)));
+    return map;
+  }, [employees, session.checkins, initialQueue, courts]);
   const iAmGoing = Boolean(currentUserId && rsvps.some((r) => r.playerId === currentUserId));
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -1139,9 +1160,12 @@ export function SessionDetailView({
             matchingMode={sessionMeta.matchingMode}
             courts={courts || []}
             onOpenBulkQueue={openAddPlayers}
+            activity={{ events, names: activityNames, avgGameMinutes }}
           />
         </div>
       </div>
+
+      <ActivityFeed events={events} names={activityNames} viewerId={currentUserId} />
 
       {/* Session Leaderboard & Match Logs */}
       <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
