@@ -77,3 +77,23 @@ export function calculateRatingChanges(
 
   return [...teamA.map((p) => change(p, deltaA)), ...teamB.map((p) => change(p, -deltaA))];
 }
+
+/**
+ * What changes when a saved ranked game is corrected. Ratings are recomputed from
+ * each player's rating before the game (`rating`); `delta` is what to add to their
+ * current rating. Later games are not replayed.
+ */
+export function correctionDeltas(
+  teamA: RatedPlayer[],
+  teamB: RatedPlayer[],
+  newScoreA: number,
+  newScoreB: number,
+  targetPoints: number,
+  oldChanges: Record<string, number>
+): { playerId: string; newChange: number; delta: number }[] {
+  return calculateRatingChanges(teamA, teamB, newScoreA, newScoreB, targetPoints).map((c) => ({
+    playerId: c.playerId,
+    newChange: c.change,
+    delta: round2(c.change - (oldChanges[c.playerId] ?? 0)),
+  }));
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateRatingChanges,
+  correctionDeltas,
   expectedScore,
   RATING_MAX,
   RATING_MIN,
@@ -56,5 +57,33 @@ describe("calculateRatingChanges", () => {
   it("returns nothing for an empty team or a tie", () => {
     expect(calculateRatingChanges([], [p("b", 3)], 11, 5, 11)).toEqual([]);
     expect(calculateRatingChanges([p("a", 3)], [p("b", 3)], 5, 5, 11)).toEqual([]);
+  });
+});
+
+describe("correctionDeltas", () => {
+  const teamA = [p("a", 3.5), p("a2", 3.5)];
+  const teamB = [p("b", 3.5), p("b2", 3.5)];
+  const original = calculateRatingChanges(teamA, teamB, 11, 9, 11);
+  const oldChanges = Object.fromEntries(original.map((c) => [c.playerId, c.change]));
+
+  it("flipping the winner reverses and re-applies the change", () => {
+    const deltas = Object.fromEntries(
+      correctionDeltas(teamA, teamB, 9, 11, 11, oldChanges).map((d) => [d.playerId, d.delta])
+    );
+    expect(deltas.a).toBeLessThan(0);
+    expect(deltas.b).toBeGreaterThan(0);
+    expect(deltas.a).toBeCloseTo(-deltas.b, 2);
+  });
+
+  it("same score gives zero deltas", () => {
+    for (const d of correctionDeltas(teamA, teamB, 11, 9, 11, oldChanges)) {
+      expect(d.delta).toBe(0);
+    }
+  });
+
+  it("missing old change counts as zero", () => {
+    for (const d of correctionDeltas(teamA, teamB, 11, 9, 11, {})) {
+      expect(d.delta).toBe(d.newChange);
+    }
   });
 });
