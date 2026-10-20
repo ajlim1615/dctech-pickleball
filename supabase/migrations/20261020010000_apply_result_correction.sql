@@ -69,4 +69,6 @@ begin
 end;
 $$;
 
+-- Signed-in users only (the function itself also requires an admin).
+revoke execute on function public.apply_result_correction(uuid, integer, integer, integer, integer, public.winning_team, jsonb, jsonb) from public, anon;
 grant execute on function public.apply_result_correction(uuid, integer, integer, integer, integer, public.winning_team, jsonb, jsonb) to authenticated;
