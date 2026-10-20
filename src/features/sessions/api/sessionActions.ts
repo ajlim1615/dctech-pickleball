@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parsePHTToISO } from "@/lib/timezone";
+import { logSessionEvent } from "@/features/activity/server/logEvent";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -302,6 +303,15 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 
   if (error) return { error: error.message };
 
+  if (status === "active" || status === "completed") {
+    await logSessionEvent(supabase, {
+      sessionId,
+      type: status === "active" ? "session_started" : "session_ended",
+      actorId: auth.context!.userId,
+      actorRole: "admin",
+    });
+  }
+
   // If completing or cancelling a session, clear its active queue and free courts
   if (status === "completed" || status === "cancelled") {
     // Clear lingering queue entries, including players still on court
@@ -376,6 +386,17 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
 
   if (error) return { error: error.message };
 
+  const { data: { user: caller } } = await supabase.auth.getUser();
+  if (caller) {
+    await logSessionEvent(supabase, {
+      sessionId,
+      type: "checked_in",
+      actorId: caller.id,
+      actorRole: caller.id === targetPlayerId ? "self" : "admin",
+      subjectIds: [targetPlayerId],
+    });
+  }
+
   // Also auto-enter the waiting queue if not already queued
   const { data: existingQueue } = await supabase
     .from("queue_entries")
@@ -431,6 +452,14 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
   if (checkinError) {
     return { error: checkinError.message };
   }
+
+  await logSessionEvent(supabase, {
+    sessionId,
+    type: "checked_out",
+    actorId: user.id,
+    actorRole: targetPlayerId === user.id ? "self" : "admin",
+    subjectIds: [targetPlayerId],
+  });
 
   // 2. Automatically remove player from the active queue so they are not matched or called
   const { error: queueError } = await supabase
