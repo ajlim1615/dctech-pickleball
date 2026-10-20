@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canSwapNoShow, pickReplacement } from "@/features/queue/utils/noShow";
+import { canSwapNoShow, claimFirstAvailable, pickReplacement } from "@/features/queue/utils/noShow";
 
 const entry = (id: string, player_id: string, minute: number) => ({
   id,
@@ -29,5 +29,17 @@ describe("pickReplacement", () => {
   it("returns null when nobody is waiting", () => {
     expect(pickReplacement([], [])).toBeNull();
     expect(pickReplacement([entry("q1", "p1", 1)], ["p1"])).toBeNull();
+  });
+});
+
+describe("claimFirstAvailable", () => {
+  it("returns the first candidate whose claim succeeds", async () => {
+    const taken = new Set(["q1"]); // already claimed by another court or admin
+    const claimed = await claimFirstAvailable(["q1", "q2", "q3"], async (id) => !taken.has(id));
+    expect(claimed).toBe("q2");
+  });
+
+  it("returns null when every claim fails", async () => {
+    expect(await claimFirstAvailable(["q1", "q2"], async () => false)).toBeNull();
   });
 });

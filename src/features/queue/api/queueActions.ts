@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
 import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
-import { canSwapNoShow, pickReplacement } from "@/features/queue/utils/noShow";
+import { canSwapNoShow, claimFirstAvailable, pickReplacement } from "@/features/queue/utils/noShow";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -840,20 +840,41 @@ export async function swapNoShow(matchId: string, noShowPlayerId: string) {
   const candidates = (waiting || []).filter(
     (w) => !isRootSystemAdmin((w.player as { email?: string | null } | null)?.email)
   );
-  const replacement = pickReplacement(candidates, (matchPlayers || []).map((mp) => mp.player_id));
+  // Claim the replacement only if they're still waiting, so another court or admin
+  // calling them at the same moment can't put them in two games.
+  const now = new Date().toISOString();
+  const inMatch = (matchPlayers || []).map((mp) => mp.player_id);
+  const ordered: { id: string; player_id: string }[] = [];
+  let remaining = candidates;
+  for (let next = pickReplacement(remaining, inMatch); next; next = pickReplacement(remaining, inMatch)) {
+    ordered.push(next);
+    remaining = remaining.filter((c) => c.id !== next!.id);
+  }
+  const replacement = await claimFirstAvailable(ordered, async (c) => {
+    const { data } = await supabase
+      .from("queue_entries")
+      .update({ status: "playing", called_at: now, target_court_id: match.court_id })
+      .eq("id", c.id)
+      .eq("status", "waiting")
+      .select("id");
+    return Boolean(data && data.length > 0);
+  });
   if (!replacement) return { error: "No one is waiting to swap in." };
 
-  const { error: swapError } = await supabase
+  // Only swap if the no-show is still in that slot (another admin may have swapped first).
+  const { data: swapped, error: swapError } = await supabase
     .from("match_players")
     .update({ player_id: replacement.player_id })
-    .eq("id", slot.id);
-  if (swapError) return { error: swapError.message };
-
-  const now = new Date().toISOString();
-  await supabase
-    .from("queue_entries")
-    .update({ status: "playing", called_at: now, target_court_id: match.court_id })
-    .eq("id", replacement.id);
+    .eq("id", slot.id)
+    .eq("player_id", noShowPlayerId)
+    .select("id");
+  if (swapError || !swapped || swapped.length === 0) {
+    await supabase
+      .from("queue_entries")
+      .update({ status: "waiting", called_at: null, target_court_id: null })
+      .eq("id", replacement.id);
+    return { error: swapError?.message || "Someone already changed this game. Reload and try again." };
+  }
 
   // The no-show keeps a spot but is skipped until they tap "I'm back".
   await supabase
