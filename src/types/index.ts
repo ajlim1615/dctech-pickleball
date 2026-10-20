@@ -24,3 +24,8 @@ export interface QueueEntryWithPlayer extends QueueEntry {
   player: Profile;
 }
 
+
+/** A session activity event as players can read it (no actor id). */
+export type SessionEvent = Omit<Database["public"]["Tables"]["session_events"]["Row"], "actor_id">;
+/** An event in the admin audit view, with the acting person's name. */
+export type AdminAuditEvent = Database["public"]["Functions"]["get_admin_audit"]["Returns"][number];

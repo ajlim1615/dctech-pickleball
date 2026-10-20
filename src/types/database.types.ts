@@ -15,6 +15,27 @@ export type MatchFormat = "singles" | "doubles";
 export type MatchType = "open_play" | "challenge" | "tournament";
 export type MatchStatus = "pending" | "in_progress" | "completed" | "abandoned";
 export type WinningTeam = "team_a" | "team_b" | "tie";
+
+export type SessionEventType =
+  | "session_started"
+  | "session_ended"
+  | "checked_in"
+  | "checked_out"
+  | "joined_queue"
+  | "left_queue"
+  | "players_added"
+  | "break_started"
+  | "break_ended"
+  | "moved_in_queue"
+  | "removed_from_queue"
+  | "players_swapped"
+  | "game_started"
+  | "game_result"
+  | "result_corrected"
+  | "no_show_swapped"
+  | "court_closed"
+  | "court_reopened";
+export type SessionEventActorRole = "self" | "admin" | "system";
 export type MatchTeam = "team_a" | "team_b";
 
 export interface Database {
@@ -167,6 +188,36 @@ export interface Database {
           status?: CheckinStatus;
           checkin_time?: string;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      session_events: {
+        Row: {
+          id: string;
+          session_id: string | null;
+          type: SessionEventType;
+          actor_id: string | null;
+          actor_role: SessionEventActorRole;
+          subject_ids: string[];
+          court_id: string | null;
+          match_id: string | null;
+          details: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id?: string | null;
+          type: SessionEventType;
+          actor_id?: string | null;
+          actor_role: SessionEventActorRole;
+          subject_ids?: string[];
+          court_id?: string | null;
+          match_id?: string | null;
+          details?: Json;
+          created_at?: string;
+        };
+        Update: {
+          details?: Json;
         };
         Relationships: [];
       };
@@ -364,6 +415,26 @@ export interface Database {
           p_recorded_by?: string;
         };
         Returns: Json;
+      };
+      get_admin_audit: {
+        Args: {
+          p_session_id?: string | null;
+          p_types?: string[] | null;
+          p_limit?: number;
+        };
+        Returns: {
+          id: string;
+          session_id: string | null;
+          session_title: string | null;
+          type: SessionEventType;
+          actor_name: string | null;
+          actor_role: SessionEventActorRole;
+          subject_ids: string[];
+          court_id: string | null;
+          match_id: string | null;
+          details: Json;
+          created_at: string;
+        }[];
       };
       apply_result_correction: {
         Args: {
