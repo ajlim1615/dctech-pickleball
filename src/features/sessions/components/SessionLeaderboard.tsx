@@ -22,13 +22,17 @@ import { formatRating } from "@/lib/utils";
 import { formatPHTTime } from "@/lib/timezone";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
-import { isResultOnlyScore } from "@/features/matches/utils/scoring";
+import { isResultOnlyScore, type ScoringRule } from "@/features/matches/utils/scoring";
+import { EditResultModal, type EditableMatch } from "@/features/matches/components/EditResultModal";
 
 interface SessionLeaderboardProps {
   initialRankings?: SessionRankedPlayer[];
   matches?: any[];
   sessionTitle?: string;
   isSessionActive?: boolean;
+  /** Admins can correct finished games. */
+  isAdmin?: boolean;
+  rule?: ScoringRule;
 }
 
 type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff";
@@ -39,7 +43,10 @@ export function SessionLeaderboard({
   matches = [],
   sessionTitle = "Session",
   isSessionActive = false,
+  isAdmin = false,
+  rule = { targetPoints: 11, winByTwo: true },
 }: SessionLeaderboardProps) {
+  const [editing, setEditing] = useState<EditableMatch | null>(null);
   const [activeTab, setActiveTab] = useState<"standings" | "matches">("standings");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("rank");
@@ -436,6 +443,28 @@ export function SessionLeaderboard({
                         {teamBWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 2 Victory</span>}
                       </div>
                     )}
+
+                    {isAdmin && isCompleted && (
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setEditing({
+                              id: m.id,
+                              team_a_score: Number(m.team_a_score ?? 0),
+                              team_b_score: Number(m.team_b_score ?? 0),
+                              teamA: teamAPlayers,
+                              teamB: teamBPlayers,
+                            })
+                          }
+                          className="h-11 px-3 font-sans text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                        >
+                          Fix result
+                        </Button>
+                      </div>
+                    )}
                   </Card>
                 );
               })}
@@ -443,6 +472,8 @@ export function SessionLeaderboard({
           )}
         </div>
       )}
+
+      {editing && <EditResultModal match={editing} rule={rule} onClose={() => setEditing(null)} />}
 
       {/* Share Leaderboard Modal */}
       <ShareLeaderboardModal

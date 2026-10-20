@@ -1110,6 +1110,8 @@ export function SessionDetailView({
           matches={initialMatches}
           sessionTitle={session.title}
           isSessionActive={currentStatus === "active"}
+          isAdmin={isAdmin}
+          rule={{ targetPoints: sessionMeta.targetPoints, winByTwo: sessionMeta.winByTwo, trackScores: sessionMeta.trackScores }}
         />
       </div>
     </div>

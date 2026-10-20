@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { finalizeMatch } from "@/features/matches/api/matchActions";
-import { callNextUp } from "@/features/queue/api/queueActions";
+import { callNextUp, swapNoShow } from "@/features/queue/api/queueActions";
+import { canSwapNoShow } from "@/features/queue/utils/noShow";
 import {
   describeRule,
   getWinner,
@@ -78,6 +79,7 @@ export function CourtCard({
   };
   // Win/loss-only sessions: the team the admin tapped, waiting for confirmation.
   const [pendingWinner, setPendingWinner] = useState<ScoringTeam | null>(null);
+  const [showNoShow, setShowNoShow] = useState(false);
 
   const activeMatch = court.current_match;
   const isExistingLiveMatch = Boolean(
@@ -119,6 +121,29 @@ export function CourtCard({
     isExistingLiveMatch &&
     activeTeamAPlayers.length > 0 &&
     activeTeamBPlayers.length > 0;
+
+  // Before the first point an admin can swap out someone who never showed up.
+  const canReportNoShow = Boolean(
+    isAdministrator && hasPlayersOnCourt && activeMatch && !pendingWinner && canSwapNoShow(scoreA, scoreB)
+  );
+
+  function handleNoShow(player: Profile) {
+    if (!activeMatch || isPending) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    startTransition(async () => {
+      const res = await swapNoShow(activeMatch.id, player.id);
+      if (res?.error) {
+        setErrorMessage(res.error);
+      } else {
+        setShowNoShow(false);
+        setSuccessMessage(
+          `${res.replacementName} is in. ${player.full_name || player.display_name || "The no-show"} is on a break.`
+        );
+        router.refresh();
+      }
+    });
+  }
 
   function incrementScore(team: "A" | "B") {
     if (!isAdministrator) return;
@@ -255,6 +280,17 @@ export function CourtCard({
           />
         </div>
         {isAdministrator && !isClosed && (
+          <div className="flex items-center">
+          {canReportNoShow && (
+            <button
+              type="button"
+              onClick={() => setShowNoShow((v) => !v)}
+              aria-expanded={showNoShow}
+              className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+            >
+              No-show?
+            </button>
+          )}
           <Link
             href={`/courts/${court.id}/monitor`}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
@@ -263,8 +299,32 @@ export function CourtCard({
             <ShieldCheck className="h-4 w-4" />
             <span className="hidden sm:inline">Umpire</span>
           </Link>
+          </div>
         )}
       </header>
+
+      {/* Who didn't show? The next person in line takes their place. */}
+      {canReportNoShow && showNoShow && (
+        <div className="mx-4 mb-3 rounded-xl border border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Who didn&apos;t show?</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[...activeTeamAPlayers, ...activeTeamBPlayers].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleNoShow(p)}
+                disabled={isPending}
+                className="h-11 truncate rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-left text-sm font-medium text-slate-900 dark:text-slate-100 hover:border-amber-500 disabled:opacity-50 cursor-pointer"
+              >
+                {p.full_name || p.display_name || "Player"}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            The next person in line takes their place. They go on a break until they check back in.
+          </p>
+        </div>
+      )}
 
       {/* The court itself, seen from above: Team 1 | net | Team 2 */}
       <div className="px-4">
