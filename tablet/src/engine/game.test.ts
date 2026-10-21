@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkIn, suggestGame, startGame, finishGame, correctResult, refillCourts, activeGameOnCourt } from "./game";
+import { checkIn, suggestGame, startGame, finishGame, correctResult, refillCourts, activeGameOnCourt, suggestAll } from "./game";
 import { sessionLeaderboard } from "./leaderboard";
 import { makeCtx, makeState } from "./fixtures";
 import { isEngineError, type SessionState } from "./types";
@@ -107,6 +107,21 @@ describe("game cycle", () => {
     s = ok(finishGame(s, activeGameOnCourt(s, "c1")!.id, { scoreA: 11, scoreB: 2 }, ctx));
     const next = activeGameOnCourt(s, "c1")!;
     expect(next.teamA.filter((id) => id === "p1" || id === "p4")).toHaveLength(1);
+  });
+
+  it("suggestAll gives each free court different players", () => {
+    const s = checkIn(makeState(), ids(9), makeCtx());
+    const suggestions = suggestAll(s);
+    const c1 = suggestions.c1;
+    const c2 = suggestions.c2;
+    if ("waitingFor" in c1 || "waitingFor" in c2) throw new Error("expected two suggestions");
+    const all = [...c1.teamA, ...c1.teamB, ...c2.teamA, ...c2.teamB];
+    expect(new Set(all).size).toBe(8);
+  });
+
+  it("suggestAll says how many more are needed once the line runs out", () => {
+    const s = checkIn(makeState(), ids(6), makeCtx());
+    expect(suggestAll(s).c2).toEqual({ waitingFor: 2 });
   });
 
   it("refillCourts never puts one player on two courts", () => {

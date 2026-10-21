@@ -99,6 +99,31 @@ export function suggestGame(
   return buildTeams(pod.challengers, pod.stayingWinners, style, random, winnersInPod.length === 2 ? winnersInPod : []);
 }
 
+/**
+ * What each open, free court would get next, in court order. Players shown on one court
+ * aren't offered to the next, so the suggestions never overlap.
+ */
+export function suggestAll(
+  state: SessionState,
+  random?: (courtId: string) => () => number
+): Record<string, Teams | { waitingFor: number }> {
+  const result: Record<string, Teams | { waitingFor: number }> = {};
+  let view = state;
+  for (const court of state.session.courts) {
+    if (court.closed || activeGameOnCourt(state, court.id)) continue;
+    const suggestion = suggestGame(view, court.id, random?.(court.id));
+    result[court.id] = suggestion;
+    if ("teamA" in suggestion) {
+      const taken = [...suggestion.teamA, ...suggestion.teamB];
+      view = {
+        ...view,
+        queue: view.queue.map((q) => (taken.includes(q.playerId) ? { ...q, status: "playing" } : q)),
+      };
+    }
+  }
+  return result;
+}
+
 export function startGame(state: SessionState, courtId: string, teams: Teams, ctx: EngineCtx): SessionState | EngineError {
   const court = state.session.courts.find((c) => c.id === courtId);
   if (!court) return { error: "That court doesn't exist." };
