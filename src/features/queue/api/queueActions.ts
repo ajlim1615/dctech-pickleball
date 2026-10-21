@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
-import { createMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import { buildTeams, selectPod } from "@/features/queue/utils/podSelection";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -605,75 +606,16 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     return { error: "No waiting players currently in queue." };
   }
 
-  // In King of the Court / Winners Stay, the 2 previous winners stay on court and only
-  // 2 new challengers are called. Winners are re-queued after each match, so they only
-  // stay if both are still present in this session's waiting line.
-  const winnerIds = new Set(previousWinners.map((p) => p.id));
-  const winnerEntries = allWaitingEntries.filter((w) => winnerIds.has(w.player_id));
-  const isWinnersStay =
-    (matchingStyle === "winners_stay" || matchingStyle === "king_queen") &&
-    previousWinners.length === 2 &&
-    winnerEntries.length === 2;
-  const targetCount = isWinnersStay ? 2 : count;
-  const waitingEntries = isWinnersStay
-    ? allWaitingEntries.filter((w) => !winnerIds.has(w.player_id))
-    : allWaitingEntries;
-
-  if (waitingEntries.length < targetCount) {
-    return {
-      error: `Need ${targetCount} waiting players to start a game (only ${waitingEntries.length} in queue).`,
-    };
-  }
-
-  // 4. Select pod with Pair-Protection & Skill-Separation
-  let selectedEntries: typeof waitingEntries = [];
-
-  if (waitingEntries.length <= targetCount) {
-    selectedEntries = [...waitingEntries];
-  } else if (
-    (matchingStyle === "skill_separated" || matchingStyle === "skill_courts") &&
-    waitingEntries.length >= 6
-  ) {
-    // Skill-separated: Anchor to the first in line (FIFO), then find the players closest in skill
-    const anchor = waitingEntries[0];
-    const anchorRating = Number((anchor.player as any)?.skill_rating || 3.0);
-    const rest = waitingEntries.slice(1);
-    rest.sort((a, b) => {
-      const diffA = Math.abs(Number((a.player as any)?.skill_rating || 3.0) - anchorRating);
-      const diffB = Math.abs(Number((b.player as any)?.skill_rating || 3.0) - anchorRating);
-      return diffA - diffB;
-    });
-    selectedEntries = [anchor, ...rest.slice(0, targetCount - 1)];
-  } else {
-    // FIFO with Bonded-Pair Protection (Never split doubles partners across rack boundary)
-    const candidates = waitingEntries.slice(0, targetCount);
-    if (targetCount === 4 && waitingEntries.length > 4) {
-      // Check if the 4th player is the first half of a bonded pair whose partner is at index 4 (5th in line)
-      const p4 = candidates[3];
-      if (p4.group_id) {
-        const partnerIndex = waitingEntries.findIndex(
-          (w, idx) => idx >= 4 && w.group_id === p4.group_id
-        );
-        if (partnerIndex !== -1) {
-          // Find an unbonded solo player in candidates to defer so the pair stays together
-          const soloIdx = candidates.findIndex((c) => !c.group_id);
-          if (soloIdx !== -1) {
-            // Replace the solo player with the partner
-            candidates[soloIdx] = waitingEntries[partnerIndex];
-          }
-        }
-      }
-    }
-    selectedEntries = candidates;
-  }
-
-  const entryIds = [
-    ...selectedEntries.map((e) => e.id),
-    ...(isWinnersStay ? winnerEntries.map((e) => e.id) : []),
-  ];
-  const challengerProfiles: Profile[] = selectedEntries.map(
-    (e) => ((e.player || e) as unknown) as Profile
+  // 4. Pick the pod (winners stay, skill separation, bonded pairs) and split the teams
+  const pod = selectPod(
+    allWaitingEntries.map((e) => ({ ...e, player: e.player as unknown as Profile })),
+    matchingStyle,
+    previousWinners.map((p) => p.id)
   );
+  if ("error" in pod) {
+    return { error: pod.error };
+  }
+  const entryIds = [...pod.challengers, ...pod.stayingWinners].map((e) => e.id);
 
   // 5. Mark selected queue entries as playing
   await supabase
@@ -685,46 +627,7 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     })
     .in("id", entryIds);
 
-  let teamA: string[] = [];
-  let teamB: string[] = [];
-
-  if (isWinnersStay && previousWinners.length === 2 && challengerProfiles.length >= 2) {
-    // Winners Stay: Split the 2 previous winners, each partnered with 1 challenger
-    const fullPod = [...previousWinners, ...challengerProfiles];
-    const matchup = createMatchupFromPod(fullPod, matchingStyle, previousWinners);
-    teamA = matchup.teamA.map((p) => p.id);
-    teamB = matchup.teamB.map((p) => p.id);
-  } else if (challengerProfiles.length >= 4) {
-    // Check if there is a locked paired group (Coworker doubles pair)
-    const groups: { [gid: string]: string[] } = {};
-    selectedEntries.forEach((p) => {
-      if (p.group_id) {
-        groups[p.group_id] = groups[p.group_id] || [];
-        groups[p.group_id].push(p.player_id);
-      }
-    });
-
-    const pairedGroup = Object.values(groups).find((g) => g.length === 2);
-
-    if (pairedGroup) {
-      teamA = pairedGroup;
-      teamB = selectedEntries
-        .filter((p) => !teamA.includes(p.player_id))
-        .map((p) => p.player_id)
-        .slice(0, 2);
-    } else {
-      // Execute the algorithm for the assigned MatchingStyle
-      const matchup = createMatchupFromPod(challengerProfiles, matchingStyle, previousWinners);
-      teamA = matchup.teamA.map((p) => p.id);
-      teamB = matchup.teamB.map((p) => p.id);
-    }
-  } else if (challengerProfiles.length === 2) {
-    teamA = [challengerProfiles[0].id];
-    teamB = [challengerProfiles[1].id];
-  } else {
-    teamA = [challengerProfiles[0]?.id].filter(Boolean);
-    teamB = challengerProfiles.slice(1).map((p) => p.id);
-  }
+  const { teamA, teamB } = buildTeams(pod.challengers, pod.stayingWinners, matchingStyle);
 
   // 6. Create Match and assign to court
   // Void any previous orphaned in_progress matches on this court

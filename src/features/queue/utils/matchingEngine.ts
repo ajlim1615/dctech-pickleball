@@ -1,4 +1,10 @@
-import type { Profile } from "@/types";
+/** The fields matchmaking needs. Profiles from the online app and tablet players both fit. */
+export interface MatchPlayer {
+  id: string;
+  skill_rating?: number | null;
+  full_name?: string | null;
+  display_name?: string | null;
+}
 
 export type MatchingStyle =
   | "balanced"
@@ -12,9 +18,9 @@ export type MatchingStyle =
   | "fifo"
   | "winners_stay";
 
-export interface TeamMatchup {
-  teamA: Profile[];
-  teamB: Profile[];
+export interface TeamMatchup<P extends MatchPlayer = MatchPlayer> {
+  teamA: P[];
+  teamB: P[];
   teamARatingAvg: number;
   teamBRatingAvg: number;
   ratingDelta: number;
@@ -51,23 +57,23 @@ export function seededRandom(seed: string): () => number {
  * Render-safe matchup preview: shuffled styles use a PRNG seeded by `seed` (e.g. the
  * queue entry ids), so server and client agree. Real matchmaking (callNextUp) stays random.
  */
-export function previewMatchupFromPod(
-  players: Profile[],
+export function previewMatchupFromPod<P extends MatchPlayer>(
+  players: P[],
   style: MatchingStyle,
   seed: string
-): TeamMatchup {
+): TeamMatchup<P> {
   return createMatchupFromPod(players, style, [], { random: seededRandom(seed) });
 }
 
 /**
  * Creates a balanced 2v2 pickleball matchup from 4 players based on the selected matching style.
  */
-export function createMatchupFromPod(
-  players: Profile[],
+export function createMatchupFromPod<P extends MatchPlayer>(
+  players: P[],
   style: MatchingStyle = "balanced",
-  previousWinners: Profile[] = [],
+  previousWinners: P[] = [],
   { random = Math.random }: MatchupOptions = {}
-): TeamMatchup {
+): TeamMatchup<P> {
   if (players.length === 0) {
     return {
       teamA: [],
@@ -80,8 +86,8 @@ export function createMatchupFromPod(
     };
   }
 
-  let teamA: Profile[] = [];
-  let teamB: Profile[] = [];
+  let teamA: P[] = [];
+  let teamB: P[] = [];
 
   if (players.length < 4) {
     // Partial pod (e.g. 2 or 3 players)
