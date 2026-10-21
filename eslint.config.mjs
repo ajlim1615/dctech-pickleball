@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Offline tablet app has its own toolchain.
+    "tablet/**",
   ]),
 ]);
 

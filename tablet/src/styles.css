@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* Same tokens as the web app's dark theme, which is where the volt accent lives. */
+:root {
+  --background: #090d14;
+  --foreground: #f1f5f9;
+  --card: #111726;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #1e293b;
+  --destructive: #ef4444;
+  --court-lime: #d4e938;
+  --court-emerald: #10b981;
+  --court-amber: #f59e0b;
+  --court-sky: #0ea5e9;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-volt: var(--court-lime);
+  --color-team1: var(--court-emerald);
+  --color-team2: var(--court-sky);
+  --color-amber: var(--court-amber);
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
