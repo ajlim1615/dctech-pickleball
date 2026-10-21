@@ -9,10 +9,11 @@ import { PlayerForm } from "../components/PlayerForm";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { ResultSheet } from "../components/ResultSheet";
 import { UndoBar } from "../components/UndoBar";
-import { loadSessionState, saveSessionState, upsertPlayer, UndoStack } from "../db/repo";
+import { loadSessionState, saveSessionState, upsertPlayer } from "../db/repo";
+import { createBoardController, type BoardController, type EngineStep } from "../lib/boardController";
 import { activeGameOnCourt, checkIn, finishGame, startGame, suggestAll, waitingLine, type Teams } from "../engine/game";
 import { endSession, markLeft, moveInQueue, setBreak, setCourtClosed, swapPlayerInGame } from "../engine/queue";
-import { isEngineError, type DeskPlayer, type EngineError, type SessionState } from "../engine/types";
+import type { DeskPlayer, EngineError, SessionState } from "../engine/types";
 import { keepAwake } from "../io/native";
 import { liveCtx, playerName, styleLabel } from "../lib/ctx";
 
@@ -39,11 +40,22 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   const [undoLabel, setUndoLabel] = useState<string | null>(null);
   // Admin's edits to a court's suggested four, until the game starts.
   const [drafts, setDrafts] = useState<Record<string, Teams>>({});
-  const undo = useRef(new UndoStack());
+  const controller = useRef<BoardController | null>(null);
   const now = useMinuteTick();
 
   useEffect(() => {
-    loadSessionState(sessionId).then(setState, () => navigate({ name: "home" }));
+    loadSessionState(sessionId).then((loaded) => {
+      controller.current = createBoardController({
+        initial: loaded,
+        save: saveSessionState,
+        onState: (next) => {
+          setState(next);
+          setUndoLabel(controller.current?.undoLabel() ?? null);
+        },
+        onError: toast,
+      });
+      setState(loaded);
+    }, () => navigate({ name: "home" }));
   }, [sessionId, navigate]);
 
   useEffect(() => {
@@ -53,37 +65,16 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
     };
   }, []);
 
-  /** Runs an engine action, saves it, and offers undo for the ones that need it. */
+  /** Runs an engine action on the latest state, saves it, and offers undo for the ones that need it. */
   const apply = useCallback(
-    async (label: string, fn: (s: SessionState) => SessionState | EngineError, undoable = false) => {
-      if (!state) return null;
-      const next = fn(state);
-      if (isEngineError(next)) {
-        toast(next.error);
-        return null;
-      }
-      try {
-        await saveSessionState(next);
-      } catch {
-        toast("That didn't save. Try again.");
-        return null;
-      }
-      if (undoable) {
-        undo.current.push(label, state);
-        setUndoLabel(label);
-      }
-      setState(next);
-      return next;
-    },
-    [state]
+    async (label: string, fn: EngineStep, undoable = false) =>
+      controller.current ? controller.current.apply(label, fn, undoable) : null,
+    []
   );
 
   async function runUndo() {
-    const before = undo.current.take();
     setUndoLabel(null);
-    if (!before) return;
-    await saveSessionState(before);
-    setState(before);
+    await controller.current?.undo();
   }
 
   const expireUndo = useCallback(() => setUndoLabel(null), []);
@@ -122,8 +113,8 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   async function addWalkIn(player: DeskPlayer) {
     await upsertPlayer(player);
     setDialog(null);
-    await apply("Checked in", (st) => checkIn({ ...st, players: { ...st.players, [player.id]: player } }, [player.id], liveCtx()));
-    toast(`${player.name} checked in.`);
+    const done = await apply("Checked in", (st) => checkIn({ ...st, players: { ...st.players, [player.id]: player } }, [player.id], liveCtx()));
+    if (done) toast(`${player.name} checked in.`);
   }
 
   const finishing = dialog?.kind === "finish" ? s.games.find((g) => g.id === dialog.gameId) : undefined;
