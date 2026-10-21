@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkIn, suggestGame, startGame, finishGame, correctResult, refillCourts } from "./game";
+import { checkIn, suggestGame, startGame, finishGame, correctResult, refillCourts, activeGameOnCourt } from "./game";
 import { sessionLeaderboard } from "./leaderboard";
 import { makeCtx, makeState } from "./fixtures";
 import { isEngineError, type SessionState } from "./types";
