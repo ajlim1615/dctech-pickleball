@@ -74,12 +74,16 @@ export function selectPod<E extends PodEntry>(
   return { challengers, stayingWinners: isWinnersStay ? winnerEntries : [] };
 }
 
-/** Splits the chosen players into two teams for the session's matching style. */
+/**
+ * Splits the chosen players into two teams for the session's matching style.
+ * `previousWinners` (the last winning team on this court) lets Winners / losers split them up.
+ */
 export function buildTeams<P extends MatchPlayer>(
   challengers: PodEntry<P>[],
   stayingWinners: PodEntry<P>[],
   style: MatchingStyle,
-  random?: () => number
+  random?: () => number,
+  previousWinners: P[] = []
 ): { teamA: string[]; teamB: string[] } {
   const challengerPlayers = challengers.map((e) => e.player);
   const opts = random ? { random } : {};
@@ -107,7 +111,7 @@ export function buildTeams<P extends MatchPlayer>(
           .slice(0, 2),
       };
     }
-    const matchup = createMatchupFromPod(challengerPlayers, style, [], opts);
+    const matchup = createMatchupFromPod(challengerPlayers, style, previousWinners, opts);
     return { teamA: matchup.teamA.map((p) => p.id), teamB: matchup.teamB.map((p) => p.id) };
   }
 

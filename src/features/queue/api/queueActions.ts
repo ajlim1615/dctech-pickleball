@@ -628,7 +628,13 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     })
     .in("id", entryIds);
 
-  const { teamA, teamB } = buildTeams(pod.challengers, pod.stayingWinners, matchingStyle);
+  const { teamA, teamB } = buildTeams(
+    pod.challengers,
+    pod.stayingWinners,
+    matchingStyle,
+    undefined,
+    previousWinners
+  );
 
   // 6. Create Match and assign to court
   // Void any previous orphaned in_progress matches on this court

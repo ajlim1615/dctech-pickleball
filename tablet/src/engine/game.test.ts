@@ -98,6 +98,17 @@ describe("game cycle", () => {
     expect(next.teamA).not.toEqual(expect.arrayContaining(["p1", "p2"]));
   });
 
+  it("winners_losers splits the last winners when they come back up together", () => {
+    const ctx = makeCtx();
+    const court = { courts: [{ id: "c1", name: "Court 1", closed: false }] };
+    let s = checkIn(makeState(9, { matchingStyle: "winners_losers", ...court }), ids(4), ctx);
+    // p1 (3.0) + p4 (4.5): balanced alone would keep the strongest and weakest together.
+    s = ok(startGame(s, "c1", { teamA: ["p1", "p4"], teamB: ["p2", "p3"] }, ctx));
+    s = ok(finishGame(s, activeGameOnCourt(s, "c1")!.id, { scoreA: 11, scoreB: 2 }, ctx));
+    const next = activeGameOnCourt(s, "c1")!;
+    expect(next.teamA.filter((id) => id === "p1" || id === "p4")).toHaveLength(1);
+  });
+
   it("refillCourts never puts one player on two courts", () => {
     const ctx = makeCtx();
     let s = checkIn(makeState(), ids(8), ctx);

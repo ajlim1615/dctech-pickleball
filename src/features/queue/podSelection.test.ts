@@ -72,6 +72,15 @@ describe("buildTeams", () => {
     expect(teams.teamB.sort()).toEqual(["a", "b"]);
   });
 
+  it("winners_losers splits previous winners in the pod across teams", () => {
+    // Balanced alone would pair A (strongest) with B (weakest).
+    const pod = [entry("A", 4.5), entry("B", 2.5), entry("c1", 3.5), entry("c2", 3.5)];
+    const teams = buildTeams(pod, [], "winners_losers", undefined, [pod[0].player, pod[1].player]);
+    const winners = new Set(["A", "B"]);
+    expect(teams.teamA.filter((id) => winners.has(id))).toHaveLength(1);
+    expect(teams.teamB.filter((id) => winners.has(id))).toHaveLength(1);
+  });
+
   it("splits staying winners", () => {
     const teams = buildTeams([entry("c1", 3), entry("c2", 4)], [entry("A", 4), entry("B", 3.5)], "winners_stay");
     const winners = new Set(["A", "B"]);

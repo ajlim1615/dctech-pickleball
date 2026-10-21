@@ -91,9 +91,12 @@ export function suggestGame(
     player: toMatchPlayer(state.players[q.playerId]),
   }));
   const style = state.session.matchingStyle;
-  const pod = selectPod(waiting, style, previousWinnerIds(state, courtId));
+  const winnerIds = previousWinnerIds(state, courtId);
+  const pod = selectPod(waiting, style, winnerIds);
   if ("error" in pod) return { waitingFor: pod.needed - pod.available };
-  return buildTeams(pod.challengers, pod.stayingWinners, style, random);
+  // Winners / losers splits the last winners up, but only when both made it into this pod.
+  const winnersInPod = pod.challengers.filter((e) => winnerIds.includes(e.player_id)).map((e) => e.player);
+  return buildTeams(pod.challengers, pod.stayingWinners, style, random, winnersInPod.length === 2 ? winnersInPod : []);
 }
 
 export function startGame(state: SessionState, courtId: string, teams: Teams, ctx: EngineCtx): SessionState | EngineError {
