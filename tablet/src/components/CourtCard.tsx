@@ -2,6 +2,7 @@ import clsx from "clsx";
 import type { DeskCourt, DeskGame } from "../engine/types";
 import type { Teams } from "../engine/game";
 import { Button } from "./ui";
+import { courtControls } from "../lib/courtStatus";
 
 type Mode =
   | { kind: "playing"; game: DeskGame; minutes: number }
@@ -37,6 +38,7 @@ export function CourtCard({
         ? mode.teams
         : { teamA: [], teamB: [] };
   const closed = mode.kind === "closed";
+  const controls = courtControls(court, mode.kind === "playing");
 
   return (
     <div className={clsx("flex flex-col gap-3 rounded-xl border bg-card p-3", closed ? "border-border opacity-60" : "border-border")}>
@@ -49,6 +51,7 @@ export function CourtCard({
                 Playing · <span className="font-mono tabular-nums">{mode.minutes}</span> min
               </>
             )}
+            {mode.kind === "playing" && controls.notice && <span className="text-amber"> · {controls.notice}</span>}
             {mode.kind === "suggested" && "Up next"}
             {mode.kind === "waiting" && (
               <>
@@ -56,11 +59,11 @@ export function CourtCard({
                 {mode.waitingFor === 1 ? "player" : "players"}
               </>
             )}
-            {closed && "Closed"}
+            {controls.notice && mode.kind !== "playing" && controls.notice}
           </span>
         </div>
         <Button variant="ghost" onClick={onToggleClosed} className="px-3 text-xs">
-          {closed ? "Reopen" : "Close court"}
+          {controls.toggleLabel}
         </Button>
       </div>
 
