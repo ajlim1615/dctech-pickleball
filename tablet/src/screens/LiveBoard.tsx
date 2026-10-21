@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Coffee, LogOut, UserPlus } from "lucide-react";
+import { ArrowDown, ArrowUp, Coffee, ListChecks, LogOut, UserPlus } from "lucide-react";
 import { seededRandom } from "@/features/queue/utils/matchingEngine";
 import type { Navigate } from "../App";
 import { Button, ScreenHeader, toast } from "../components/ui";
@@ -127,6 +127,9 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
         actions={
           <>
             <span className="mr-2 hidden text-sm text-muted-foreground lg:inline">{styleLabel(s.session.matchingStyle)}</span>
+            <Button variant="ghost" onClick={() => navigate({ name: "summary", sessionId })}>
+              <ListChecks size={18} /> Results
+            </Button>
             <Button onClick={() => setDialog({ kind: "checkIn" })}>
               <UserPlus size={18} /> Check in
             </Button>
