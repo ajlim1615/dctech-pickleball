@@ -610,7 +610,8 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   const pod = selectPod(
     allWaitingEntries.map((e) => ({ ...e, player: e.player as unknown as Profile })),
     matchingStyle,
-    previousWinners.map((p) => p.id)
+    previousWinners.map((p) => p.id),
+    count
   );
   if ("error" in pod) {
     return { error: pod.error };
