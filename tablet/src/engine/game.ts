@@ -198,7 +198,8 @@ export function finishGame(state: SessionState, gameId: string, result: GameResu
 
   const finished: DeskGame = { ...game, ...resolved, endedAt: ctx.now };
   const next = { ...state, queue, games: state.games.map((g) => (g.id === gameId ? finished : g)) };
-  return refillCourts(next, ctx);
+  // The court that just finished goes first, so its winners stay there in winners-stay modes.
+  return refillCourts(next, ctx, game.courtId);
 }
 
 /** Fixes a finished game's result. Only the game record changes; nobody moves. */
@@ -214,11 +215,17 @@ export function correctResult(state: SessionState, gameId: string, result: GameR
   };
 }
 
-/** Starts the suggested game on every open, free court that has enough players waiting. */
-export function refillCourts(state: SessionState, ctx: EngineCtx): SessionState {
+/**
+ * Starts the suggested game on every open, free court that has enough players waiting.
+ * `firstCourtId` is filled before the others.
+ */
+export function refillCourts(state: SessionState, ctx: EngineCtx, firstCourtId?: string): SessionState {
   if (state.session.status !== "live") return state;
   let next = state;
-  for (const court of state.session.courts) {
+  const courts = [...state.session.courts].sort(
+    (a, b) => Number(b.id === firstCourtId) - Number(a.id === firstCourtId)
+  );
+  for (const court of courts) {
     if (court.closed || activeGameOnCourt(next, court.id)) continue;
     const suggestion = suggestGame(next, court.id, ctx.random);
     if ("waitingFor" in suggestion) break;

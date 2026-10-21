@@ -82,6 +82,19 @@ describe("queue actions", () => {
     expect(activeGameOnCourt(s, "c1")).toBeDefined();
   });
 
+  it("winners_stay refills the finished court first so another court can't take its winners", () => {
+    const ctx = makeCtx();
+    let s = checkIn(makeState(9, { matchingStyle: "winners_stay" }), ids(7), ctx);
+    s = ok(setCourtClosed(s, "c1", true, ctx));
+    s = ok(startGame(s, "c2", { teamA: ["p1", "p4"], teamB: ["p2", "p3"] }, ctx));
+    s = ok(setCourtClosed(s, "c1", false, ctx));
+    expect(activeGameOnCourt(s, "c1")).toBeUndefined();
+    s = ok(finishGame(s, activeGameOnCourt(s, "c2")!.id, { scoreA: 11, scoreB: 5 }, ctx));
+    const next = activeGameOnCourt(s, "c2")!;
+    expect([...next.teamA, ...next.teamB]).toEqual(expect.arrayContaining(["p1", "p4"]));
+    expect(activeGameOnCourt(s, "c1")).toBeUndefined();
+  });
+
   it("endSession keeps unfinished games without a winner", () => {
     let { s, ctx, gameId } = playing();
     s = ok(endSession(s, ctx));
