@@ -1,16 +1,26 @@
-import { useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { describeRule } from "@/features/matches/utils/scoring";
 import type { Navigate } from "../App";
-import { Button, Card, ChipGroup, Label, ScreenHeader, TextInput, Toggle, toast } from "../components/ui";
+import { Button, Card, Chip, ChipGroup, Label, ScreenHeader, Stepper, TextField, TextInput, Toggle, toast } from "../components/ui";
 import { createSession, getLiveSession } from "../db/repo";
 import type { DeskCourt, DeskSession, MatchingStyle } from "../engine/types";
-import { MATCHING_STYLES, todayIso } from "../lib/ctx";
+import { MATCHING_STYLES, styleLabel, todayIso } from "../lib/ctx";
 
 const MAX_COURTS = 8;
 const TARGETS = [11, 15, 21];
+const COMMON_STYLES: MatchingStyle[] = ["balanced", "social_mixer", "skill_separated", "winners_stay"];
 
 function defaultTitle() {
   return `Open play – ${new Date().toLocaleDateString(undefined, { weekday: "long" })}`;
+}
+
+function Section({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <Card className={`p-5 ${className ?? ""}`}>
+      <Label>{label}</Label>
+      {children}
+    </Card>
+  );
 }
 
 export function NewSession({ navigate }: { navigate: Navigate }) {
@@ -18,6 +28,7 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
   const [date, setDate] = useState(todayIso);
   const [courtNames, setCourtNames] = useState(["Court 1", "Court 2"]);
   const [style, setStyle] = useState<MatchingStyle>("balanced");
+  const [showAllStyles, setShowAllStyles] = useState(false);
   const [trackScores, setTrackScores] = useState(true);
   const [targetScore, setTargetScore] = useState(11);
   const [winBy2, setWinBy2] = useState(true);
@@ -63,39 +74,41 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
     }
   }
 
+  const expanded = showAllStyles || !COMMON_STYLES.includes(style);
+  const shownStyles = expanded ? MATCHING_STYLES : MATCHING_STYLES.filter((s) => COMMON_STYLES.includes(s.value));
+  const hint = MATCHING_STYLES.find((s) => s.value === style)?.hint;
+  const rule = describeRule({ targetPoints: targetScore, winByTwo: winBy2, trackScores });
+
   return (
     <>
-      <ScreenHeader
-        title="New session"
-        onBack={() => navigate({ name: "home" })}
-        actions={
-          <Button variant="primary" onClick={start} disabled={saving}>
-            Start session
-          </Button>
-        }
-      />
-      <main className="mx-auto grid w-full max-w-5xl flex-1 grid-cols-2 gap-6 overflow-y-auto p-6">
-        <Card className="space-y-5 p-5">
-          <label className="block">
-            <Label>Title</Label>
-            <TextInput value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <label className="block">
-            <Label>Date</Label>
-            <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </label>
-          <div>
-            <Label>Courts</Label>
-            <div className="mb-3 flex items-center gap-3">
-              <Button onClick={() => setCourtCount(courtNames.length - 1)} aria-label="Fewer courts" className="px-3">
-                <Minus size={18} />
-              </Button>
-              <span className="w-8 text-center font-mono text-xl tabular-nums">{courtNames.length}</span>
-              <Button onClick={() => setCourtCount(courtNames.length + 1)} aria-label="More courts" className="px-3">
-                <Plus size={18} />
-              </Button>
+      <ScreenHeader title="New session" onBack={() => navigate({ name: "home" })} />
+      <main className="mx-auto grid w-full max-w-5xl flex-1 grid-cols-1 content-start gap-4 overflow-y-auto px-6 py-6 md:grid-cols-2">
+        <Section label="The night">
+          <div className="space-y-4">
+            <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        </Section>
+
+        <Section label="Scoring">
+          <Toggle label="Track scores" checked={trackScores} onChange={setTrackScores} />
+          {trackScores ? (
+            <div className="mt-3 space-y-3">
+              <div>
+                <span className="mb-2 block text-sm text-muted">Play to</span>
+                <ChipGroup options={TARGETS} value={targetScore} onChange={setTargetScore} mono />
+              </div>
+              <Toggle label="Win by 2" checked={winBy2} onChange={setWinBy2} />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+          ) : (
+            <p className="mt-2 text-sm text-muted">You'll just tap which team won.</p>
+          )}
+        </Section>
+
+        <Section label="Courts" className="md:col-span-2">
+          <div className="flex flex-wrap items-start gap-6">
+            <Stepper label="Courts" value={courtNames.length} min={1} max={MAX_COURTS} onChange={setCourtCount} />
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 lg:grid-cols-4">
               {courtNames.map((name, i) => (
                 <TextInput
                   key={i}
@@ -106,43 +119,34 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
               ))}
             </div>
           </div>
-        </Card>
+        </Section>
 
-        <Card className="space-y-5 p-5">
-          <div>
-            <Label>Matchmaking</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {MATCHING_STYLES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() => setStyle(s.value)}
-                  className={`min-h-11 rounded-lg border px-3 py-2 text-left text-sm ${
-                    style === s.value ? "border-volt bg-volt/10" : "border-border"
-                  }`}
-                >
-                  <span className={`block font-medium ${style === s.value ? "text-volt" : ""}`}>{s.label}</span>
-                  <span className="block text-xs text-muted-foreground">{s.hint}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Toggle label="Track scores" checked={trackScores} onChange={setTrackScores} />
-            {trackScores ? (
-              <>
-                <div>
-                  <Label>Play to</Label>
-                  <ChipGroup options={TARGETS} value={targetScore} onChange={setTargetScore} />
-                </div>
-                <Toggle label="Win by 2" checked={winBy2} onChange={setWinBy2} />
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">You'll just tap which team won.</p>
+        <Section label="Matchmaking" className="md:col-span-2">
+          <div className="flex flex-wrap gap-2">
+            {shownStyles.map((s) => (
+              <Chip key={s.value} selected={style === s.value} onClick={() => setStyle(s.value)}>
+                {s.label}
+              </Chip>
+            ))}
+            {!expanded && (
+              <Chip selected={false} onClick={() => setShowAllStyles(true)} className="text-muted">
+                +{MATCHING_STYLES.length - COMMON_STYLES.length} more
+              </Chip>
             )}
           </div>
-        </Card>
+          {hint && <p className="mt-3 text-sm text-muted">{hint}</p>}
+        </Section>
       </main>
+
+      <footer className="flex min-h-16 shrink-0 items-center gap-3 border-t border-line bg-surface px-6 py-2">
+        <span className="min-w-0 flex-1 truncate text-sm text-muted">
+          <span className="font-mono tabular-nums">{courtNames.length}</span> {courtNames.length === 1 ? "court" : "courts"} ·{" "}
+          {styleLabel(style)} · {rule}
+        </span>
+        <Button variant="primary" size="lg" onClick={start} disabled={saving}>
+          Start session
+        </Button>
+      </footer>
     </>
   );
 }
