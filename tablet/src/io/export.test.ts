@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
-import { buildWorkbook, exportFileName, exportRows } from "./export";
+import { buildWorkbook, exportFileName, exportRows, shareImageName } from "./export";
 import { checkIn, startGame, finishGame, activeGameOnCourt } from "../engine/game";
 import { makeCtx, makeState } from "../engine/fixtures";
 import { isEngineError, type DeskSession, type SessionState } from "../engine/types";
@@ -34,6 +34,12 @@ describe("export", () => {
 
   it('exportFileName is "Pickleball – Tuesday open play – 2026-10-21.xlsx"', () => {
     expect(exportFileName(makeState().session)).toBe("Pickleball – Tuesday open play – 2026-10-21.xlsx");
+  });
+
+  it('shareImageName is "Pickleball – <title> – results.png" with unsafe characters replaced', () => {
+    expect(shareImageName("Tuesday open play")).toBe("Pickleball – Tuesday open play – results.png");
+    expect(shareImageName("A/B: night?")).toBe("Pickleball – A-B- night- – results.png");
+    expect(shareImageName("   ")).toBe("Pickleball – Session – results.png");
   });
 
   it("builds a workbook with Leaderboard and Games sheets", () => {

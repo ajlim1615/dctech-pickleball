@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Download, Trophy } from "lucide-react";
+import { Download, Share2, Trophy } from "lucide-react";
 import clsx from "clsx";
 import { formatMatchScore } from "@/features/matches/utils/scoring";
 import type { Navigate } from "../App";
 import { Button, Card, EmptyState, ScreenHeader, toast } from "../components/ui";
 import { ResultSheet } from "../components/ResultSheet";
+import { ShareSheet } from "../components/ShareSheet";
 import { loadSessionState, saveSessionState } from "../db/repo";
 import { correctResult } from "../engine/game";
 import { sessionLeaderboard } from "../engine/leaderboard";
@@ -27,6 +28,7 @@ export function Summary({ sessionId, navigate }: { sessionId: string; navigate: 
   const [state, setState] = useState<SessionState | null>(null);
   const [fixing, setFixing] = useState<DeskGame | null>(null);
   const [fixError, setFixError] = useState<{ message: string; key: number } | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     loadSessionState(sessionId).then(setState, () => navigate({ name: "home" }));
@@ -86,8 +88,11 @@ export function Summary({ sessionId, navigate }: { sessionId: string; navigate: 
             {s.session.status === "live" && (
               <Button onClick={() => navigate({ name: "live", sessionId })}>Back to live board</Button>
             )}
-            <Button variant="primary" onClick={exportSession}>
+            <Button onClick={exportSession}>
               <Download size={18} /> Export to Excel
+            </Button>
+            <Button variant="primary" onClick={() => setSharing(true)} disabled={games.length === 0}>
+              <Share2 size={18} /> Share results
             </Button>
           </>
         }
@@ -178,6 +183,8 @@ export function Summary({ sessionId, navigate }: { sessionId: string; navigate: 
           </section>
         </main>
       )}
+
+      {sharing && <ShareSheet state={s} onClose={() => setSharing(false)} />}
 
       {fixing && (
         <ResultSheet

@@ -52,6 +52,12 @@ export function exportFileName(session: DeskSession): string {
   return `Pickleball – ${title} – ${session.date}.xlsx`;
 }
 
+/** File name for the share card image. */
+export function shareImageName(title: string): string {
+  const safe = title.replace(/[\\/:*?"<>|]/g, "-").trim() || "Session";
+  return `Pickleball – ${safe} – results.png`;
+}
+
 export function buildWorkbook(state: SessionState): Uint8Array {
   const rows = exportRows(state);
   const book = XLSX.utils.book_new();
