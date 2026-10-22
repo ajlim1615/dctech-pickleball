@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Check, UserPlus } from "lucide-react";
 import clsx from "clsx";
 import type { DeskPlayer } from "../engine/types";
-import { Button, Sheet, TextInput } from "./ui";
+import { Avatar, Button, SearchField, Sheet } from "./ui";
 
 /**
  * Pick players from a list. `multiple` is for checking several in at once;
@@ -37,9 +37,24 @@ export function PlayerPicker({
   }
 
   return (
-    <Sheet title={title} onClose={onCancel}>
-      <div className="mb-3 flex gap-2">
-        <TextInput placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
+    <Sheet
+      title={title}
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          {multiple && (
+            <Button variant="primary" disabled={selected.length === 0} onClick={() => onPick(selected)}>
+              {confirmLabel(selected.length)}
+            </Button>
+          )}
+        </>
+      }
+    >
+      <div className="mb-3 flex gap-2 pt-1">
+        <SearchField value={search} onChange={setSearch} className="flex-1" />
         {onAddWalkIn && (
           <Button onClick={onAddWalkIn} className="shrink-0">
             <UserPlus size={18} /> Add walk-in
@@ -47,41 +62,31 @@ export function PlayerPicker({
         )}
       </div>
       {visible.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{players.length ? "No players match." : emptyText}</p>
+        <p className="py-8 text-center text-sm text-muted">{players.length ? "No players match." : emptyText}</p>
       ) : (
-        <div className="grid max-h-[50vh] grid-cols-2 gap-2 overflow-y-auto">
+        <div className="grid grid-cols-2 gap-2">
           {visible.map((p) => {
             const isSelected = selected.includes(p.id);
             return (
               <button
                 key={p.id}
                 type="button"
+                aria-pressed={multiple ? isSelected : undefined}
                 onClick={() => tap(p.id)}
                 className={clsx(
-                  "flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm",
-                  isSelected ? "border-volt bg-volt/10" : "border-border"
+                  "flex min-h-14 items-center gap-3 rounded-xl border px-3 text-left transition active:scale-[0.98]",
+                  isSelected ? "border-primary bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))]" : "border-line bg-surface hover:bg-sunken"
                 )}
               >
-                <span className="truncate">{p.name}</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-mono tabular-nums text-muted-foreground">{p.skill.toFixed(1)}</span>
-                  {isSelected && <Check size={16} className="text-volt" />}
-                </span>
+                <Avatar name={p.name} />
+                <span className="min-w-0 flex-1 truncate text-[15px]">{p.name}</span>
+                <span className="font-mono text-xs tabular-nums text-muted">{p.skill.toFixed(1)}</span>
+                {isSelected && <Check size={18} className="text-primary" />}
               </button>
             );
           })}
         </div>
       )}
-      <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        {multiple && (
-          <Button variant="primary" disabled={selected.length === 0} onClick={() => onPick(selected)}>
-            {confirmLabel(selected.length)}
-          </Button>
-        )}
-      </div>
     </Sheet>
   );
 }

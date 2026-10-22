@@ -126,6 +126,7 @@ export function Summary({ sessionId, navigate }: { sessionId: string; navigate: 
           title="Fix result"
           session={s.session}
           game={fixing}
+          courtName={court(fixing.courtId)}
           names={names}
           onCancel={() => setFixing(null)}
           onSubmit={async (result) => {
