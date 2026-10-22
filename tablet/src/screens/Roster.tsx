@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import type { Navigate } from "../App";
-import { Button, Card, ScreenHeader, TextInput, Toggle, toast, ConfirmSheet } from "../components/ui";
-
+import { Avatar, Button, Card, Chip, ConfirmSheet, EmptyState, Menu, ScreenHeader, SearchField, toast } from "../components/ui";
 import { PlayerForm } from "../components/PlayerForm";
 import { deletePlayer, listPlayers, upsertPlayer } from "../db/repo";
 import type { DeskPlayer } from "../engine/types";
 
+type Filter = "all" | "archived";
+
 export function Roster({ navigate }: { navigate: Navigate }) {
   const [players, setPlayers] = useState<DeskPlayer[]>([]);
   const [search, setSearch] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const [editing, setEditing] = useState<DeskPlayer | "new" | null>(null);
   const [deleting, setDeleting] = useState<DeskPlayer | null>(null);
 
@@ -21,8 +22,11 @@ export function Roster({ navigate }: { navigate: Navigate }) {
     reload();
   }, [reload]);
 
+  const active = players.filter((p) => !p.archived);
   const visible = players.filter(
-    (p) => (showArchived || !p.archived) && p.name.toLowerCase().includes(search.trim().toLowerCase())
+    (p) =>
+      (filter === "archived" ? p.archived : !p.archived) &&
+      p.name.toLowerCase().includes(search.trim().toLowerCase())
   );
 
   async function save(player: DeskPlayer) {
@@ -40,15 +44,18 @@ export function Roster({ navigate }: { navigate: Navigate }) {
   async function confirmDelete(player: DeskPlayer) {
     const result = await deletePlayer(player.id);
     setDeleting(null);
-    if (result?.error) toast(result.error);
-    else toast(`${player.name} deleted.`);
+    toast(result?.error ?? `${player.name} deleted.`);
     await reload();
   }
 
   return (
     <>
       <ScreenHeader
-        title="Roster"
+        title={
+          <>
+            Roster <span className="ml-1 align-middle font-mono text-sm font-normal text-muted">{active.length}</span>
+          </>
+        }
         onBack={() => navigate({ name: "home" })}
         actions={
           <Button variant="primary" onClick={() => setEditing("new")}>
@@ -56,33 +63,61 @@ export function Roster({ navigate }: { navigate: Navigate }) {
           </Button>
         }
       />
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 overflow-y-auto p-6">
-        <div className="flex items-center gap-4">
-          <TextInput placeholder="Search players" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <div className="w-56 shrink-0">
-            <Toggle label="Show archived" checked={showArchived} onChange={setShowArchived} />
-          </div>
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-6 py-6">
+        <div className="flex items-center gap-2">
+          <SearchField value={search} onChange={setSearch} placeholder="Search players" className="flex-1" />
+          <Chip selected={filter === "all"} onClick={() => setFilter("all")}>
+            All
+          </Chip>
+          <Chip selected={filter === "archived"} onClick={() => setFilter("archived")}>
+            Archived
+          </Chip>
         </div>
 
         {visible.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">
-            {players.length === 0 ? "No players yet. Add your regulars here." : "No players match."}
-          </p>
+          <Card>
+            {players.length === 0 ? (
+              <EmptyState
+                icon={<Users size={28} />}
+                title="No players yet"
+                body="Add your regulars with a skill level so matchmaking can make fair games."
+                action={
+                  <Button variant="primary" onClick={() => setEditing("new")}>
+                    <Plus size={18} /> Add player
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                title={filter === "archived" && !search ? "No archived players" : "No players match"}
+                body={filter === "archived" && !search ? "Archived players show up here." : "Try a different name."}
+              />
+            )}
+          </Card>
         ) : (
-          <Card className="divide-y divide-border">
+          <Card className="divide-y divide-line">
             {visible.map((p) => (
-              <div key={p.id} className="flex min-h-14 items-center gap-3 px-4">
-                <button type="button" onClick={() => setEditing(p)} className="flex flex-1 items-center gap-3 text-left">
-                  <span className={p.archived ? "text-muted-foreground" : ""}>{p.name}</span>
-                  {p.archived && <span className="text-xs text-muted-foreground">Archived</span>}
+              <div key={p.id} className="flex min-h-16 items-center gap-3 py-2 pl-4 pr-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(p)}
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <Avatar name={p.name} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-medium">{p.name}</span>
+                    {p.note && <span className="block truncate text-[13px] text-muted">{p.note}</span>}
+                  </span>
                 </button>
-                <span className="w-12 text-right font-mono tabular-nums text-muted-foreground">{p.skill.toFixed(1)}</span>
-                <Button variant="ghost" onClick={() => toggleArchive(p)}>
-                  {p.archived ? "Unarchive" : "Archive"}
-                </Button>
-                <Button variant="ghost" onClick={() => setDeleting(p)}>
-                  Delete
-                </Button>
+                <span className="rounded-lg bg-sunken px-2 py-0.5 font-mono text-xs tabular-nums">{p.skill.toFixed(1)}</span>
+                <Menu
+                  label={`Actions for ${p.name}`}
+                  items={[
+                    { label: "Edit", onSelect: () => setEditing(p) },
+                    { label: p.archived ? "Unarchive" : "Archive", onSelect: () => toggleArchive(p) },
+                    { label: "Delete", tone: "danger", onSelect: () => setDeleting(p) },
+                  ]}
+                />
               </div>
             ))}
           </Card>
@@ -90,11 +125,7 @@ export function Roster({ navigate }: { navigate: Navigate }) {
       </main>
 
       {editing && (
-        <PlayerForm
-          player={editing === "new" ? undefined : editing}
-          onSave={save}
-          onCancel={() => setEditing(null)}
-        />
+        <PlayerForm player={editing === "new" ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} />
       )}
       {deleting && (
         <ConfirmSheet

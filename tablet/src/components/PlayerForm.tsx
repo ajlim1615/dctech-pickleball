@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Button, ChipGroup, Label, Sheet, TextInput } from "./ui";
+import { Button, ChipGroup, Label, Sheet, TextField } from "./ui";
 import { DEFAULT_SKILL, SKILL_LEVELS, type DeskPlayer } from "../engine/types";
+
+const FORM_ID = "player-form";
 
 /** Add or edit a player: a name and a skill level. Used by the roster and for walk-ins. */
 export function PlayerForm({
@@ -34,34 +36,34 @@ export function PlayerForm({
   }
 
   return (
-    <Sheet title={title ?? (player ? "Edit player" : "Add player")} onClose={onCancel}>
+    <Sheet
+      title={title ?? (player ? "Edit player" : "Add player")}
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" form={FORM_ID} disabled={!trimmed}>
+            {saveLabel}
+          </Button>
+        </>
+      }
+    >
       <form
-        className="space-y-4"
+        id={FORM_ID}
+        className="space-y-5 pt-1"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        <label className="block">
-          <Label>Name</Label>
-          <TextInput autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
+        <TextField label="Name" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         <div>
           <Label>Skill</Label>
-          <ChipGroup options={SKILL_LEVELS} value={skill} onChange={setSkill} format={(v) => v.toFixed(1)} />
+          <ChipGroup options={SKILL_LEVELS} value={skill} onChange={setSkill} format={(v) => v.toFixed(1)} mono />
         </div>
-        <label className="block">
-          <Label>Note (optional)</Label>
-          <TextInput value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="primary" type="submit" disabled={!trimmed}>
-            {saveLabel}
-          </Button>
-        </div>
+        <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       </form>
     </Sheet>
   );
