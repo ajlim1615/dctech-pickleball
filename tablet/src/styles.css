@@ -71,18 +71,6 @@
   --font-serif: "Fraunces Variable", Georgia, serif;
   --font-sans: "Geist Variable", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
-
-  /* Temporary aliases for the old dark-only class names; removed once every screen is rebuilt. */
-  --color-background: var(--bg);
-  --color-foreground: var(--ink);
-  --color-card: var(--surface);
-  --color-border: var(--line);
-  --color-muted-foreground: var(--muted);
-  --color-destructive: var(--clay);
-  --color-volt: var(--primary);
-  --color-team1: var(--t1);
-  --color-team2: var(--t2);
-  --color-amber: var(--clay);
 }
 
 html,
