@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Download, Upload } from "lucide-react";
 import type { Navigate } from "../App";
 import { Button, Card, ScreenHeader, toast, ConfirmSheet } from "../components/ui";
 
@@ -56,27 +57,31 @@ export function Backup({ navigate }: { navigate: Navigate }) {
   return (
     <>
       <ScreenHeader title="Backup" onBack={() => navigate({ name: "home" })} />
-      <main className="mx-auto grid w-full max-w-4xl flex-1 grid-cols-2 content-start gap-6 overflow-y-auto p-6">
-        <Card className="space-y-3 p-5">
-          <h2 className="text-lg font-semibold">Save a backup</h2>
-          <p className="text-sm text-muted-foreground">
+      <main className="mx-auto grid w-full max-w-4xl flex-1 grid-cols-1 content-start gap-5 overflow-y-auto px-6 py-6 md:grid-cols-2">
+        <Card className="flex flex-col gap-3 p-6">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-t1-bg text-t1">
+            <Download size={20} />
+          </span>
+          <h2 className="font-serif text-xl font-semibold">Save a backup</h2>
+          <p className="text-[15px] text-muted">
             One file with every player, session and game. Save it to Drive or send it to yourself, so a lost or reset
             tablet doesn't lose your history.
           </p>
           <p className="text-sm">
             Last backup:{" "}
-            <span className="text-muted-foreground">
-              {lastBackupAt ? new Date(lastBackupAt).toLocaleString() : "never"}
-            </span>
+            <span className="text-muted">{lastBackupAt ? new Date(lastBackupAt).toLocaleString() : "never"}</span>
           </p>
-          <Button variant="primary" onClick={save} disabled={busy}>
+          <Button variant="primary" onClick={save} disabled={busy} className="mt-auto self-start">
             Save backup
           </Button>
         </Card>
 
-        <Card className="space-y-3 p-5">
-          <h2 className="text-lg font-semibold">Restore</h2>
-          <p className="text-sm text-muted-foreground">
+        <Card className="flex flex-col gap-3 p-6">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-t2-bg text-t2">
+            <Upload size={20} />
+          </span>
+          <h2 className="font-serif text-xl font-semibold">Restore</h2>
+          <p className="text-[15px] text-muted">
             Load a backup file, for example on a new tablet. It replaces everything on this tablet.
           </p>
           <input
@@ -86,7 +91,9 @@ export function Backup({ navigate }: { navigate: Navigate }) {
             className="hidden"
             onChange={(e) => pickFile(e.target.files?.[0])}
           />
-          <Button onClick={() => fileInput.current?.click()}>Choose backup file</Button>
+          <Button onClick={() => fileInput.current?.click()} className="mt-auto self-start">
+            Choose backup file
+          </Button>
         </Card>
       </main>
 
