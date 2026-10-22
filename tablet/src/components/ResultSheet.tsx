@@ -46,6 +46,11 @@ export function ResultSheet({
           <WinnerButton team="A" label={team("A")} onClick={() => onSubmit({ winner: "A" })} big />
           <WinnerButton team="B" label={team("B")} onClick={() => onSubmit({ winner: "B" })} big />
         </div>
+        {error && (
+          <p key={errorKey} role="alert" className="pb-2 text-sm text-clay">
+            {error}
+          </p>
+        )}
       </Sheet>
     );
   }

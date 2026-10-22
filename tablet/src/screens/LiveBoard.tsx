@@ -13,7 +13,7 @@ import { loadSessionState, saveSessionState, upsertPlayer } from "../db/repo";
 import { createBoardController, type BoardController, type EngineStep } from "../lib/boardController";
 import { activeGameOnCourt, checkIn, finishGame, scoringRule, startGame, suggestAll, waitingLine, type Teams } from "../engine/game";
 import { endSession, setCourtClosed, swapPlayerInGame } from "../engine/queue";
-import type { DeskPlayer, GameResult, SessionState } from "../engine/types";
+import { isEngineError, type DeskPlayer, type GameResult, type SessionState } from "../engine/types";
 import { keepAwake } from "../io/native";
 import { boardStats } from "../lib/boardStats";
 import { courtControls, courtPill } from "../lib/courtStatus";
@@ -42,7 +42,8 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   const [undo, setUndo] = useState<{ label: string; at: number } | null>(null);
   // A rejected score is shown inside the Finish sheet instead of as a toast.
   const [finishError, setFinishError] = useState<{ message: string; key: number } | null>(null);
-  const captureError = useRef(false);
+  // The open Finish sheet's game, so a late result can't land on a sheet it doesn't belong to.
+  const finishingId = useRef<string | null>(null);
   // Admin's edits to a court's suggested four, until the game starts.
   const [drafts, setDrafts] = useState<Record<string, Teams>>({});
   const controller = useRef<BoardController | null>(null);
@@ -59,10 +60,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
           const at = controller.current?.undoStartedAt();
           setUndo(label && at ? { label, at } : null);
         },
-        onError: (message) => {
-          if (captureError.current) setFinishError({ message, key: Date.now() });
-          else toast(message);
-        },
+        onError: toast,
       });
       setState(loaded);
     }, () => navigate({ name: "home" }));
@@ -128,13 +126,24 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
 
   async function submitFinish(gameId: string, result: GameResult) {
     const court = s.session.courts.find((c) => c.id === s.games.find((g) => g.id === gameId)?.courtId);
-    captureError.current = true;
-    const done = await apply(`Game finished on ${court?.name ?? "court"}`, (st) => finishGame(st, gameId, result, liveCtx()), true);
-    captureError.current = false;
-    if (done) closeDialog();
+    const outcome = await controller.current?.attempt(
+      `Game finished on ${court?.name ?? "court"}`,
+      (st) => finishGame(st, gameId, result, liveCtx()),
+      true
+    );
+    if (!outcome || finishingId.current !== gameId) return;
+    if (isEngineError(outcome)) setFinishError({ message: outcome.error, key: Date.now() });
+    else closeDialog();
+  }
+
+  function openFinish(gameId: string) {
+    finishingId.current = gameId;
+    setFinishError(null);
+    setDialog({ kind: "finish", gameId });
   }
 
   function closeDialog() {
+    finishingId.current = null;
     setDialog(null);
     setFinishError(null);
   }
@@ -185,7 +194,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
                 toggleLabel={courtControls(court, Boolean(game)).toggleLabel}
                 names={names}
                 onStart={() => start(court.id)}
-                onFinish={game ? () => setDialog({ kind: "finish", gameId: game.id }) : undefined}
+                onFinish={game ? () => openFinish(game.id) : undefined}
                 onSwapHint={() => toast("Tap the player you want to swap out.")}
                 onTapPlayer={
                   game

@@ -82,6 +82,37 @@ describe("board controller", () => {
     expect(saved).toHaveLength(3);
   });
 
+  it("attempt returns its own error and leaves other actions' errors to onError", async () => {
+    const ctx = makeCtx();
+    const s = checkIn(makeState(9), ids(4), ctx);
+    const errors: string[] = [];
+    const controller = createBoardController({ initial: s, save: async () => {}, onState: () => {}, onError: (m) => errors.push(m) });
+    const [other, mine] = await Promise.all([
+      controller.apply("Moved", () => ({ error: "Other action failed" })),
+      controller.attempt("Game finished", () => ({ error: "11-10 doesn't finish a game" }), true),
+    ]);
+    expect(other).toBeNull();
+    expect(mine).toEqual({ error: "11-10 doesn't finish a game" });
+    expect(errors).toEqual(["Other action failed"]);
+  });
+
+  it("attempt reports a failed save as its own error", async () => {
+    const ctx = makeCtx();
+    const s = checkIn(makeState(9), ids(4), ctx);
+    const errors: string[] = [];
+    const controller = createBoardController({
+      initial: s,
+      save: async () => {
+        throw new Error("disk full");
+      },
+      onState: () => {},
+      onError: (m) => errors.push(m),
+    });
+    const result = await controller.attempt("Checked in", (st) => checkIn(st, ["p5"], ctx));
+    expect(result).toEqual({ error: "That didn't save. Try again." });
+    expect(errors).toEqual([]);
+  });
+
   it("a failed save keeps the previous state and reports it", async () => {
     const ctx = makeCtx();
     const s = checkIn(makeState(9), ids(4), ctx);

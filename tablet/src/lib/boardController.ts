@@ -29,6 +29,23 @@ export function createBoardController({
     return run;
   }
 
+  function run(label: string, step: EngineStep, undoable: boolean): Promise<SessionState | EngineError> {
+    return enqueue(async () => {
+      const next = step(state);
+      if (isEngineError(next)) return next;
+      try {
+        await save(next);
+      } catch {
+        return { error: "That didn't save. Try again." };
+      }
+      if (undoable) undoStack.push(label, state);
+      else undoStack.take();
+      state = next;
+      onState(next);
+      return next;
+    });
+  }
+
   return {
     state: () => state,
 
@@ -37,25 +54,19 @@ export function createBoardController({
     /** When the current undo window opened (ms since epoch), or null if there's nothing to undo. */
     undoStartedAt: () => undoStack.peek()?.at ?? null,
 
-    apply(label: string, step: EngineStep, undoable = false): Promise<SessionState | null> {
-      return enqueue(async () => {
-        const next = step(state);
-        if (isEngineError(next)) {
-          onError(next.error);
-          return null;
-        }
-        try {
-          await save(next);
-        } catch {
-          onError("That didn't save. Try again.");
-          return null;
-        }
-        if (undoable) undoStack.push(label, state);
-        else undoStack.take();
-        state = next;
-        onState(next);
-        return next;
-      });
+    /** Runs an action; any failure goes to onError. */
+    async apply(label: string, step: EngineStep, undoable = false): Promise<SessionState | null> {
+      const result = await run(label, step, undoable);
+      if (isEngineError(result)) {
+        onError(result.error);
+        return null;
+      }
+      return result;
+    },
+
+    /** Runs an action and hands back its own failure instead of reporting it (for a sheet to show inline). */
+    attempt(label: string, step: EngineStep, undoable = false): Promise<SessionState | EngineError> {
+      return run(label, step, undoable);
     },
 
     undo(): Promise<SessionState | null> {
