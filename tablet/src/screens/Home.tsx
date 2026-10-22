@@ -1,19 +1,12 @@
 import { useEffect, useState } from "react";
 import { Archive, ArrowRight, CalendarDays, ChevronRight, Moon, Plus, Sun, Users } from "lucide-react";
 import type { Navigate } from "../App";
-import { BrandMark, Button, Card, EmptyState, IconButton } from "../components/ui";
+import { BrandMark, Button, Card, EmptyState, IconButton, toast } from "../components/ui";
 import { getMeta, listPlayers, listSessions, loadSessionState } from "../db/repo";
-import type { DeskSession } from "../engine/types";
 import { styleLabel } from "../lib/ctx";
 import { backupReminder } from "../lib/backupReminder";
-import { boardStats } from "../lib/boardStats";
-import { sessionHighlights } from "../lib/sessionHighlights";
+import { loadHomeData, type HomeData } from "../lib/homeData";
 import { applyTheme, saveTheme, type Theme } from "../lib/theme";
-
-const MAX_PAST = 20;
-
-type PastRow = { session: DeskSession; highlights: ReturnType<typeof sessionHighlights> };
-type LiveCard = { session: DeskSession; stats: ReturnType<typeof boardStats> };
 
 function dateTile(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -26,8 +19,8 @@ function clockTime(iso?: string) {
 }
 
 export function Home({ navigate }: { navigate: Navigate }) {
-  const [live, setLive] = useState<LiveCard | null>(null);
-  const [past, setPast] = useState<PastRow[]>([]);
+  const [live, setLive] = useState<HomeData["live"]>(null);
+  const [past, setPast] = useState<HomeData["past"]>([]);
   const [reminder, setReminder] = useState<string | null>(null);
   const [playerCount, setPlayerCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -37,19 +30,21 @@ export function Home({ navigate }: { navigate: Navigate }) {
 
   useEffect(() => {
     (async () => {
-      const [all, players, lastBackupAt] = await Promise.all([listSessions(), listPlayers(), getMeta("lastBackupAt")]);
-      setPlayerCount(players.length);
-      setReminder(backupReminder(lastBackupAt, players.length > 0 || all.length > 0));
-
-      const liveSession = all.find((s) => s.status === "live");
-      if (liveSession) setLive({ session: liveSession, stats: boardStats(await loadSessionState(liveSession.id)) });
-
-      const ended = all.filter((s) => s.status === "ended").slice(0, MAX_PAST);
-      const rows = await Promise.all(
-        ended.map(async (session) => ({ session, highlights: sessionHighlights(await loadSessionState(session.id)) }))
-      );
-      setPast(rows);
-      setLoaded(true);
+      try {
+        const [players, lastBackupAt, data] = await Promise.all([
+          listPlayers(),
+          getMeta("lastBackupAt"),
+          loadHomeData({ listSessions, loadSessionState }),
+        ]);
+        setPlayerCount(players.length);
+        setReminder(backupReminder(lastBackupAt, players.length > 0 || data.past.length > 0 || data.live !== null));
+        setLive(data.live);
+        setPast(data.past);
+      } catch {
+        toast("Some of your data couldn't be read. Try reopening the app.");
+      } finally {
+        setLoaded(true);
+      }
     })();
   }, []);
 
@@ -89,9 +84,13 @@ export function Home({ navigate }: { navigate: Navigate }) {
                 {live.session.title}
               </p>
               <p className="text-sm opacity-80">
-                <span className="font-mono tabular-nums">{live.session.courts.length}</span> courts ·{" "}
-                <span className="font-mono tabular-nums">{live.stats.playing}</span> playing ·{" "}
-                <span className="font-mono tabular-nums">{live.stats.games}</span> games
+                <span className="font-mono tabular-nums">{live.session.courts.length}</span> courts
+                {live.stats && (
+                  <>
+                    {" "}· <span className="font-mono tabular-nums">{live.stats.playing}</span> playing ·{" "}
+                    <span className="font-mono tabular-nums">{live.stats.games}</span> games
+                  </>
+                )}
               </p>
             </div>
             <button
@@ -152,9 +151,14 @@ export function Home({ navigate }: { navigate: Navigate }) {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{session.title}</span>
                       <span className="block truncate text-[13px] text-muted">
-                        {styleLabel(session.matchingStyle)} · <span className="font-mono tabular-nums">{highlights.games}</span>{" "}
-                        {highlights.games === 1 ? "game" : "games"}
-                        {highlights.top && (
+                        {styleLabel(session.matchingStyle)}
+                        {highlights && (
+                          <>
+                            {" "}· <span className="font-mono tabular-nums">{highlights.games}</span>{" "}
+                            {highlights.games === 1 ? "game" : "games"}
+                          </>
+                        )}
+                        {highlights?.top && (
                           <>
                             {" "}· top: {highlights.top.name}{" "}
                             <span className="font-mono tabular-nums">
