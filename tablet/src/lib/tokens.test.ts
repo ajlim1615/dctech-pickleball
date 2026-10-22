@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { TOKENS, type TokenName } from "./tokens";
-import { contrastRatio } from "./contrast";
+import { contrastRatio, mix } from "./contrast";
 
 const themes = ["light", "dark"] as const;
 
@@ -35,6 +35,18 @@ describe("design tokens", () => {
     for (const theme of themes) {
       expect(contrastRatio(TOKENS[theme].t1, TOKENS[theme].court), `${theme} t1`).toBeGreaterThanOrEqual(3);
       expect(contrastRatio(TOKENS[theme].t2, TOKENS[theme].court), `${theme} t2`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("muted text stays readable on the side panel and the court tints", () => {
+    for (const theme of themes) {
+      const t = TOKENS[theme];
+      // Court halves are the team tint at 70% over the court colour (CourtCard).
+      const tintA = mix(t["t1-bg"], t.court, 0.7);
+      const tintB = mix(t["t2-bg"], t.court, 0.7);
+      expect(contrastRatio(t.muted, t.sunken), `${theme} muted on sunken`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t.muted, tintA), `${theme} muted on team 1 tint`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t.muted, tintB), `${theme} muted on team 2 tint`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

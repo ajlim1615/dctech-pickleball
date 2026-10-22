@@ -28,7 +28,7 @@ export const TOKENS: Record<"light" | "dark", Record<TokenName, string>> = {
     sunken: "#efeadf",
     line: "#e4ded1",
     ink: "#1d2421",
-    muted: "#6f695c",
+    muted: "#68625a",
     primary: "#1f3b2f",
     "on-primary": "#f6f3ec",
     t1: "#2f6b4f",
