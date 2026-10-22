@@ -3,7 +3,7 @@ import { Minus, Plus } from "lucide-react";
 import { describeRule, quickWinScore } from "@/features/matches/utils/scoring";
 import { scoringRule } from "../engine/game";
 import type { DeskGame, DeskSession, GameResult, Team } from "../engine/types";
-import { Button, Modal } from "./ui";
+import { Button, Sheet } from "./ui";
 
 /** Record (or fix) a game's result: tap the winner, or enter the score. */
 export function ResultSheet({
@@ -28,7 +28,7 @@ export function ResultSheet({
 
   if (!session.trackScores) {
     return (
-      <Modal title={title} onClose={onCancel}>
+      <Sheet title={title} onClose={onCancel}>
         <p className="mb-4 text-sm text-muted-foreground">Who won?</p>
         <div className="grid grid-cols-2 gap-3">
           <WinnerButton team="A" label={team("A")} onClick={() => onSubmit({ winner: "A" })} />
@@ -39,12 +39,12 @@ export function ResultSheet({
             Cancel
           </Button>
         </div>
-      </Modal>
+      </Sheet>
     );
   }
 
   return (
-    <Modal title={title} onClose={onCancel}>
+    <Sheet title={title} onClose={onCancel}>
       <p className="mb-4 text-sm text-muted-foreground">
         Scoring: {describeRule(rule)}. Enter the score, or enter the losing team's points and tap who won.
       </p>
@@ -62,7 +62,7 @@ export function ResultSheet({
           Save <span className="font-mono tabular-nums">{a} - {b}</span>
         </Button>
       </div>
-    </Modal>
+    </Sheet>
   );
 }
 

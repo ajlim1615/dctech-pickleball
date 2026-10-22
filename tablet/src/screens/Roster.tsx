@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Navigate } from "../App";
-import { Button, Card, ScreenHeader, TextInput, Toggle, toast } from "../components/ui";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Button, Card, ScreenHeader, TextInput, Toggle, toast, ConfirmSheet } from "../components/ui";
+
 import { PlayerForm } from "../components/PlayerForm";
 import { deletePlayer, listPlayers, upsertPlayer } from "../db/repo";
 import type { DeskPlayer } from "../engine/types";
@@ -97,7 +97,7 @@ export function Roster({ navigate }: { navigate: Navigate }) {
         />
       )}
       {deleting && (
-        <ConfirmDialog
+        <ConfirmSheet
           title={`Delete ${deleting.name}?`}
           body="This can't be undone. Players with games on record can only be archived."
           confirmLabel="Delete"

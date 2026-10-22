@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Chips, Label, Modal, TextInput } from "./ui";
+import { Button, ChipGroup, Label, Sheet, TextInput } from "./ui";
 import { DEFAULT_SKILL, SKILL_LEVELS, type DeskPlayer } from "../engine/types";
 
 /** Add or edit a player: a name and a skill level. Used by the roster and for walk-ins. */
@@ -34,7 +34,7 @@ export function PlayerForm({
   }
 
   return (
-    <Modal title={title ?? (player ? "Edit player" : "Add player")} onClose={onCancel}>
+    <Sheet title={title ?? (player ? "Edit player" : "Add player")} onClose={onCancel}>
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -48,7 +48,7 @@ export function PlayerForm({
         </label>
         <div>
           <Label>Skill</Label>
-          <Chips options={SKILL_LEVELS} value={skill} onChange={setSkill} format={(v) => v.toFixed(1)} />
+          <ChipGroup options={SKILL_LEVELS} value={skill} onChange={setSkill} format={(v) => v.toFixed(1)} />
         </div>
         <label className="block">
           <Label>Note (optional)</Label>
@@ -63,6 +63,6 @@ export function PlayerForm({
           </Button>
         </div>
       </form>
-    </Modal>
+    </Sheet>
   );
 }

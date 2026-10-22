@@ -43,6 +43,18 @@ describe("board controller", () => {
     expect(current().queue.some((q) => q.playerId === "p5")).toBe(true);
   });
 
+  it("reports when the current undo window started", async () => {
+    const ctx = makeCtx();
+    const s = checkIn(makeState(9), ids(4), ctx);
+    const { controller } = setup(s);
+    expect(controller.undoStartedAt()).toBeNull();
+    const before = Date.now();
+    await controller.apply("Checked in", (st) => checkIn(st, ["p5"], ctx), true);
+    expect(controller.undoStartedAt()).toBeGreaterThanOrEqual(before);
+    await controller.apply("Checked in", (st) => checkIn(st, ["p6"], ctx));
+    expect(controller.undoStartedAt()).toBeNull();
+  });
+
   it("undo right after the action restores the state before it", async () => {
     const ctx = makeCtx();
     const s = checkIn(makeState(9), ids(4), ctx);

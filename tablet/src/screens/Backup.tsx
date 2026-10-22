@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Navigate } from "../App";
-import { Button, Card, ScreenHeader, toast } from "../components/ui";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Button, Card, ScreenHeader, toast, ConfirmSheet } from "../components/ui";
+
 import { getMeta, setMeta } from "../db/repo";
 import { backupFileName, parseBackup, restoreBackup, serializeBackup, type BackupData } from "../io/backup";
 import { shareFile } from "../io/native";
@@ -91,7 +91,7 @@ export function Backup({ navigate }: { navigate: Navigate }) {
       </main>
 
       {pending && (
-        <ConfirmDialog
+        <ConfirmSheet
           title="Replace everything on this tablet?"
           body={`This backup has ${pending.players.length} players and ${pending.sessions.length} sessions. Everything on this tablet now will be replaced.`}
           confirmLabel="Restore"

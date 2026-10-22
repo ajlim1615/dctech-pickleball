@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import type { Navigate } from "../App";
-import { Button, Card, Chips, Label, ScreenHeader, TextInput, Toggle, toast } from "../components/ui";
+import { Button, Card, ChipGroup, Label, ScreenHeader, TextInput, Toggle, toast } from "../components/ui";
 import { createSession, getLiveSession } from "../db/repo";
 import type { DeskCourt, DeskSession, MatchingStyle } from "../engine/types";
 import { MATCHING_STYLES, todayIso } from "../lib/ctx";
@@ -133,7 +133,7 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
               <>
                 <div>
                   <Label>Play to</Label>
-                  <Chips options={TARGETS} value={targetScore} onChange={setTargetScore} />
+                  <ChipGroup options={TARGETS} value={targetScore} onChange={setTargetScore} />
                 </div>
                 <Toggle label="Win by 2" checked={winBy2} onChange={setWinBy2} />
               </>

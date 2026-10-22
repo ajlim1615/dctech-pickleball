@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getLiveSession } from "./db/repo";
-import { Toaster } from "./components/ui";
+import { MotionConfig } from "motion/react";
+import { ToastHost } from "./components/ui";
 import { Home } from "./screens/Home";
 import { Roster } from "./screens/Roster";
 import { NewSession } from "./screens/NewSession";
@@ -29,14 +30,17 @@ export function App() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col">
+    // Animations follow the tablet's "reduce motion" setting.
+    <MotionConfig reducedMotion="user">
+    <div className="flex h-full flex-col bg-bg text-ink">
       {screen?.name === "home" && <Home navigate={setScreen} />}
       {screen?.name === "roster" && <Roster navigate={setScreen} />}
       {screen?.name === "new" && <NewSession navigate={setScreen} />}
       {screen?.name === "backup" && <Backup navigate={setScreen} />}
       {screen?.name === "live" && <LiveBoard key={screen.sessionId} sessionId={screen.sessionId} navigate={setScreen} />}
       {screen?.name === "summary" && <Summary key={screen.sessionId} sessionId={screen.sessionId} navigate={setScreen} />}
-      <Toaster />
+      <ToastHost />
     </div>
+    </MotionConfig>
   );
 }

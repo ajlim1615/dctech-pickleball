@@ -34,6 +34,9 @@ export function createBoardController({
 
     undoLabel: () => undoStack.peek()?.label ?? null,
 
+    /** When the current undo window opened (ms since epoch), or null if there's nothing to undo. */
+    undoStartedAt: () => undoStack.peek()?.at ?? null,
+
     apply(label: string, step: EngineStep, undoable = false): Promise<SessionState | null> {
       return enqueue(async () => {
         const next = step(state);

@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Coffee, ListChecks, LogOut, UserPlus } from "lucide-react";
 import { seededRandom } from "@/features/queue/utils/matchingEngine";
 import type { Navigate } from "../App";
-import { Button, ScreenHeader, toast } from "../components/ui";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { Button, ScreenHeader, toast, ConfirmSheet, UndoToast } from "../components/ui";
+
 import { CourtCard } from "../components/CourtCard";
 import { PlayerForm } from "../components/PlayerForm";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { ResultSheet } from "../components/ResultSheet";
-import { UndoBar } from "../components/UndoBar";
 import { loadSessionState, saveSessionState, upsertPlayer } from "../db/repo";
 import { createBoardController, type BoardController, type EngineStep } from "../lib/boardController";
 import { activeGameOnCourt, checkIn, finishGame, startGame, suggestAll, waitingLine, type Teams } from "../engine/game";
@@ -37,7 +36,7 @@ function useMinuteTick() {
 export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate: Navigate }) {
   const [state, setState] = useState<SessionState | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [undoLabel, setUndoLabel] = useState<string | null>(null);
+  const [undo, setUndo] = useState<{ label: string; at: number } | null>(null);
   // Admin's edits to a court's suggested four, until the game starts.
   const [drafts, setDrafts] = useState<Record<string, Teams>>({});
   const controller = useRef<BoardController | null>(null);
@@ -50,7 +49,11 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
         save: saveSessionState,
         onState: (next) => {
           setState(next);
-          setUndoLabel(controller.current?.undoLabel() ?? null);
+          {
+            const label = controller.current?.undoLabel();
+            const at = controller.current?.undoStartedAt();
+            setUndo(label && at ? { label, at } : null);
+          }
         },
         onError: toast,
       });
@@ -73,11 +76,11 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   );
 
   async function runUndo() {
-    setUndoLabel(null);
+    setUndo(null);
     await controller.current?.undo();
   }
 
-  const expireUndo = useCallback(() => setUndoLabel(null), []);
+  const expireUndo = useCallback(() => setUndo(null), []);
 
   const suggestions = useMemo(() => {
     if (!state) return {};
@@ -324,7 +327,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
         })()}
 
       {dialog?.kind === "end" && (
-        <ConfirmDialog
+        <ConfirmSheet
           title="End this session?"
           body="Games still running won't get a result. You can still fix results and export from the summary."
           confirmLabel="End session"
@@ -338,7 +341,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
         />
       )}
 
-      {undoLabel && <UndoBar label={undoLabel} onUndo={runUndo} onExpire={expireUndo} />}
+      {undo && <UndoToast key={undo.at} label={undo.label} startedAt={undo.at} onUndo={runUndo} onExpire={expireUndo} />}
     </>
   );
 }

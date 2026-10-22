@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Check, UserPlus } from "lucide-react";
 import clsx from "clsx";
 import type { DeskPlayer } from "../engine/types";
-import { Button, Modal, TextInput } from "./ui";
+import { Button, Sheet, TextInput } from "./ui";
 
 /**
  * Pick players from a list. `multiple` is for checking several in at once;
@@ -37,7 +37,7 @@ export function PlayerPicker({
   }
 
   return (
-    <Modal title={title} onClose={onCancel}>
+    <Sheet title={title} onClose={onCancel}>
       <div className="mb-3 flex gap-2">
         <TextInput placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
         {onAddWalkIn && (
@@ -82,6 +82,6 @@ export function PlayerPicker({
           </Button>
         )}
       </div>
-    </Modal>
+    </Sheet>
   );
 }
