@@ -1,37 +1,88 @@
 @import "tailwindcss";
+@import "@fontsource-variable/fraunces";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 
-/* Same tokens as the web app's dark theme, which is where the volt accent lives. */
+/* Clubhouse tokens. src/lib/tokens.ts holds the same values for the contrast tests. */
 :root {
-  --background: #090d14;
-  --foreground: #f1f5f9;
-  --card: #111726;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --border: #1e293b;
-  --destructive: #ef4444;
-  --court-lime: #d4e938;
-  --court-emerald: #10b981;
-  --court-amber: #f59e0b;
-  --court-sky: #0ea5e9;
+  --bg: #f6f3ec;
+  --surface: #fffdf8;
+  --sunken: #efeadf;
+  --line: #e4ded1;
+  --ink: #1d2421;
+  --muted: #6f695c;
+  --primary: #1f3b2f;
+  --on-primary: #f6f3ec;
+  --t1: #2f6b4f;
+  --t1-bg: #d6e6d5;
+  --t2: #2f5a7a;
+  --t2-bg: #d8e4ec;
+  --court: #e3ebdf;
+  --court-line: #ffffff;
+  --clay: #9f4b28;
+  --clay-bg: #f5e3d8;
+  --ball: #d4e938;
+  --shadow: 0 1px 2px #3b2f1a12, 0 8px 22px #3b2f1a10;
+  color-scheme: light;
+}
+
+/* The same club at night. */
+:root[data-theme="dark"] {
+  --bg: #111714;
+  --surface: #19211d;
+  --sunken: #151c18;
+  --line: #26302b;
+  --ink: #ece6d8;
+  --muted: #97a097;
+  --primary: #a9d1b4;
+  --on-primary: #10241a;
+  --t1: #8fcca5;
+  --t1-bg: #1f3a2c;
+  --t2: #93c2e0;
+  --t2-bg: #1d3242;
+  --court: #1c2a22;
+  --court-line: #3b4d42;
+  --clay: #e39a74;
+  --clay-bg: #3a261d;
+  --ball: #d4e938;
+  --shadow: 0 1px 0 #ffffff08 inset, 0 10px 26px #00000055;
   color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
   --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-volt: var(--court-lime);
-  --color-team1: var(--court-emerald);
-  --color-team2: var(--court-sky);
-  --color-amber: var(--court-amber);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-t1: var(--t1);
+  --color-t1-bg: var(--t1-bg);
+  --color-t2: var(--t2);
+  --color-t2-bg: var(--t2-bg);
+  --color-court: var(--court);
+  --color-court-line: var(--court-line);
+  --color-clay: var(--clay);
+  --color-clay-bg: var(--clay-bg);
+  --color-ball: var(--ball);
+  --shadow-card: var(--shadow);
+  --font-serif: "Fraunces Variable", Georgia, serif;
   --font-sans: "Geist Variable", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  /* Temporary aliases for the old dark-only class names; removed once every screen is rebuilt. */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-border: var(--line);
+  --color-muted-foreground: var(--muted);
+  --color-destructive: var(--clay);
+  --color-volt: var(--primary);
+  --color-team1: var(--t1);
+  --color-team2: var(--t2);
+  --color-amber: var(--clay);
 }
 
 html,
@@ -41,9 +92,14 @@ body,
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
