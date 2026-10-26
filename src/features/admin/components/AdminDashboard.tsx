@@ -2091,7 +2091,7 @@ export function AdminDashboard({
                   2. 1-Click Queue Callup
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
-                  Click <strong>Call Next 4</strong> on an open court card to automatically pull the top 4 waiting players from the queue and balance teams by DUPR rating.
+                  Click <strong>Call Next 4</strong> on an open court card to call the next group using the session&apos;s matching mode (see How the Rotation Engine Executes below).
                 </p>
               </div>
 

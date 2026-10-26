@@ -205,7 +205,7 @@ export function GuideView() {
                       CASUAL / SOCIAL
                     </Badge>
                     <span className="text-xs font-mono text-purple-600 dark:text-purple-400 font-bold">
-                      Shuffle
+                      Avoids Repeats
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -226,10 +226,10 @@ export function GuideView() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300 border-sky-300 dark:border-sky-800 text-[10px] font-mono font-bold">
-                      TIER BASED
+                      RATING BASED
                     </Badge>
                     <span className="text-xs font-mono text-sky-600 dark:text-sky-400 font-bold">
-                      Skill Courts
+                      By Rating
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
