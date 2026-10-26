@@ -27,10 +27,12 @@ describe("decide: balanced, social mix and fifo", () => {
   });
 
   it("social mix ignores ratings and avoids repeat partners", () => {
-    const line = [e("1", 5), e("2", 2), e("3", 5), e("4", 2)];
-    const d = decide(input("social_mixer", line, [game(["1", "2"], ["3", "4"])])) as Teams;
-    expect(d.teamA.includes("1") && d.teamA.includes("2")).toBe(false);
-    expect(d.teamB.includes("1") && d.teamB.includes("2")).toBe(false);
+    const line = [e("1", 5), e("2", 5), e("3", 2), e("4", 2)];
+    const h = [game(["1", "3"], ["2", "4"]), game(["1", "4"], ["2", "3"])];
+    // 1+2 vs 3+4 is the only split with no repeat partners, but it is the most lopsided on rating.
+    expect(sorted(decide(input("social_mixer", line, h)))).toEqual(sorted({ teamA: ["1", "2"], teamB: ["3", "4"] }));
+    // Balanced weighs the 3.0 rating gap more heavily and picks a repeat-partner split instead.
+    expect(sorted(decide(input("balanced", line, h)))).not.toEqual(sorted({ teamA: ["1", "2"], teamB: ["3", "4"] }));
   });
 
   it("first in line is always called", () => {
@@ -48,11 +50,18 @@ describe("decide: balanced, social mix and fifo", () => {
   });
 
   it("a locked pair plays together", () => {
-    const line = [e("1"), e("2", 3, "g"), e("3"), e("4", 3, "g"), e("5"), e("6")];
-    for (const style of ["balanced", "social_mixer", "fifo"] as const) {
-      const d = decide(input(style, line)) as Teams;
-      const team = d.teamA.includes("2") ? d.teamA : d.teamB;
-      if ([...d.teamA, ...d.teamB].includes("2")) expect(team).toContain("4");
+    const lines = {
+      partnerAtFour: [e("1", 3, "g"), e("2"), e("3"), e("4", 3, "g"), e("5"), e("6")],
+      partnerBeyondSix: [e("1", 3, "g"), ...["2", "3", "4", "5", "6", "7", "8"].map((i) => e(i)), e("9", 3, "g")],
+    };
+    for (const line of Object.values(lines)) {
+      const partner = line[line.length - 1].pairId === "g" ? line[line.length - 1].playerId : "4";
+      for (const style of ["balanced", "social_mixer", "fifo"] as const) {
+        const d = decide(input(style, line)) as Teams;
+        const team = d.teamA.includes("1") ? d.teamA : d.teamB;
+        expect(team).toContain("1");
+        expect(team).toContain(partner);
+      }
     }
   });
 
