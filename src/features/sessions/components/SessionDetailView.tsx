@@ -45,6 +45,7 @@ import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
 import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
+import type { PastGame } from "@/features/queue/matchmaking";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
@@ -64,6 +65,8 @@ interface SessionDetailViewProps {
   /** Session activity, newest first, and the average game length so far. */
   initialEvents?: SessionEvent[];
   avgGameMinutes?: number | null;
+  /** Finished games, for the Up next preview. */
+  history?: PastGame[];
 }
 
 const NO_RSVPS: { playerId: string; name: string }[] = [];
@@ -86,6 +89,7 @@ export function SessionDetailView({
   rsvps = NO_RSVPS,
   initialEvents = NO_EVENTS,
   avgGameMinutes = null,
+  history,
 }: SessionDetailViewProps) {
   const events = useLiveFeed(session.id, initialEvents);
   // Names for the activity feed: everyone the page knows about.
@@ -1159,6 +1163,8 @@ export function SessionDetailView({
             isSessionActive={currentStatus === "active"}
             matchingMode={sessionMeta.matchingMode}
             courts={courts || []}
+            history={history}
+            skillSpread={sessionMeta.skillSpread}
             onOpenBulkQueue={openAddPlayers}
             activity={{ events, names: activityNames, avgGameMinutes }}
           />

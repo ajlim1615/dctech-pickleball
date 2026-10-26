@@ -6,7 +6,15 @@ import { Plus, UserPlus, X, CheckCircle2, Users, Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
-import { previewMatchupFromPod, type MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import {
+  decide,
+  seededRandom,
+  teamStats,
+  DEFAULT_SKILL_SPREAD,
+  type MatchingStyle,
+  type PastGame,
+} from "@/features/queue/matchmaking";
+import { previewCourtId } from "@/features/queue/api/matchmakingData";
 import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
@@ -28,6 +36,10 @@ interface SessionQueueLiveBoardProps {
   courts?: ActiveCourtView[];
   /** Session activity for the "Why the wait?" card. */
   activity?: { events: SessionEvent[]; names: Record<string, string>; avgGameMinutes: number | null };
+  /** This session's finished games, so the Up next preview avoids repeats like the real call-up. */
+  history?: PastGame[];
+  /** Biggest rating gap allowed within a group for Skill Separated. */
+  skillSpread?: number;
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -47,6 +59,7 @@ function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
 // setQueue(initialQueue) effect forever.
 const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
 const EMPTY_COURTS: ActiveCourtView[] = [];
+const EMPTY_HISTORY: PastGame[] = [];
 
 const courtLabel = (court?: Pick<ActiveCourtView, "name"> | null) =>
   court?.name.replace(/\s*\(Rented Court\)/i, "") || undefined;
@@ -64,6 +77,8 @@ export function SessionQueueLiveBoard({
   matchingMode = "balanced",
   courts = EMPTY_COURTS,
   activity,
+  history = EMPTY_HISTORY,
+  skillSpread = DEFAULT_SKILL_SPREAD,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -106,13 +121,33 @@ export function SessionQueueLiveBoard({
 
   const style = matchingMode || "balanced";
   const nextPod = useMemo(() => pods[0] || [], [pods]);
-  const isNextPodFull = nextPod.length === 4;
   // Rendered on the server and the client, so it must be deterministic: seed on the queue entries.
-  const nextMatchup = useMemo(() => {
-    if (!isNextPodFull) return null;
-    const profiles = nextPod.map((item) => ((item.player || item) as unknown) as Profile);
-    return previewMatchupFromPod(profiles, style, nextPod.map((item) => item.id).join("|"));
-  }, [isNextPodFull, nextPod, style]);
+  const preview = useMemo(() => {
+    const target = previewCourtId(courts);
+    if (!target || queue.length < 4) return null;
+    const decision = decide({
+      style,
+      line: queue.map((q) => ({ playerId: q.player_id, rating: q.player?.skill_rating ?? null, pairId: q.group_id })),
+      history,
+      court: target.court,
+      courts: target.courts,
+      settings: { skillSpread },
+      random: seededRandom(queue.map((q) => q.id).join("|")),
+    });
+    if (!("teamA" in decision)) return { hold: decision.hold };
+    const byId = new Map(queue.map((q) => [q.player_id, q]));
+    const ratingOf = (id: string) => byId.get(id)?.player?.skill_rating ?? 3.0;
+    const profilesOf = (ids: string[]) =>
+      ids.map((id) => ((byId.get(id)?.player ?? byId.get(id)) as unknown) as Profile);
+    return {
+      hold: null,
+      teamA: profilesOf(decision.teamA),
+      teamB: profilesOf(decision.teamB),
+      ...teamStats(decision, ratingOf),
+    };
+  }, [courts, queue, history, skillSpread, style]);
+  const nextMatchup = preview && preview.hold === null ? preview : null;
+  const waitingForSkillMatch = preview?.hold === "no_skill_match";
   const isPreviewOnly = SHUFFLED_STYLES.includes(style);
 
   async function handleQuickJoinSolo() {
@@ -389,18 +424,21 @@ export function SessionQueueLiveBoard({
               players={nextMatchup.teamA}
               avg={nextMatchup.teamARatingAvg}
               currentUserId={currentUserId}
-              removeFor={(p) => removeFor(nextPod.find((item) => item.player_id === p.id), playerName(p))}
+              removeFor={(p) => removeFor(queue.find((item) => item.player_id === p.id), playerName(p))}
             />
             <TeamBlock
               side="B"
               players={nextMatchup.teamB}
               avg={nextMatchup.teamBRatingAvg}
               currentUserId={currentUserId}
-              removeFor={(p) => removeFor(nextPod.find((item) => item.player_id === p.id), playerName(p))}
+              removeFor={(p) => removeFor(queue.find((item) => item.player_id === p.id), playerName(p))}
             />
           </div>
         ) : (
           <div className="space-y-2">
+            {waitingForSkillMatch && (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Waiting for a skill match</p>
+            )}
             <ol className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800">
               {nextPod.map((item, idx) => (
                 <QueueRow
@@ -419,10 +457,12 @@ export function SessionQueueLiveBoard({
                 </li>
               ))}
             </ol>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Needs <span className="font-mono tabular-nums">{4 - nextPod.length}</span> more{" "}
-              {4 - nextPod.length === 1 ? "player" : "players"} to make a game.
-            </p>
+            {nextPod.length < 4 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Needs <span className="font-mono tabular-nums">{4 - nextPod.length}</span> more{" "}
+                {4 - nextPod.length === 1 ? "player" : "players"} to make a game.
+              </p>
+            )}
           </div>
         )}
       </div>

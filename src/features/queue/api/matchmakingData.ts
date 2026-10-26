@@ -60,3 +60,16 @@ export function holdMessage(d: Exclude<Decision, Teams>, skillSpread: number): s
   }
   return `No group of four within ${skillSpread} rating of each other yet.`;
 }
+
+/**
+ * Which court the "Up next" preview is for, and every open court (maintenance excluded) in ladder order.
+ * The court is the first one with no game in progress, else the first open court.
+ */
+export function previewCourtId(
+  courts: { id: string; status: string; sort_order: number; current_match_id: string | null }[]
+): { court: string; courts: string[] } | null {
+  const open = courts.filter((c) => c.status !== "maintenance").sort((a, b) => a.sort_order - b.sort_order);
+  if (open.length === 0) return null;
+  const court = (open.find((c) => !c.current_match_id) ?? open[0]).id;
+  return { court, courts: open.map((c) => c.id) };
+}

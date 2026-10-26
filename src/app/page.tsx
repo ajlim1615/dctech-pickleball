@@ -1,5 +1,6 @@
+import type { MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { getCourts } from "@/features/courts/api/courtActions";
-import { getSessions } from "@/features/sessions/api/sessionActions";
+import { getSessions, getSessionMatches } from "@/features/sessions/api/sessionActions";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
@@ -24,9 +25,9 @@ export default async function HomePage() {
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   // Only fetch the roster and live queue while a session is in play
-  const [employees, queue] = activeSession
-    ? await Promise.all([getAllEmployees(), getQueueForSession(activeSession.id)])
-    : [[], []];
+  const [employees, queue, matches] = activeSession
+    ? await Promise.all([getAllEmployees(), getQueueForSession(activeSession.id), getSessionMatches(activeSession.id)])
+    : [[], [], []];
   const upcomingIds = upcomingSessions.map((s) => s.id);
   const [rsvpCounts, myRsvps] = await Promise.all([getRsvpCounts(upcomingIds), getMyRsvpSessionIds(upcomingIds)]);
 
@@ -36,6 +37,7 @@ export default async function HomePage() {
       upcomingSessions={upcomingSessions}
       courts={courts}
       queue={queue}
+      matches={matches as unknown as MatchRowForHistory[]}
       employees={employees}
       leaderboard={leaderboard || []}
       rsvpCounts={rsvpCounts}

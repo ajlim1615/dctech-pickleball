@@ -6,6 +6,7 @@ import { SessionRow, SessionRuleChips } from "@/features/sessions/components/Ses
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
+import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import type { RankedPlayer } from "@/features/rankings/api/rankingActions";
 import type { ActiveCourtView, Profile, QueueEntryWithPlayer, Session } from "@/types";
 
@@ -20,6 +21,8 @@ export interface HomeViewProps {
   /** RSVP head count per upcoming session, and the ones the viewer is going to. */
   rsvpCounts?: Record<string, number>;
   myRsvps?: string[];
+  /** The active session's matches, for the Up next preview. */
+  matches?: MatchRowForHistory[];
 }
 
 type ViewerStatus =
@@ -56,6 +59,7 @@ export function HomeView({
   viewer,
   rsvpCounts = {},
   myRsvps = [],
+  matches = [],
 }: HomeViewProps) {
   const meta = activeSession ? parseSessionMetadata(activeSession.description) : null;
   const status = viewerStatus(viewer, courts, queue);
@@ -118,6 +122,8 @@ export function HomeView({
               readOnly
               matchingMode={meta.matchingMode}
               courts={courts}
+              history={pastGamesFromMatches(matches)}
+              skillSpread={meta.skillSpread}
             />
           </section>
         </>

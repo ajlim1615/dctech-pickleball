@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getCourts } from "@/features/courts/api/courtActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
+import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { SessionDetailView } from "@/features/sessions/components/SessionDetailView";
 import { getSessionRsvps } from "@/features/sessions/api/rsvpActions";
 import { getAverageGameMinutes, getSessionFeed } from "@/features/activity/api/activityActions";
@@ -61,6 +62,7 @@ export default async function SessionDetailPage({
       initialLeaderboard={leaderboard}
       initialMatches={matches}
       initialQueue={queue}
+      history={pastGamesFromMatches(matches as unknown as MatchRowForHistory[])}
       employees={employees}
       rsvps={rsvps}
       initialEvents={initialEvents}
