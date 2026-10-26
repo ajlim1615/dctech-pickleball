@@ -227,7 +227,8 @@ export function refillCourts(state: SessionState, ctx: EngineCtx, firstCourtId?:
   for (const court of courts) {
     if (court.closed || activeGameOnCourt(next, court.id)) continue;
     const suggestion = suggestGame(next, court.id, ctx.random);
-    if (!("teamA" in suggestion)) break;
+    // A held court stays empty; later courts may still start (King/Queen holds per court).
+    if (!("teamA" in suggestion)) continue;
     const started = startGame(next, court.id, suggestion, ctx);
     if ("error" in started) continue;
     next = started;

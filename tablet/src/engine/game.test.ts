@@ -193,3 +193,34 @@ describe("matchmaking modes", () => {
     expect(activeGameOnCourt(refillCourts(s, makeCtx()), "c1")).toBeUndefined();
   });
 });
+
+describe("refillCourts with holds", () => {
+  it("skips a held court and still fills a later one", () => {
+    const courts = ["c1", "c2", "c3"].map((id, i) => ({ id, name: `Court ${i + 1}`, closed: false }));
+    const base = checkIn(makeState(5, { matchingStyle: "king_queen", courts }), ids(5), makeCtx());
+    const done = (id: string, courtId: string, teamA: string[], teamB: string[], endedAt: string) => ({
+      id,
+      sessionId: base.session.id,
+      courtId,
+      teamA,
+      teamB,
+      scoreA: 11,
+      scoreB: 3,
+      winner: "A" as const,
+      startedAt: "2026-10-21T17:00:00.000Z",
+      endedAt,
+    });
+    // k1+k2 (p1,p2) won on Court 1; a+b (p3,p4) won on Court 2. Court 3 is first in line to fill but has only p5 free.
+    const s: SessionState = {
+      ...base,
+      games: [
+        done("g1", "c1", ["p1", "p2"], ["x1", "x2"], "2026-10-21T18:00:00.000Z"),
+        done("g2", "c2", ["p3", "p4"], ["x3", "x4"], "2026-10-21T18:01:00.000Z"),
+      ],
+    };
+    expect(suggestGame(s, "c3")).toEqual({ waitingFor: 3 });
+    const next = refillCourts(s, makeCtx(), "c3");
+    expect(activeGameOnCourt(next, "c1")).toBeDefined();
+    expect(activeGameOnCourt(next, "c3")).toBeUndefined();
+  });
+});

@@ -88,11 +88,19 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
 
   const expireUndo = useCallback(() => setUndo(null), []);
 
-  const suggestions = useMemo(() => {
-    if (!state) return {};
+  // Forcing only lasts while the court is still held; derived here, then pruned from state below.
+  const { suggestions, stillHeld } = useMemo(() => {
+    if (!state) return { suggestions: {}, stillHeld: new Set<string>() };
     const seed = waitingLine(state).map((q) => q.id).join(",");
-    return suggestAll(state, (courtId) => seededRandom(courtId + seed), forced);
+    const random = (courtId: string) => seededRandom(courtId + seed);
+    const plain = suggestAll(state, random);
+    const held = new Set([...forced].filter((id) => plain[id] && "hold" in plain[id]));
+    return { suggestions: held.size > 0 ? suggestAll(state, random, held) : plain, stillHeld: held };
   }, [state, forced]);
+
+  useEffect(() => {
+    if (stillHeld.size !== forced.size) setForced(stillHeld);
+  }, [stillHeld, forced]);
 
   if (!state) return null;
   const s = state;
