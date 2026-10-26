@@ -56,6 +56,17 @@ export async function joinQueue(params: {
     return { error: "The System Admin account (admin@dctechmicro.com) is an administrative profile and cannot join the paddle queue." };
   }
 
+  // Players may pre-queue for a scheduled session, but not join one that is over
+  const { data: sessionRow } = await supabase
+    .from("sessions")
+    .select("status")
+    .eq("id", params.sessionId)
+    .maybeSingle();
+
+  if (!sessionRow || (sessionRow.status !== "active" && sessionRow.status !== "scheduled")) {
+    return { error: "This session is not open for queueing." };
+  }
+
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
 
   // Automatically record session check-in attendance

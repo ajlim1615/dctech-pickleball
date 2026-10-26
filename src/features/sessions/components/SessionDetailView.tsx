@@ -1161,6 +1161,7 @@ export function SessionDetailView({
             userEmail={userEmail}
             employees={employees}
             isSessionActive={currentStatus === "active"}
+            isSessionScheduled={currentStatus === "scheduled"}
             matchingMode={sessionMeta.matchingMode}
             courts={courts || []}
             history={history}
