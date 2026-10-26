@@ -945,7 +945,7 @@ export function AdminDashboard({
                         </div>
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Balances teams by rating. Avoids repeat matchups when possible.
+                        Balances teams by rating. Avoids repeat partners and opponents when possible.
                       </p>
                     </button>
 
@@ -1061,7 +1061,7 @@ export function AdminDashboard({
                               <span>Skill Courts</span>
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Give each skill group its own courts and queue.
+                              Works like Skill Separated for now. Courts by skill level coming soon.
                             </p>
                           </button>
 
@@ -1082,7 +1082,7 @@ export function AdminDashboard({
                               <span>Mixed Doubles</span>
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Every team has one male and one female player.
+                              Shuffled teams for now. One man and one woman per team coming soon.
                             </p>
                           </button>
 
@@ -1103,7 +1103,7 @@ export function AdminDashboard({
                               <span>King/Queen of the Court</span>
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Winners move up. Losers move down.
+                              Winners move up a court. Losers rejoin the line.
                             </p>
                           </button>
 
@@ -1127,7 +1127,7 @@ export function AdminDashboard({
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Two groups compete. Every match is one group vs the other.
+                              Shuffled teams for now. Group vs group coming soon.
                             </p>
                           </button>
                         </div>
@@ -2129,7 +2129,7 @@ export function AdminDashboard({
                   </span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Pairs #1 + #4 vs #2 + #3 by DUPR rating. Keeps games competitive and evenly matched while minimizing repeat matchups.
+                  Picks four from near the front of the line and splits them into the most even teams, preferring people who haven&apos;t partnered or played each other yet this session.
                 </p>
               </div>
 
@@ -2142,7 +2142,7 @@ export function AdminDashboard({
                   </span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Focuses on social variety by shuffling players and avoiding repeat teammates/opponents without filtering by skill rating.
+                  Picks four from near the front of the line and avoids repeat partners and opponents. Ignores ratings; ties are broken at random.
                 </p>
               </div>
 
@@ -2152,7 +2152,7 @@ export function AdminDashboard({
                   Skill Separated
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Groups players of similar DUPR ratings together on the same court (Intermediate with Intermediate, Novice with Novice).
+                  Only calls four players whose ratings are within the session&apos;s max spread (default 0.75). If the first in line has no match, others play first; if no group fits, the court is held and an admin can Call anyway.
                 </p>
               </div>
 
@@ -2162,7 +2162,7 @@ export function AdminDashboard({
                   Winners / Losers
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Winners rotate to face other winners; losers rotate to face other losers for tiered ladder play.
+                  Groups people by their last result, winners with winners and losers with losers (newcomers fit either), reaching a little down the line to find a matching group.
                 </p>
               </div>
 
@@ -2172,7 +2172,7 @@ export function AdminDashboard({
                   Skill Courts
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Dedicates specific rented courts to designated rating brackets (e.g. Court 1: 3.5+, Court 2: 2.75-3.5, Court 3: Beginner).
+                  Works like Skill Separated for now. Courts by skill level are coming soon.
                 </p>
               </div>
 
@@ -2182,7 +2182,7 @@ export function AdminDashboard({
                   Mixed Doubles
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Ensures each 2v2 doubles team consists of 1 male and 1 female coworker.
+                  Shuffled teams for now, like Social Mix. One man and one woman per team is coming soon.
                 </p>
               </div>
 
@@ -2192,7 +2192,7 @@ export function AdminDashboard({
                   King/Queen of the Court
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Winners move up toward Court 1 (Championship court); losers move down toward the lower court.
+                  Winning pairs move up one court (Court 1 champions stay) and losers rejoin the line. New players start on the lower courts.
                 </p>
               </div>
 
@@ -2205,7 +2205,7 @@ export function AdminDashboard({
                   </span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Splits participants into two team clubs (e.g. Engineering vs Product). Every match is Club A vs Club B.
+                  Shuffled teams for now, like Social Mix. Group vs group is coming soon.
                 </p>
               </div>
             </div>
@@ -2217,9 +2217,9 @@ export function AdminDashboard({
                 How the Rotation Engine Executes Your Selected Mode:
               </div>
               <ul className="space-y-1.5 list-disc list-inside">
-                <li><strong className="text-slate-900 dark:text-slate-100">Step 1 (Paddle Line Order):</strong> When <span className="text-emerald-600 dark:text-emerald-400 font-bold">Call Next 4</span> is clicked, the engine pulls the top 4 waiting players in strict FIFO arrival order.</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 1 (Paddle Line Order):</strong> When <span className="text-emerald-600 dark:text-emerald-400 font-bold">Call Next 4</span> is clicked, the engine looks at the first few waiting players in arrival order. The first in line is always included.</li>
                 <li><strong className="text-slate-900 dark:text-slate-100">Step 2 (Locked Doubles Pairs):</strong> If two coworkers queued together as a pair (+Coworker), they are locked together on <span className="text-emerald-600 dark:text-emerald-400 font-bold">Team 1</span>.</li>
-                <li><strong className="text-slate-900 dark:text-slate-100">Step 3 (Matching Mode Execution):</strong> The engine applies your active session mode (e.g. <em>Balanced</em> pairs #1+#4 vs #2+#3; <em>Social Mix</em> shuffles permutations; <em>Skill Separated</em> pairs tier with tier).</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 3 (Matching Mode Execution):</strong> The engine applies your session&apos;s mode: <em>Balanced</em> weighs even teams against repeats, <em>Social Mix</em> avoids repeats, and <em>Skill Separated</em> keeps the four within the session&apos;s rating spread.</li>
                 <li><strong className="text-slate-900 dark:text-slate-100">Step 4 (Court Dispatch):</strong> The match starts in-progress with live umpires and scoreboards. When completed, court frees up and queue automatically advances.</li>
               </ul>
             </div>

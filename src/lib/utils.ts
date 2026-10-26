@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
-import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import type { MatchingStyle } from "@/features/queue/matchmaking";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

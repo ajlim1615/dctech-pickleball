@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buildWindow, enumerateOptions, ratingOf, teamStats } from "./scoring";
+import { buildWindow, enumerateOptions, ratingOf, seededRandom, teamStats } from "./scoring";
 import type { LineEntry } from "./types";
 
 const e = (id: string, rating: number | null = 3, pairId?: string): LineEntry => ({ playerId: id, rating, pairId });
@@ -41,3 +41,14 @@ it("teamStats matches the old balance formula", () => {
 });
 
 it("missing rating counts as 3.0", () => expect(ratingOf(e("x", null))).toBe(3));
+
+it("seededRandom is deterministic per seed and stays in [0, 1)", () => {
+  const a = seededRandom("x");
+  const b = seededRandom("x");
+  for (let i = 0; i < 100; i++) {
+    const v = a();
+    expect(v).toBe(b());
+    expect(v).toBeGreaterThanOrEqual(0);
+    expect(v).toBeLessThan(1);
+  }
+});

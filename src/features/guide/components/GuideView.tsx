@@ -188,11 +188,11 @@ export function GuideView() {
                     1. Balanced DUPR Matching
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Sorts the 4 called players by skill rating: <strong>Team A (#1 Best + #4 Lowest)</strong> vs <strong>Team B (#2 + #3 Middle)</strong>.
+                    Picks four from the first six in line (the first person is always included) and splits them into the most even teams by rating, preferring people who haven&apos;t partnered or played each other this session.
                   </p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-emerald-500/20 text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1">
-                  <div><strong>Strategy:</strong> Equalizes combined team DUPR.</div>
+                  <div><strong>Strategy:</strong> Evens out team ratings and avoids repeats.</div>
                   <div><strong>Best For:</strong> Competitive matches without blowouts.</div>
                 </div>
               </div>
@@ -209,10 +209,10 @@ export function GuideView() {
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    2. Social Mixer
+                    2. Social Mix
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Shuffles called players to minimize repeat partners and opponents across games, disregarding ratings.
+                    Picks four from the first six in line and avoids repeat partners and opponents. Ratings are ignored, and equally good options are chosen at random.
                   </p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-purple-500/20 text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1">
@@ -236,12 +236,12 @@ export function GuideView() {
                     3. Skill Separated
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Groups similar skill levels together (e.g. <strong>Advanced vs Advanced</strong>, <strong>Beginner vs Beginner</strong>).
+                    Only calls four players whose ratings are within the session&apos;s max spread (default 0.75). If the first in line has no match, others play first. If no group fits, the court waits and an admin can Call anyway.
                   </p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-sky-500/20 text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1">
-                  <div><strong>Strategy:</strong> High vs High and Beginner vs Beginner.</div>
-                  <div><strong>Best For:</strong> High-paced competitive tournaments.</div>
+                  <div><strong>Strategy:</strong> Similar ratings share a court.</div>
+                  <div><strong>Best For:</strong> Sessions with mixed skill levels.</div>
                 </div>
               </div>
 
@@ -250,22 +250,22 @@ export function GuideView() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300 border-amber-300 dark:border-amber-800 text-[10px] font-mono font-bold">
-                      KING OF COURT
+                      RESULT BASED
                     </Badge>
                     <span className="text-xs font-mono text-amber-600 dark:text-amber-400 font-bold">
-                      Split Winners
+                      By Last Result
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     4. Winners / Losers
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    The winning pair stays on court, splits into opponents, and takes on 2 incoming challengers from the waiting queue.
+                    Groups people by their last result: winners with winners and losers with losers. Newcomers fit either, and the engine reaches a little down the line to find a matching group.
                   </p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-amber-500/20 text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1">
-                  <div><strong>Strategy:</strong> Winner stays and splits with challengers.</div>
-                  <div><strong>Best For:</strong> Challenge ladders and court streaks.</div>
+                  <div><strong>Strategy:</strong> Winners play winners, losers play losers.</div>
+                  <div><strong>Best For:</strong> Keeping games close in level after a few rounds.</div>
                 </div>
               </div>
 

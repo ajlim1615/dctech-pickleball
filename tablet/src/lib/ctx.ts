@@ -24,14 +24,14 @@ export function formatDate(iso: string): string {
 }
 
 export const MATCHING_STYLES: { value: MatchingStyle; label: string; hint: string }[] = [
-  { value: "balanced", label: "Balanced", hint: "Strongest and weakest pair up against the middle two." },
-  { value: "social_mixer", label: "Social mix", hint: "Next four in line, teams shuffled." },
-  { value: "skill_separated", label: "Skill separated", hint: "First in line plays with the closest skill levels." },
-  { value: "winners_losers", label: "Winners / losers", hint: "Winners split up and face new challengers." },
-  { value: "skill_courts", label: "Skill courts", hint: "Like skill separated: similar levels share a court." },
-  { value: "mixed_doubles", label: "Mixed doubles", hint: "Next four in line, teams shuffled." },
-  { value: "king_queen", label: "King / queen of the court", hint: "Winners stay on and take two challengers." },
-  { value: "club_wars", label: "Club wars", hint: "Next four in line, teams shuffled." },
+  { value: "balanced", label: "Balanced", hint: "Even teams by rating, avoiding repeat partners and opponents." },
+  { value: "social_mixer", label: "Social mix", hint: "Avoids repeat partners and opponents. Ignores ratings." },
+  { value: "skill_separated", label: "Skill separated", hint: "Similar ratings share a court. May hold a court." },
+  { value: "winners_losers", label: "Winners / losers", hint: "Winners play winners, losers play losers." },
+  { value: "skill_courts", label: "Skill courts", hint: "Like skill separated for now." },
+  { value: "mixed_doubles", label: "Mixed doubles", hint: "Shuffled teams for now." },
+  { value: "king_queen", label: "King / queen of the court", hint: "Winners move up a court; losers rejoin the line." },
+  { value: "club_wars", label: "Club wars", hint: "Shuffled teams for now." },
   { value: "fifo", label: "First in line", hint: "First two in line against the next two." },
   { value: "winners_stay", label: "Winners stay", hint: "Winners stay on and take two challengers." },
 ];
