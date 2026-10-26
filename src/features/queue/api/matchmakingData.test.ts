@@ -21,6 +21,10 @@ describe("holdMessage", () => {
   it("hold messages", () => {
     expect(holdMessage({ hold: "not_enough_players", needed: 1 }, 0.75)).toBe("Need 1 more waiting player to start a game.");
     expect(holdMessage({ hold: "not_enough_players", needed: 2 }, 0.75)).toBe("Need 2 more waiting players to start a game.");
+    expect(holdMessage({ hold: "not_enough_players", needed: 2 }, 0.75, 2)).toBe(
+      "Need 2 more waiting players to start a game. (2 waiting players are saved for a court above.)"
+    );
+    expect(holdMessage({ hold: "not_enough_players", needed: 2 }, 0.75, 0)).toBe("Need 2 more waiting players to start a game.");
     expect(holdMessage({ hold: "no_skill_match" }, 0.75)).toBe("No group of four within 0.75 rating of each other yet.");
   });
 });

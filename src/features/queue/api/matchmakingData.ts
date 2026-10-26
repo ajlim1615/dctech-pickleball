@@ -1,9 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { Decision, PastGame, Teams } from "@/features/queue/matchmaking";
 
-/** How many waiting players the real call-up (and the Up next preview) look at. */
-export const CALL_WINDOW_LIMIT = 16;
-
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 export interface MatchRowForHistory {
@@ -39,27 +36,30 @@ export function pastGamesFromMatches(rows: MatchRowForHistory[]): PastGame[] {
 
 /** This session's completed matches, as the matchmaker's history. */
 export async function loadSessionHistory(supabase: SupabaseClient, sessionId: string): Promise<PastGame[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("matches")
     .select("court_id, status, winning_team, ended_at, players:match_players ( player_id, team )")
     .eq("session_id", sessionId)
     .eq("status", "completed");
+  if (error) console.error("loadSessionHistory failed:", error);
   return pastGamesFromMatches((data ?? []) as unknown as MatchRowForHistory[]);
 }
 
 /** Every court in ladder order, in use or not, except those closed for maintenance. */
 export async function loadOpenCourtIds(supabase: SupabaseClient): Promise<string[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("courts")
     .select("id")
     .neq("status", "maintenance")
     .order("sort_order", { ascending: true });
+  if (error) console.error("loadOpenCourtIds failed:", error);
   return (data ?? []).map((c) => c.id);
 }
 
-export function holdMessage(d: Exclude<Decision, Teams>, skillSpread: number): string {
+export function holdMessage(d: Exclude<Decision, Teams>, skillSpread: number, reserved = 0): string {
   if (d.hold === "not_enough_players") {
-    return `Need ${d.needed} more waiting player${d.needed === 1 ? "" : "s"} to start a game.`;
+    const base = `Need ${d.needed} more waiting player${d.needed === 1 ? "" : "s"} to start a game.`;
+    return reserved > 0 ? `${base} (${reserved} waiting player${reserved === 1 ? " is" : "s are"} saved for a court above.)` : base;
   }
   return `No group of four within ${skillSpread} rating of each other yet.`;
 }

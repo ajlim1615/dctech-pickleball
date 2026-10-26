@@ -143,3 +143,12 @@ describe("winners_stay (legacy)", () => {
     expect(t).toEqual(["a,d", "b,c"]);
   });
 });
+
+describe("king/queen with a long line", () => {
+  it("places champions and the promoted pair even when they sit past position 16", () => {
+    const h = [game(["k1", "k2"], ["x", "y"], "A", "c1"), game(["a", "b"], ["z", "w"], "A", "c2")];
+    const line = [...ids(18), e("k1"), e("k2"), e("a"), e("b")];
+    expect(line.findIndex((x) => x.playerId === "k1")).toBeGreaterThanOrEqual(16);
+    expect(decide({ ...kq(line, h), court: "c1" })).toEqual({ teamA: ["k1", "k2"], teamB: ["a", "b"] });
+  });
+});

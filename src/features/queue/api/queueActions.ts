@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
+import { kingQueenPlacements } from "@/features/queue/matchmaking/history";
 import { parseSessionMetadata } from "@/lib/utils";
-import { CALL_WINDOW_LIMIT, holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
+import { holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -562,8 +563,7 @@ export async function callNextUp(
     `)
     .eq("session_id", sessionId)
     .eq("status", "waiting")
-    .order("joined_at", { ascending: true })
-    .limit(CALL_WINDOW_LIMIT);
+    .order("joined_at", { ascending: true });
 
   if (qErr || !allWaitingEntries || allWaitingEntries.length === 0) {
     return { error: "No waiting players currently in queue." };
@@ -586,7 +586,16 @@ export async function callNextUp(
     force: options.force,
   });
   if ("hold" in decision) {
-    return { error: holdMessage(decision, skillSpread), hold: decision.hold };
+    let message = holdMessage(decision, skillSpread);
+    if (matchingStyle === "king_queen" && decision.hold === "not_enough_players") {
+      // Players saved for a court above are waiting but cannot be used here.
+      const reserved = [...kingQueenPlacements(history, line, courts).values()].reduce(
+        (n, p) => n + (p.staying ? 2 : 0) + (p.promoted ? 2 : 0),
+        0
+      );
+      message = holdMessage(decision, skillSpread, reserved);
+    }
+    return { error: message, hold: decision.hold };
   }
   const teamA = decision.teamA;
   const teamB = decision.teamB;
@@ -594,14 +603,26 @@ export async function callNextUp(
   const entryIds = allWaitingEntries.filter((e) => playing.has(e.player_id)).map((e) => e.id);
 
   // 5. Mark selected queue entries as playing
-  await supabase
+  // Compare-and-set: only entries still waiting are claimed, so two simultaneous calls cannot double-book.
+  const { data: claimed, error: claimError } = await supabase
     .from("queue_entries")
     .update({
       status: "playing",
       called_at: new Date().toISOString(),
       target_court_id: courtId,
     })
-    .in("id", entryIds);
+    .in("id", entryIds)
+    .eq("status", "waiting")
+    .select("id");
+  if (claimError || (claimed?.length ?? 0) < entryIds.length) {
+    if (claimed && claimed.length > 0) {
+      await supabase
+        .from("queue_entries")
+        .update({ status: "waiting", called_at: null, target_court_id: null })
+        .in("id", claimed.map((c) => c.id));
+    }
+    return { error: "The line changed while calling players. Try again." };
+  }
 
   // 6. Create Match and assign to court
   // Void any previous orphaned in_progress matches on this court
@@ -706,6 +727,7 @@ export async function fillOpenCourts(sessionId: string) {
     const res = await callNextUp(sessionId, court.id, 4);
     if (res?.error) {
       lastError = res.error;
+      if (res.hold) continue; // this court is waiting on players saved for another; later courts may still start
       break;
     }
     filled++;

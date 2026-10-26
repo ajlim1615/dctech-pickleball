@@ -14,7 +14,7 @@ import {
   type MatchingStyle,
   type PastGame,
 } from "@/features/queue/matchmaking";
-import { CALL_WINDOW_LIMIT, previewCourtId } from "@/features/queue/api/matchmakingData";
+import { previewCourtId } from "@/features/queue/api/matchmakingData";
 import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
@@ -124,11 +124,10 @@ export function SessionQueueLiveBoard({
   // Rendered on the server and the client, so it must be deterministic: seed on the queue entries.
   const preview = useMemo(() => {
     const target = previewCourtId(courts);
-    // Same line as the real call-up: waiting only, oldest first, capped at the call window.
+    // Same line as the real call-up: waiting only, oldest first, the whole line.
     const callLine = queue
       .filter((q) => q.status === "waiting")
-      .sort((a, b) => (a.joined_at < b.joined_at ? -1 : a.joined_at > b.joined_at ? 1 : 0))
-      .slice(0, CALL_WINDOW_LIMIT);
+      .sort((a, b) => (a.joined_at < b.joined_at ? -1 : a.joined_at > b.joined_at ? 1 : 0));
     if (!target || callLine.length < 4) return null;
     const decision = decide({
       style,

@@ -2192,7 +2192,7 @@ export function AdminDashboard({
                   King/Queen of the Court
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed">
-                  Winning pairs move up one court (Court 1 champions stay) and losers rejoin the line. New players start on the lower courts.
+                  Winning pairs move up one court (Court 1 champions stay) and losers rejoin the line. New players usually start on the lower courts.
                 </p>
               </div>
 
