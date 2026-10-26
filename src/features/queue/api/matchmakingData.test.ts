@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { holdMessage, pastGamesFromMatches, previewCourtId } from "./matchmakingData";
+import { holdMessage, pastGamesFromMatches, previewCourtId, reservedAbove } from "./matchmakingData";
+import type { PastGame } from "@/features/queue/matchmaking";
 
 describe("pastGamesFromMatches", () => {
   it("keeps completed games only, maps teams and winners, sorts by end time", () => {
@@ -26,6 +27,28 @@ describe("holdMessage", () => {
     );
     expect(holdMessage({ hold: "not_enough_players", needed: 2 }, 0.75, 0)).toBe("Need 2 more waiting players to start a game.");
     expect(holdMessage({ hold: "no_skill_match" }, 0.75)).toBe("No group of four within 0.75 rating of each other yet.");
+  });
+});
+
+describe("reservedAbove", () => {
+  const won = (courtId: string, teamA: string[], endedAt: string): PastGame =>
+    ({ courtId, teamA, teamB: ["x", "y"], winner: "A", endedAt });
+  const line = ["k1", "k2", "a", "b", "c", "d", "p"].map((playerId) => ({ playerId, rating: 3 }));
+  const courts = ["c1", "c2", "c3"];
+  // k1+k2 stay on Court 1, a+b are promoted to Court 1, c+d are promoted to Court 2.
+  const history = [won("c1", ["k1", "k2"], "1"), won("c2", ["a", "b"], "2"), won("c3", ["c", "d"], "3")];
+
+  it("does not count a court's own placed pairs", () => {
+    expect(reservedAbove(history, line, courts, "c1")).toBe(0);
+  });
+
+  it("counts only pairs placed on courts above", () => {
+    expect(reservedAbove(history, line, courts, "c2")).toBe(4);
+    expect(reservedAbove(history, line, courts, "c3")).toBe(6);
+  });
+
+  it("counts nothing for a court that isn't open", () => {
+    expect(reservedAbove(history, line, courts, "c9")).toBe(0);
   });
 });
 

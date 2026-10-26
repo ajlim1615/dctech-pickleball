@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
-import { kingQueenPlacements } from "@/features/queue/matchmaking/history";
 import { parseSessionMetadata } from "@/lib/utils";
-import { holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
+import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -589,11 +588,7 @@ export async function callNextUp(
     let message = holdMessage(decision, skillSpread);
     if (matchingStyle === "king_queen" && decision.hold === "not_enough_players") {
       // Players saved for a court above are waiting but cannot be used here.
-      const reserved = [...kingQueenPlacements(history, line, courts).values()].reduce(
-        (n, p) => n + (p.staying ? 2 : 0) + (p.promoted ? 2 : 0),
-        0
-      );
-      message = holdMessage(decision, skillSpread, reserved);
+      message = holdMessage(decision, skillSpread, reservedAbove(history, line, courts, courtId));
     }
     return { error: message, hold: decision.hold };
   }

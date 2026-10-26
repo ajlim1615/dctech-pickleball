@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
-import type { Decision, PastGame, Teams } from "@/features/queue/matchmaking";
+import type { Decision, LineEntry, PastGame, Teams } from "@/features/queue/matchmaking";
+import { kingQueenPlacements } from "@/features/queue/matchmaking/history";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -54,6 +55,18 @@ export async function loadOpenCourtIds(supabase: SupabaseClient): Promise<string
     .order("sort_order", { ascending: true });
   if (error) console.error("loadOpenCourtIds failed:", error);
   return (data ?? []).map((c) => c.id);
+}
+
+/** King/Queen: waiting players held for courts ranked above `court`, so they can't play on it. */
+export function reservedAbove(history: PastGame[], line: LineEntry[], courts: string[], court: string): number {
+  const rank = courts.indexOf(court);
+  if (rank <= 0) return 0;
+  let count = 0;
+  for (const [courtId, placed] of kingQueenPlacements(history, line, courts)) {
+    if (courts.indexOf(courtId) >= rank) continue;
+    count += (placed.staying ? 2 : 0) + (placed.promoted ? 2 : 0);
+  }
+  return count;
 }
 
 export function holdMessage(d: Exclude<Decision, Teams>, skillSpread: number, reserved = 0): string {
