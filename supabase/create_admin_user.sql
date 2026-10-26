@@ -27,7 +27,7 @@ insert into auth.users (
 )
 values (
   '00000000-0000-0000-0000-000000000000',
-  'a0000000-0000-0000-0000-000000000001',
+  gen_random_uuid(),
   'authenticated',
   'authenticated',
   'admin@dctechmicro.com',
@@ -44,7 +44,7 @@ values (
   '',
   ''
 )
-on conflict (id) do update set
+on conflict (email) where is_sso_user = false do update set
   email = excluded.email,
   encrypted_password = crypt('dctech', gen_salt('bf')),
   raw_user_meta_data = excluded.raw_user_meta_data,
@@ -61,17 +61,11 @@ insert into auth.identities (
   created_at,
   updated_at
 )
-values (
-  'a0000000-0000-0000-0000-000000000001',
-  'a0000000-0000-0000-0000-000000000001',
-  '{"sub":"a0000000-0000-0000-0000-000000000001","email":"admin@dctechmicro.com"}',
-  'email',
-  'admin@dctechmicro.com',
-  now(),
-  now(),
-  now()
-)
+select gen_random_uuid(), u.id, jsonb_build_object('sub', u.id::text, 'email', u.email), 'email', u.email, now(), now(), now()
+from auth.users u
+where u.email = 'admin@dctechmicro.com'
 on conflict (provider, provider_id) do update set
+  user_id = excluded.user_id,
   identity_data = excluded.identity_data,
   updated_at = now();
 
@@ -87,8 +81,8 @@ insert into public.profiles (
   games_won,
   is_active
 )
-values (
-  'a0000000-0000-0000-0000-000000000001',
+select
+  u.id,
   'admin@dctechmicro.com',
   'Admin DCTECH',
   'Admin',
@@ -97,7 +91,8 @@ values (
   0,
   0,
   true
-)
+from auth.users u
+where u.email = 'admin@dctechmicro.com'
 on conflict (id) do update set
   email = excluded.email,
   role = 'admin',
