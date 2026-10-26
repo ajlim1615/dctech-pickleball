@@ -18,6 +18,7 @@ export function CourtCard({
   toggleLabel,
   onTapPlayer,
   onStart,
+  onStartAnyway,
   onFinish,
   onToggleClosed,
   onSwapHint,
@@ -30,6 +31,8 @@ export function CourtCard({
   toggleLabel: string;
   onTapPlayer?: (playerId: string) => void;
   onStart?: () => void;
+  /** Set when matchmaking is holding the court for a skill match: starts the best available four. */
+  onStartAnyway?: () => void;
   onFinish?: () => void;
   onToggleClosed: () => void;
   onSwapHint?: () => void;
@@ -83,6 +86,10 @@ export function CourtCard({
       ) : teams && onStart ? (
         <Button variant="primary" size="lg" onClick={onStart}>
           Start game
+        </Button>
+      ) : !teams && onStartAnyway ? (
+        <Button size="lg" onClick={onStartAnyway}>
+          Start anyway
         </Button>
       ) : (
         <Button size="lg" disabled className="text-muted">

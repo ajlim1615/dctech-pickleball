@@ -33,6 +33,7 @@ const session = z.object({
   trackScores: z.boolean(),
   targetScore: z.number(),
   winBy2: z.boolean(),
+  skillSpread: z.number().optional(),
   status: z.enum(["setup", "live", "ended"]),
   startedAt: z.string().optional(),
   endedAt: z.string().optional(),

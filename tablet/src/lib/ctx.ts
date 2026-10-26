@@ -1,5 +1,5 @@
 import type { EngineCtx, SessionState } from "../engine/types";
-import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import type { MatchingStyle } from "@/features/queue/matchmaking";
 
 /** The real clock, ids and randomness for engine calls made from the screens. */
 export function liveCtx(): EngineCtx {

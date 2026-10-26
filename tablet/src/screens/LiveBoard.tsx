@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListChecks, Plus } from "lucide-react";
-import { seededRandom } from "@/features/queue/utils/matchingEngine";
+import { seededRandom } from "@/features/queue/matchmaking";
 import { describeRule } from "@/features/matches/utils/scoring";
 import type { Navigate } from "../App";
 import { Button, ConfirmSheet, ScreenHeader, toast, UndoToast } from "../components/ui";
@@ -45,6 +45,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   // The open Finish sheet's game, so a late result can't land on a sheet it doesn't belong to.
   const finishingId = useRef<string | null>(null);
   // Admin's edits to a court's suggested four, until the game starts.
+  const [forced, setForced] = useState<Set<string>>(() => new Set());
   const [drafts, setDrafts] = useState<Record<string, Teams>>({});
   const controller = useRef<BoardController | null>(null);
   const now = useMinuteTick();
@@ -90,8 +91,8 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
   const suggestions = useMemo(() => {
     if (!state) return {};
     const seed = waitingLine(state).map((q) => q.id).join(",");
-    return suggestAll(state, (courtId) => seededRandom(courtId + seed));
-  }, [state]);
+    return suggestAll(state, (courtId) => seededRandom(courtId + seed), forced);
+  }, [state, forced]);
 
   if (!state) return null;
   const s = state;
@@ -102,7 +103,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
 
   function teamsFor(courtId: string): Teams | null {
     const suggestion = suggestions[courtId];
-    if (!suggestion || "waitingFor" in suggestion) return null;
+    if (!suggestion || !("teamA" in suggestion)) return null;
     const draft = drafts[courtId];
     const waiting = new Set(line.map((q) => q.playerId));
     // A draft only stands while everyone in it is still waiting.
@@ -114,7 +115,14 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
     const teams = teamsFor(courtId);
     if (!teams) return;
     const done = await apply("Game started", (st) => startGame(st, courtId, teams, liveCtx()));
-    if (done) setDrafts(({ [courtId]: _, ...rest }) => rest);
+    if (done) {
+      setDrafts(({ [courtId]: _, ...rest }) => rest);
+      setForced((prev) => {
+        const next = new Set(prev);
+        next.delete(courtId);
+        return next;
+      });
+    }
   }
 
   async function addWalkIn(player: DeskPlayer) {
@@ -194,6 +202,11 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
                 toggleLabel={courtControls(court, Boolean(game)).toggleLabel}
                 names={names}
                 onStart={() => start(court.id)}
+                onStartAnyway={
+                  !court.closed && !game && suggestions[court.id] && "hold" in suggestions[court.id]
+                    ? () => setForced((prev) => new Set(prev).add(court.id))
+                    : undefined
+                }
                 onFinish={game ? () => openFinish(game.id) : undefined}
                 onSwapHint={() => toast("Tap the player you want to swap out.")}
                 onTapPlayer={
@@ -269,7 +282,7 @@ export function LiveBoard({ sessionId, navigate }: { sessionId: string; navigate
           if (!teams) return null;
           const shown = new Set(
             Object.entries(suggestions).flatMap(([courtId, sug]) =>
-              courtId === dialog.courtId || "waitingFor" in sug ? [] : [...sug.teamA, ...sug.teamB]
+              courtId === dialog.courtId || !("teamA" in sug) ? [] : [...sug.teamA, ...sug.teamB]
             )
           );
           [...teams.teamA, ...teams.teamB].forEach((id) => shown.add(id));

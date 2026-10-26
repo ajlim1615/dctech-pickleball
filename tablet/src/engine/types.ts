@@ -1,4 +1,4 @@
-import type { MatchingStyle, MatchPlayer } from "@/features/queue/utils/matchingEngine";
+import type { MatchingStyle } from "@/features/queue/matchmaking";
 
 export type { MatchingStyle };
 
@@ -30,6 +30,8 @@ export interface DeskSession {
   trackScores: boolean;
   targetScore: number;
   winBy2: boolean;
+  /** Max rating gap for Skill Separated / Skill Courts. Missing means the default. */
+  skillSpread?: number;
   status: SessionStatus;
   startedAt?: string;
   endedAt?: string;
@@ -88,10 +90,6 @@ export interface EngineError {
 
 export function isEngineError(value: unknown): value is EngineError {
   return typeof value === "object" && value !== null && "error" in value;
-}
-
-export function toMatchPlayer(p: DeskPlayer): MatchPlayer {
-  return { id: p.id, skill_rating: p.skill, display_name: p.name, full_name: p.name };
 }
 
 export const SKILL_LEVELS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];

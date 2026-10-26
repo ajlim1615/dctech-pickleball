@@ -114,7 +114,7 @@ describe("game cycle", () => {
     const suggestions = suggestAll(s);
     const c1 = suggestions.c1;
     const c2 = suggestions.c2;
-    if ("waitingFor" in c1 || "waitingFor" in c2) throw new Error("expected two suggestions");
+    if (!("teamA" in c1) || !("teamA" in c2)) throw new Error("expected two suggestions");
     const all = [...c1.teamA, ...c1.teamB, ...c2.teamA, ...c2.teamB];
     expect(new Set(all).size).toBe(8);
   });
@@ -162,5 +162,34 @@ describe("game cycle", () => {
     expect(board.find((r) => r.id === "p3")).toMatchObject({ games_won: 1, games_lost: 0, points_scored: 11 });
     expect(board.find((r) => r.id === "p1")).toMatchObject({ games_won: 0, games_lost: 1 });
     expect(board.find((r) => r.id === "p1")!.display_name).toBe("Player 1");
+  });
+});
+
+const withSkills = (s: SessionState, skills: number[]): SessionState => ({
+  ...s,
+  players: Object.fromEntries(Object.values(s.players).map((p, i) => [p.id, { ...p, skill: skills[i] ?? p.skill }])),
+});
+const oneCourt = { courts: [{ id: "c1", name: "Court 1", closed: false }] };
+
+describe("matchmaking modes", () => {
+  it("suggestGame uses session history to avoid repeat partners", () => {
+    const ctx = makeCtx();
+    let s = checkIn(withSkills(makeState(4, { matchingStyle: "social_mixer", ...oneCourt }), [3, 3, 3, 3]), ids(4), ctx);
+    s = ok(startGame(s, "c1", { teamA: ["p1", "p2"], teamB: ["p3", "p4"] }, ctx));
+    s = ok(finishGame(s, activeGameOnCourt(s, "c1")!.id, { scoreA: 11, scoreB: 5 }, ctx));
+    const next = activeGameOnCourt(s, "c1")!; // finishGame refills the court
+    const team = next.teamA.includes("p1") ? next.teamA : next.teamB;
+    expect(team).not.toContain("p2");
+  });
+
+  it("skill separated suggestion holds and force overrides", () => {
+    const s = checkIn(withSkills(makeState(4, { matchingStyle: "skill_separated", ...oneCourt }), [2, 3, 4, 5]), ids(4), makeCtx());
+    expect(suggestGame(s, "c1")).toEqual({ hold: "no_skill_match" });
+    expect("teamA" in suggestGame(s, "c1", undefined, true)).toBe(true);
+  });
+
+  it("refillCourts leaves a held court empty", () => {
+    const s = checkIn(withSkills(makeState(4, { matchingStyle: "skill_separated", ...oneCourt }), [2, 3, 4, 5]), ids(4), makeCtx());
+    expect(activeGameOnCourt(refillCourts(s, makeCtx()), "c1")).toBeUndefined();
   });
 });

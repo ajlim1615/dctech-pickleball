@@ -4,10 +4,12 @@ import type { Navigate } from "../App";
 import { Button, Card, Chip, ChipGroup, Label, ScreenHeader, Stepper, TextField, TextInput, Toggle, toast } from "../components/ui";
 import { createSession, getLiveSession } from "../db/repo";
 import type { DeskCourt, DeskSession, MatchingStyle } from "../engine/types";
+import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import { MATCHING_STYLES, styleLabel, todayIso } from "../lib/ctx";
 
 const MAX_COURTS = 8;
 const TARGETS = [11, 15, 21];
+const SPREADS = [0.5, 0.75, 1.0, 1.5];
 const COMMON_STYLES: MatchingStyle[] = ["balanced", "social_mixer", "skill_separated", "winners_stay"];
 
 function defaultTitle() {
@@ -32,6 +34,7 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
   const [trackScores, setTrackScores] = useState(true);
   const [targetScore, setTargetScore] = useState(11);
   const [winBy2, setWinBy2] = useState(true);
+  const [skillSpread, setSkillSpread] = useState(DEFAULT_SKILL_SPREAD);
   const [saving, setSaving] = useState(false);
 
   function setCourtCount(count: number) {
@@ -42,6 +45,8 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
         : names.slice(0, n)
     );
   }
+
+  const usesSpread = style === "skill_separated" || style === "skill_courts";
 
   async function start() {
     setSaving(true);
@@ -64,6 +69,7 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
         trackScores,
         targetScore,
         winBy2,
+        ...(usesSpread ? { skillSpread } : {}),
         status: "live",
         startedAt: new Date().toISOString(),
       };
@@ -135,6 +141,12 @@ export function NewSession({ navigate }: { navigate: Navigate }) {
             )}
           </div>
           {hint && <p className="mt-3 text-sm text-muted">{hint}</p>}
+          {usesSpread && (
+            <div className="mt-4">
+              <span className="mb-2 block text-sm text-muted">Max rating spread</span>
+              <ChipGroup options={SPREADS} value={skillSpread} onChange={setSkillSpread} format={(v) => v.toFixed(v === 0.75 ? 2 : 1)} mono />
+            </div>
+          )}
         </Section>
       </main>
 

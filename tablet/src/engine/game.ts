@@ -1,9 +1,7 @@
 import { describeRule, getWinner, resultOnlyScore, type ScoringRule } from "@/features/matches/utils/scoring";
-import { buildTeams, selectPod, type PodEntry } from "@/features/queue/utils/podSelection";
+import { DEFAULT_SKILL_SPREAD, decide, type PastGame } from "@/features/queue/matchmaking";
 import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
-import type { MatchPlayer } from "@/features/queue/utils/matchingEngine";
 import {
-  toMatchPlayer,
   type DeskGame,
   type DeskQueueEntry,
   type DeskSession,
@@ -18,6 +16,8 @@ export interface Teams {
   teamA: string[];
   teamB: string[];
 }
+
+export type Suggestion = Teams | { waitingFor: number } | { hold: "no_skill_match" };
 
 export function scoringRule(session: DeskSession): ScoringRule {
   return { targetPoints: session.targetScore, winByTwo: session.winBy2, trackScores: session.trackScores };
@@ -70,48 +70,47 @@ export function checkIn(state: SessionState, playerIds: string[], ctx: EngineCtx
   return { ...state, queue };
 }
 
-function previousWinnerIds(state: SessionState, courtId: string): string[] {
-  const last = state.games
-    .filter((g) => g.courtId === courtId && g.endedAt && g.winner)
-    .sort((a, b) => (a.endedAt! < b.endedAt! ? 1 : -1))[0];
-  if (!last) return [];
-  return last.winner === "A" ? last.teamA : last.teamB;
+function pastGames(state: SessionState): PastGame[] {
+  return state.games.flatMap((g) =>
+    g.endedAt ? [{ courtId: g.courtId, teamA: g.teamA, teamB: g.teamB, winner: g.winner, endedAt: g.endedAt }] : []
+  );
 }
 
-/** The four matchmaking would put on this court next, or how many more players are needed. */
-export function suggestGame(
-  state: SessionState,
-  courtId: string,
-  random?: () => number
-): Teams | { waitingFor: number } {
-  const waiting: PodEntry<MatchPlayer>[] = waitingLine(state).map((q) => ({
-    id: q.id,
-    player_id: q.playerId,
-    group_id: null,
-    player: toMatchPlayer(state.players[q.playerId]),
-  }));
-  const style = state.session.matchingStyle;
-  const winnerIds = previousWinnerIds(state, courtId);
-  const pod = selectPod(waiting, style, winnerIds);
-  if ("error" in pod) return { waitingFor: pod.needed - pod.available };
-  // Winners / losers splits the last winners up, but only when both made it into this pod.
-  const winnersInPod = pod.challengers.filter((e) => winnerIds.includes(e.player_id)).map((e) => e.player);
-  return buildTeams(pod.challengers, pod.stayingWinners, style, random, winnersInPod.length === 2 ? winnersInPod : []);
+/**
+ * The four matchmaking would put on this court next, or why nobody can yet. `force` skips the
+ * skill-match hold (Start anyway).
+ */
+export function suggestGame(state: SessionState, courtId: string, random?: () => number, force = false): Suggestion {
+  const decision = decide({
+    style: state.session.matchingStyle,
+    line: waitingLine(state).map((q) => ({ playerId: q.playerId, rating: state.players[q.playerId].skill, pairId: null })),
+    history: pastGames(state),
+    court: courtId,
+    courts: state.session.courts.filter((c) => !c.closed).map((c) => c.id),
+    settings: { skillSpread: state.session.skillSpread ?? DEFAULT_SKILL_SPREAD },
+    random: random ?? Math.random,
+    force,
+  });
+  if ("hold" in decision) {
+    return decision.hold === "not_enough_players" ? { waitingFor: decision.needed } : { hold: "no_skill_match" };
+  }
+  return { teamA: [...decision.teamA], teamB: [...decision.teamB] };
 }
 
 /**
  * What each open, free court would get next, in court order. Players shown on one court
- * aren't offered to the next, so the suggestions never overlap.
+ * aren't offered to the next, so the suggestions never overlap. Courts in `forced` skip the skill hold.
  */
 export function suggestAll(
   state: SessionState,
-  random?: (courtId: string) => () => number
-): Record<string, Teams | { waitingFor: number }> {
-  const result: Record<string, Teams | { waitingFor: number }> = {};
+  random?: (courtId: string) => () => number,
+  forced: ReadonlySet<string> = new Set()
+): Record<string, Suggestion> {
+  const result: Record<string, Suggestion> = {};
   let view = state;
   for (const court of state.session.courts) {
     if (court.closed || activeGameOnCourt(state, court.id)) continue;
-    const suggestion = suggestGame(view, court.id, random?.(court.id));
+    const suggestion = suggestGame(view, court.id, random?.(court.id), forced.has(court.id));
     result[court.id] = suggestion;
     if ("teamA" in suggestion) {
       const taken = [...suggestion.teamA, ...suggestion.teamB];
@@ -228,7 +227,7 @@ export function refillCourts(state: SessionState, ctx: EngineCtx, firstCourtId?:
   for (const court of courts) {
     if (court.closed || activeGameOnCourt(next, court.id)) continue;
     const suggestion = suggestGame(next, court.id, ctx.random);
-    if ("waitingFor" in suggestion) break;
+    if (!("teamA" in suggestion)) break;
     const started = startGame(next, court.id, suggestion, ctx);
     if ("error" in started) continue;
     next = started;

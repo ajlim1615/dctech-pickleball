@@ -30,6 +30,17 @@ describe("backup", () => {
     expect(await db.queueEntries.count()).toBe(2);
   });
 
+  it("imports a session without skillSpread and round-trips one with it", async () => {
+    await seed();
+    const good = JSON.parse(await serializeBackup());
+    expect(good.sessions[0].skillSpread).toBeUndefined();
+    expect(parseBackup(JSON.stringify(good)).ok).toBe(true);
+    good.sessions[0].skillSpread = 1;
+    const parsed = parseBackup(JSON.stringify(good));
+    if (!parsed.ok) throw new Error(parsed.reason);
+    expect(parsed.data.sessions[0].skillSpread).toBe(1);
+  });
+
   it("rejects invalid JSON, another app, and a newer format", async () => {
     await seed();
     const good = JSON.parse(await serializeBackup());

@@ -50,6 +50,13 @@ describe("courtPill", () => {
       tone: "neutral",
     });
   });
+
+  it("says when a skill match is holding the court", () => {
+    expect(courtPill({ id: "c1", name: "Court 1", closed: false }, undefined, { hold: "no_skill_match" }, NOW)).toEqual({
+      label: "Waiting for a skill match",
+      tone: "warn",
+    });
+  });
 });
 
 const court = (closed: boolean) => ({ id: "c1", name: "Court 1", closed });

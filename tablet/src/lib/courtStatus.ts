@@ -1,5 +1,5 @@
 import type { DeskCourt, DeskGame } from "../engine/types";
-import type { Teams } from "../engine/game";
+import type { Suggestion } from "../engine/game";
 
 export type PillTone = "neutral" | "live" | "warn";
 
@@ -7,7 +7,7 @@ export type PillTone = "neutral" | "live" | "warn";
 export function courtPill(
   court: DeskCourt,
   game: DeskGame | undefined,
-  suggestion: Teams | { waitingFor: number } | undefined,
+  suggestion: Suggestion | undefined,
   nowMs: number
 ): { label: string; tone: PillTone; minutes?: number } {
   if (game && court.closed) return { label: "Closing after this game", tone: "warn" };
@@ -16,6 +16,7 @@ export function courtPill(
     return { label: `${minutes} min`, tone: "live", minutes };
   }
   if (court.closed) return { label: "Closed", tone: "neutral" };
+  if (suggestion && "hold" in suggestion) return { label: "Waiting for a skill match", tone: "warn" };
   if (suggestion && "waitingFor" in suggestion) return { label: `Needs ${suggestion.waitingFor} more`, tone: "neutral" };
   if (suggestion) return { label: "Up next", tone: "neutral" };
   return { label: "Needs 4 more", tone: "neutral" };

@@ -1,4 +1,4 @@
-import { seededRandom } from "@/features/queue/utils/matchingEngine";
+import { seededRandom } from "@/features/queue/matchmaking";
 import type { DeskPlayer, DeskSession, EngineCtx, SessionState } from "./types";
 
 /** Test helpers: a live session with numbered players and a deterministic context. */
