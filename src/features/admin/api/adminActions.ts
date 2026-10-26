@@ -9,6 +9,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, sanitizeString } from "@/lib/security/validation";
 import { parsePHTToISO } from "@/lib/timezone";
+import { parseSkillSpread } from "@/lib/utils";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
@@ -378,7 +379,11 @@ export async function editSession(sessionId: string, formData: FormData) {
   const userDesc = sanitizeString(rawDescription || "");
 
   // Metadata tags
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]`;
+  const usesSkillSpread = matchingStyle === "skill_separated" || matchingStyle === "skill_courts";
+  const skillSpreadTag = usesSkillSpread
+    ? ` [skill_spread:${parseSkillSpread(formData.get("skillSpread") as string | null)}]`
+    : "";
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();

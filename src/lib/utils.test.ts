@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatRating, formatScore, cn, parseSessionMetadata, cleanSessionDescription } from "./utils";
+import { formatRating, formatScore, cn, parseSessionMetadata, cleanSessionDescription, parseSkillSpread } from "./utils";
 
 describe("utils", () => {
   it("formats rating properly", () => {
@@ -41,4 +41,14 @@ describe("utils", () => {
     expect(parseSessionMetadata("[target_points:6] [win_by:2]").winByTwo).toBe(true);
     expect(cleanSessionDescription("Open play [target_points:11] [win_by:1]")).toBe("Open play");
   });
+
+  it("parses skill spread with default and clamp", () => {
+    expect(parseSessionMetadata("[matching_mode:skill_separated] [skill_spread:1.25]").skillSpread).toBe(1.25);
+    expect(parseSessionMetadata("[matching_mode:balanced]").skillSpread).toBe(0.75);
+    expect(parseSkillSpread("9")).toBe(2);
+    expect(parseSkillSpread("abc")).toBe(0.75);
+  });
+
+  it("strips the skill spread tag", () =>
+    expect(cleanSessionDescription("Fun night [skill_spread:0.5]")).toBe("Fun night"));
 });

@@ -168,6 +168,7 @@ export async function getSessionLeaderboard(sessionId: string): Promise<SessionR
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { sanitizeString } from "@/lib/security/validation";
+import { parseSkillSpread } from "@/lib/utils";
 
 export async function createSession(formData: FormData) {
   // Server-side RBAC Guard
@@ -199,7 +200,11 @@ export async function createSession(formData: FormData) {
   const matchingStyle = sanitizeString((formData.get("matchingStyle") as string) || "balanced");
   const userDesc = sanitizeString(rawDescription || "");
 
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]`;
+  const usesSkillSpread = matchingStyle === "skill_separated" || matchingStyle === "skill_courts";
+  const skillSpreadTag = usesSkillSpread
+    ? ` [skill_spread:${parseSkillSpread(formData.get("skillSpread") as string | null)}]`
+    : "";
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();

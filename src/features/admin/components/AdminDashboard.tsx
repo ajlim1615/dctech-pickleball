@@ -60,7 +60,8 @@ import {
   editSession,
 } from "../api/adminActions";
 import { createSession, updateSessionStatus } from "@/features/sessions/api/sessionActions";
-import { formatRating, parseSessionMetadata } from "@/lib/utils";
+import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
+import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import {
   formatPHTDate,
   formatPHTTime,
@@ -136,6 +137,8 @@ export function AdminDashboard({
 
   // Session Edit Config State
   const [editMatchingMode, setEditMatchingMode] = useState<string>("balanced");
+  const [createSkillSpread, setCreateSkillSpread] = useState<string>(String(DEFAULT_SKILL_SPREAD));
+  const [editSkillSpread, setEditSkillSpread] = useState<string>(String(DEFAULT_SKILL_SPREAD));
   const [editIsRanked, setEditIsRanked] = useState<boolean>(true);
   const [editTargetPoints, setEditTargetPoints] = useState<number>(11);
   const [editWinByTwo, setEditWinByTwo] = useState<boolean>(true);
@@ -166,6 +169,7 @@ export function AdminDashboard({
       setEditTargetPoints(meta.targetPoints);
       setEditWinByTwo(meta.winByTwo);
       setEditTrackScores(meta.trackScores);
+      setEditSkillSpread(String(meta.skillSpread));
     }
   }, [isEditingSession]);
 
@@ -1132,6 +1136,25 @@ export function AdminDashboard({
                   </div>
                 </div>
 
+                {(selectedMatchingMode === "skill_separated" || selectedMatchingMode === "skill_courts") && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Max rating spread</label>
+                    <input
+                      type="number"
+                      name="skillSpread"
+                      step={0.25}
+                      min={0.25}
+                      max={2}
+                      value={createSkillSpread}
+                      onChange={(e) => setCreateSkillSpread(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Players more than this apart in rating won&apos;t share a court.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes (optional)</label>
                   <textarea
@@ -1404,12 +1427,31 @@ export function AdminDashboard({
                       </select>
                     </div>
 
+                    {(editMatchingMode === "skill_separated" || editMatchingMode === "skill_courts") && (
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Max rating spread</label>
+                        <input
+                          type="number"
+                          name="skillSpread"
+                          step={0.25}
+                          min={0.25}
+                          max={2}
+                          value={editSkillSpread}
+                          onChange={(e) => setEditSkillSpread(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Players more than this apart in rating won&apos;t share a court.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes (optional)</label>
                       <textarea
                         name="description"
                         rows={2}
-                        defaultValue={isEditingSession.description ? isEditingSession.description.replace(/\[matching_mode:[^\]]+\]\s*/g, "").replace(/\[ranked:[^\]]+\]\s*/g, "").replace(/\[target_points:[^\]]+\]\s*/g, "").trim() : ""}
+                        defaultValue={cleanSessionDescription(isEditingSession.description)}
                         className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                       />
                     </div>

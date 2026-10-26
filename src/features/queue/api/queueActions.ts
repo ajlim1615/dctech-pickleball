@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
-import { decide, DEFAULT_SKILL_SPREAD, type LineEntry, type MatchingStyle } from "@/features/queue/matchmaking";
+import { decide, type LineEntry } from "@/features/queue/matchmaking";
+import { parseSessionMetadata } from "@/lib/utils";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
@@ -538,8 +539,7 @@ export async function callNextUp(
     return { error: "Start the session before calling players onto courts." };
   }
 
-  const modeMatch = sessionData?.description?.match(/\[matching_mode:([a-z_]+)\]/i);
-  const matchingStyle = (modeMatch ? modeMatch[1] : "balanced") as MatchingStyle;
+  const { matchingMode: matchingStyle, skillSpread } = parseSessionMetadata(sessionData?.description);
 
   // 2. This session's completed games and the ladder of open courts
   const [history, courts] = await Promise.all([
@@ -570,7 +570,6 @@ export async function callNextUp(
   }
 
   // 4. Decide who plays and how they split
-  const skillSpread = DEFAULT_SKILL_SPREAD;
   const line: LineEntry[] = allWaitingEntries.map((e) => ({
     playerId: e.player_id,
     rating: (e.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,

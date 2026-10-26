@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
 
 export function cn(...inputs: ClassValue[]) {
@@ -24,7 +25,15 @@ export function cleanSessionDescription(description?: string | null): string {
     .replace(/\s*\[target_points:[^\]]+\]/gi, "")
     .replace(/\s*\[win_by:[^\]]+\]/gi, "")
     .replace(/\s*\[scoring:[^\]]+\]/gi, "")
+    .replace(/\s*\[skill_spread:[^\]]+\]/gi, "")
     .trim();
+}
+
+/** Max rating gap allowed on one court, clamped to [0.25, 2] and rounded to 2 decimals. */
+export function parseSkillSpread(raw: string | null | undefined): number {
+  const n = parseFloat(raw ?? "");
+  if (!Number.isFinite(n)) return DEFAULT_SKILL_SPREAD;
+  return Math.round(Math.min(2, Math.max(0.25, n)) * 100) / 100;
 }
 
 export function parseSessionMetadata(description?: string | null): {
@@ -34,6 +43,7 @@ export function parseSessionMetadata(description?: string | null): {
   winByTwo: boolean;
   /** false = win/loss only: admins just pick the winning team. */
   trackScores: boolean;
+  skillSpread: number;
   cleanDescription: string;
 } {
   const desc = description || "";
@@ -42,6 +52,7 @@ export function parseSessionMetadata(description?: string | null): {
   const targetPointsMatch = desc.match(/\[target_points:([^\]]+)\]/i);
   const winByMatch = desc.match(/\[win_by:([12])\]/i);
   const scoringMatch = desc.match(/\[scoring:(points|result)\]/i);
+  const skillSpreadMatch = desc.match(/\[skill_spread:([^\]]+)\]/i);
 
   const rawMode = matchingModeMatch ? matchingModeMatch[1].toLowerCase() : "balanced";
   const validModes: MatchingStyle[] = [
@@ -68,6 +79,7 @@ export function parseSessionMetadata(description?: string | null): {
     // Older sessions have no tag: 11 pts was always win by 2, 6 pts first to 6.
     winByTwo: winByMatch ? winByMatch[1] === "2" : targetPoints !== 6,
     trackScores: scoringMatch ? scoringMatch[1].toLowerCase() !== "result" : true,
+    skillSpread: parseSkillSpread(skillSpreadMatch ? skillSpreadMatch[1] : null),
     cleanDescription: cleanSessionDescription(desc),
   };
 }
