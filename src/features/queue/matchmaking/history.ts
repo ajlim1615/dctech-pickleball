@@ -1,4 +1,4 @@
-import type { PastGame } from "./types";
+import type { LineEntry, PastGame } from "./types";
 
 /** Order-independent key for a pair of players. */
 export function pairKey(a: string, b: string): string {
@@ -43,4 +43,32 @@ export function lastResults(history: PastGame[]): Map<string, "won" | "lost"> {
     losers.forEach((id) => note(id, "lost"));
   }
   return results;
+}
+
+/** For each open court: the pair placed on it before the line is used. */
+export function kingQueenPlacements(
+  history: PastGame[],
+  line: LineEntry[],
+  courts: string[]
+): Map<string, { staying?: [string, string]; promoted?: [string, string] }> {
+  const placements = new Map<string, { staying?: [string, string]; promoted?: [string, string] }>();
+  const waiting = new Set(line.map((x) => x.playerId));
+  courts.forEach((courtId, rank) => {
+    let latest: PastGame | undefined;
+    for (const g of history) {
+      if (g.courtId !== courtId || !g.winner) continue;
+      if (!latest || g.endedAt > latest.endedAt) latest = g;
+    }
+    if (!latest) return;
+    const winners = latest.winner === "A" ? latest.teamA : latest.teamB;
+    if (winners.length !== 2 || !winners.every((id) => waiting.has(id))) return;
+    const playedSince = history.some(
+      (g) => g.endedAt > latest!.endedAt && winners.some((id) => g.teamA.includes(id) || g.teamB.includes(id))
+    );
+    if (playedSince) return;
+    const pair: [string, string] = [winners[0], winners[1]];
+    if (rank === 0) placements.set(courts[0], { ...placements.get(courts[0]), staying: pair });
+    else placements.set(courts[rank - 1], { ...placements.get(courts[rank - 1]), promoted: pair });
+  });
+  return placements;
 }
