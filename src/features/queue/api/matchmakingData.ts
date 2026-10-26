@@ -1,6 +1,9 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { Decision, PastGame, Teams } from "@/features/queue/matchmaking";
 
+/** How many waiting players the real call-up (and the Up next preview) look at. */
+export const CALL_WINDOW_LIMIT = 16;
+
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 export interface MatchRowForHistory {

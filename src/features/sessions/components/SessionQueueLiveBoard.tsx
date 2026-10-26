@@ -14,7 +14,7 @@ import {
   type MatchingStyle,
   type PastGame,
 } from "@/features/queue/matchmaking";
-import { previewCourtId } from "@/features/queue/api/matchmakingData";
+import { CALL_WINDOW_LIMIT, previewCourtId } from "@/features/queue/api/matchmakingData";
 import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
@@ -124,18 +124,23 @@ export function SessionQueueLiveBoard({
   // Rendered on the server and the client, so it must be deterministic: seed on the queue entries.
   const preview = useMemo(() => {
     const target = previewCourtId(courts);
-    if (!target || queue.length < 4) return null;
+    // Same line as the real call-up: waiting only, oldest first, capped at the call window.
+    const callLine = queue
+      .filter((q) => q.status === "waiting")
+      .sort((a, b) => (a.joined_at < b.joined_at ? -1 : a.joined_at > b.joined_at ? 1 : 0))
+      .slice(0, CALL_WINDOW_LIMIT);
+    if (!target || callLine.length < 4) return null;
     const decision = decide({
       style,
-      line: queue.map((q) => ({ playerId: q.player_id, rating: q.player?.skill_rating ?? null, pairId: q.group_id })),
+      line: callLine.map((q) => ({ playerId: q.player_id, rating: q.player?.skill_rating ?? null, pairId: q.group_id })),
       history,
       court: target.court,
       courts: target.courts,
       settings: { skillSpread },
-      random: seededRandom(queue.map((q) => q.id).join("|")),
+      random: seededRandom(callLine.map((q) => q.id).join("|")),
     });
     if (!("teamA" in decision)) return { hold: decision.hold };
-    const byId = new Map(queue.map((q) => [q.player_id, q]));
+    const byId = new Map(callLine.map((q) => [q.player_id, q]));
     const ratingOf = (id: string) => byId.get(id)?.player?.skill_rating ?? 3.0;
     const profilesOf = (ids: string[]) =>
       ids.map((id) => ((byId.get(id)?.player ?? byId.get(id)) as unknown) as Profile);

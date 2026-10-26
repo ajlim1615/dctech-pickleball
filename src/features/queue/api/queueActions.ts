@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
 import { parseSessionMetadata } from "@/lib/utils";
-import { holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
+import { CALL_WINDOW_LIMIT, holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -563,7 +563,7 @@ export async function callNextUp(
     .eq("session_id", sessionId)
     .eq("status", "waiting")
     .order("joined_at", { ascending: true })
-    .limit(16);
+    .limit(CALL_WINDOW_LIMIT);
 
   if (qErr || !allWaitingEntries || allWaitingEntries.length === 0) {
     return { error: "No waiting players currently in queue." };
