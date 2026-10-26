@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { QueueEntry, QueueEntryWithPlayer, QueueStatus, Profile } from "@/types";
-import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
-import { buildTeams, selectPod } from "@/features/queue/utils/podSelection";
+import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
+import { decide, DEFAULT_SKILL_SPREAD, type LineEntry, type MatchingStyle } from "@/features/queue/matchmaking";
+import { holdMessage, loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -505,7 +505,13 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
   return { success: true };
 }
 
-export async function callNextUp(sessionId: string, courtId: string, count: number = 4) {
+export async function callNextUp(
+  sessionId: string,
+  courtId: string,
+  // Kept for existing callers; every style plays doubles, so the decision always picks four.
+  _count: number = 4,
+  options: { force?: boolean } = {}
+) {
   const supabase = await createClient();
 
   // 0. Guard: Verify court is available and not currently in-play with an active match
@@ -535,46 +541,13 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
   const modeMatch = sessionData?.description?.match(/\[matching_mode:([a-z_]+)\]/i);
   const matchingStyle = (modeMatch ? modeMatch[1] : "balanced") as MatchingStyle;
 
-  // 2. Query previous completed match on this court to find previous winners (for king_queen, winners_stay, winners_losers)
-  let previousWinners: Profile[] = [];
-  const { data: lastMatch } = await (supabase as any)
-    .from("matches")
-    .select(`
-      id,
-      winning_team,
-      players:match_players (
-        player_id,
-        team,
-        player:profiles (
-          id,
-          full_name,
-          display_name,
-          avatar_url,
-          skill_rating,
-          email,
-          role,
-          games_played,
-          games_won,
-          is_active,
-          created_at,
-          updated_at
-        )
-      )
-    `)
-    .eq("court_id", courtId)
-    .eq("status", "completed")
-    .order("ended_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 2. This session's completed games and the ladder of open courts
+  const [history, courts] = await Promise.all([
+    loadSessionHistory(supabase, sessionId),
+    loadOpenCourtIds(supabase),
+  ]);
 
-  if (lastMatch && lastMatch.winning_team) {
-    const playersList = ((lastMatch as any).players || []) as any[];
-    previousWinners = playersList
-      .filter((p: any) => p.team === lastMatch.winning_team && p.player)
-      .map((p: any) => p.player as Profile);
-  }
-
-  // 3. Fetch waiting entries with player profiles and group info
+  // 3. Fetch waiting entries with player ratings and pair info
   const { data: allWaitingEntries, error: qErr } = await supabase
     .from("queue_entries")
     .select(`
@@ -584,17 +557,7 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
       joined_at,
       player:profiles (
         id,
-        full_name,
-        display_name,
-        avatar_url,
-        skill_rating,
-        email,
-        role,
-        games_played,
-        games_won,
-        is_active,
-        created_at,
-        updated_at
+        skill_rating
       )
     `)
     .eq("session_id", sessionId)
@@ -606,17 +569,30 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
     return { error: "No waiting players currently in queue." };
   }
 
-  // 4. Pick the pod (winners stay, skill separation, bonded pairs) and split the teams
-  const pod = selectPod(
-    allWaitingEntries.map((e) => ({ ...e, player: e.player as unknown as Profile })),
-    matchingStyle,
-    previousWinners.map((p) => p.id),
-    count
-  );
-  if ("error" in pod) {
-    return { error: pod.error };
+  // 4. Decide who plays and how they split
+  const skillSpread = DEFAULT_SKILL_SPREAD;
+  const line: LineEntry[] = allWaitingEntries.map((e) => ({
+    playerId: e.player_id,
+    rating: (e.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,
+    pairId: e.group_id,
+  }));
+  const decision = decide({
+    style: matchingStyle,
+    line,
+    history,
+    court: courtId,
+    courts,
+    settings: { skillSpread },
+    random: Math.random,
+    force: options.force,
+  });
+  if ("hold" in decision) {
+    return { error: holdMessage(decision, skillSpread), hold: decision.hold };
   }
-  const entryIds = [...pod.challengers, ...pod.stayingWinners].map((e) => e.id);
+  const teamA = decision.teamA;
+  const teamB = decision.teamB;
+  const playing = new Set<string>([...teamA, ...teamB]);
+  const entryIds = allWaitingEntries.filter((e) => playing.has(e.player_id)).map((e) => e.id);
 
   // 5. Mark selected queue entries as playing
   await supabase
@@ -627,14 +603,6 @@ export async function callNextUp(sessionId: string, courtId: string, count: numb
       target_court_id: courtId,
     })
     .in("id", entryIds);
-
-  const { teamA, teamB } = buildTeams(
-    pod.challengers,
-    pod.stayingWinners,
-    matchingStyle,
-    undefined,
-    previousWinners
-  );
 
   // 6. Create Match and assign to court
   // Void any previous orphaned in_progress matches on this court

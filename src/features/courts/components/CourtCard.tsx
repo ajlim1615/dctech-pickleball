@@ -92,6 +92,7 @@ export function CourtCard({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hold, setHold] = useState<"not_enough_players" | "no_skill_match" | null>(null);
 
   // Sync state if activeMatch changes
   useEffect(() => {
@@ -189,7 +190,7 @@ export function CourtCard({
     setScores(0, 0);
   }
 
-  function handleAutoCallQueue() {
+  function handleAutoCallQueue(force = false) {
     if (!isAdministrator || isPending) return;
     if (!sessionId) {
       setErrorMessage("No active session found. Please start a session first.");
@@ -197,11 +198,13 @@ export function CourtCard({
     }
     setErrorMessage(null);
     setSuccessMessage(null);
+    setHold(null);
 
     startTransition(async () => {
-      const res = await callNextUp(sessionId, court.id, 4);
+      const res = await callNextUp(sessionId, court.id, 4, force ? { force: true } : {});
       if (res?.error) {
         setErrorMessage(res.error);
+        setHold("hold" in res && res.hold ? res.hold : null);
       } else {
         setSuccessMessage("Next group called onto this court.");
         router.refresh();
@@ -404,6 +407,17 @@ export function CourtCard({
               {successMessage}
             </p>
           )}
+          {errorMessage && hold === "no_skill_match" && isAdministrator && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleAutoCallQueue(true)}
+              disabled={isPending}
+              className="mt-2 h-10 w-full cursor-pointer"
+            >
+              Call anyway
+            </Button>
+          )}
         </div>
       )}
 
@@ -426,7 +440,7 @@ export function CourtCard({
             <Button
               type="button"
               variant="volt"
-              onClick={handleAutoCallQueue}
+              onClick={() => handleAutoCallQueue()}
               disabled={isPending || waitingQueueCount < 4}
               className="w-full h-12 text-sm font-bold rounded-xl cursor-pointer disabled:cursor-not-allowed"
             >
