@@ -3,7 +3,9 @@ import { buildWindow, ratingOf } from "./scoring";
 import type { Decision, LineEntry, MatchmakingInput } from "./types";
 import { balanced } from "./strategies/balanced";
 import { fifo } from "./strategies/fifo";
+import { skillSeparated } from "./strategies/skillSeparated";
 import { socialMix } from "./strategies/socialMix";
+import { winnersLosers } from "./strategies/winnersLosers";
 
 export * from "./types";
 export { seededRandom, teamStats } from "./scoring";
@@ -34,8 +36,13 @@ export function decide(input: MatchmakingInput): Decision {
       return socialMix(input, ctx);
     case "fifo":
       return fifo(input, ctx);
+    case "winners_losers":
+      return winnersLosers(input, ctx);
+    case "skill_separated":
+    case "skill_courts":
+      return skillSeparated(input, ctx);
     default:
-      // winners_losers, skill_separated, skill_courts, king_queen, winners_stay fall back to balanced until their tasks land.
+      // king_queen, winners_stay fall back to balanced until their tasks land.
       return balanced(input, ctx);
   }
 }
