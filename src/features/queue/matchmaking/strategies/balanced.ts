@@ -1,4 +1,4 @@
-import { enumerateOptions, pickCheapest, ratingGap, repeatCounts, type Option } from "../scoring";
+import { enumerateOptions, pickCheapest, ratingGap, repeatCounts, shortfall, type Option } from "../scoring";
 import type { Decision } from "../types";
 import type { Strategy, StrategyCtx } from "../index";
 
@@ -18,8 +18,12 @@ export function balancedCost(o: Option, ctx: StrategyCtx): number {
   );
 }
 
-/** The cheapest option that includes the first in line; ties go to the earliest in line order. */
+/**
+ * The cheapest option that includes the first in line; ties go to the earliest in line order.
+ * When no legal option exists (for example locked pairs that cannot form a team), `needed` is at
+ * least 1 even though the window may be full: a change to the line, not just one more player, resolves it.
+ */
 export const balanced: Strategy = (_input, ctx) => {
   const best = pickCheapest(enumerateOptions(ctx.window, true), (o) => balancedCost(o, ctx), "line");
-  return (best ? best.teams : { hold: "not_enough_players", needed: 4 - ctx.window.length }) as Decision;
+  return (best ? best.teams : { hold: "not_enough_players", needed: shortfall(ctx.window.length, 4) }) as Decision;
 };

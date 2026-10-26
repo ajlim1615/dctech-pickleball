@@ -1,5 +1,5 @@
-import { pairCounts } from "./history";
-import { buildWindow, ratingOf } from "./scoring";
+import type { pairCounts } from "./history";
+import { buildCtx, buildWindow, shortfall } from "./scoring";
 import type { Decision, LineEntry, MatchmakingInput } from "./types";
 import { balanced } from "./strategies/balanced";
 import { fifo } from "./strategies/fifo";
@@ -27,12 +27,8 @@ export function decide(input: MatchmakingInput): Decision {
   if (input.style === "king_queen" && !input.force) return kingQueen(input);
 
   const window = buildWindow(input.line);
-  if (window.length < 4) return { hold: "not_enough_players", needed: 4 - window.length };
-  const ctx: StrategyCtx = {
-    window,
-    counts: pairCounts(input.history),
-    ratings: new Map(input.line.map((x) => [x.playerId, ratingOf(x)])),
-  };
+  if (window.length < 4) return { hold: "not_enough_players", needed: shortfall(window.length, 4) };
+  const ctx = buildCtx(input, window);
   if (input.force) return balanced(input, ctx);
   switch (input.style) {
     case "balanced":

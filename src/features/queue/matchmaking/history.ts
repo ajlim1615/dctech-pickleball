@@ -54,14 +54,9 @@ export function kingQueenPlacements(
   const placements = new Map<string, { staying?: [string, string]; promoted?: [string, string] }>();
   const waiting = new Set(line.map((x) => x.playerId));
   courts.forEach((courtId, rank) => {
-    let latest: PastGame | undefined;
-    for (const g of history) {
-      if (g.courtId !== courtId || !g.winner) continue;
-      if (!latest || g.endedAt > latest.endedAt) latest = g;
-    }
-    if (!latest) return;
-    const winners = latest.winner === "A" ? latest.teamA : latest.teamB;
-    if (winners.length !== 2 || !winners.every((id) => waiting.has(id))) return;
+    const latest = latestWinningGame(history, courtId);
+    const winners = latest ? winnersOf(latest) : undefined;
+    if (!latest || !winners || !winners.every((id) => waiting.has(id))) return;
     const playedSince = history.some(
       (g) => g.endedAt > latest!.endedAt && winners.some((id) => g.teamA.includes(id) || g.teamB.includes(id))
     );
@@ -71,4 +66,20 @@ export function kingQueenPlacements(
     else placements.set(courts[rank - 1], { ...placements.get(courts[rank - 1]), promoted: pair });
   });
   return placements;
+}
+
+/** The court's most recent game that has a winner (by `endedAt`). */
+export function latestWinningGame(history: PastGame[], courtId: string): PastGame | undefined {
+  let latest: PastGame | undefined;
+  for (const g of history) {
+    if (g.courtId !== courtId || !g.winner) continue;
+    if (!latest || g.endedAt > latest.endedAt) latest = g;
+  }
+  return latest;
+}
+
+/** The winning pair of a game that has a winner, or undefined for an abandoned or malformed game. */
+export function winnersOf(game: PastGame): [string, string] | undefined {
+  const team = game.winner === "A" ? game.teamA : game.winner === "B" ? game.teamB : undefined;
+  return team && team.length === 2 ? [team[0], team[1]] : undefined;
 }

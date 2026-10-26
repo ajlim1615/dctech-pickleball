@@ -1,9 +1,8 @@
-import { kingQueenPlacements, pairCounts } from "../history";
-import { buildWindow, pickCheapest, ratingOf } from "../scoring";
+import { kingQueenPlacements } from "../history";
+import { buildCtx, buildWindow, pickCheapest, shortfall } from "../scoring";
 import type { Decision, LineEntry, MatchmakingInput } from "../types";
 import { balanced, balancedCost } from "./balanced";
 import type { Option } from "../scoring";
-import type { StrategyCtx } from "../index";
 
 /**
  * Winners of the court below move up, Court 1 winners stay. Placed pairs bypass the shared
@@ -17,11 +16,7 @@ export function kingQueen(input: MatchmakingInput): Decision {
     p.promoted?.forEach((id) => placed.add(id));
   }
   const window = buildWindow(input.line.filter((x) => !placed.has(x.playerId)));
-  const ctx: StrategyCtx = {
-    window,
-    counts: pairCounts(input.history),
-    ratings: new Map(input.line.map((x) => [x.playerId, ratingOf(x)])),
-  };
+  const ctx = buildCtx(input, window);
 
   const mine = placements.get(input.court) ?? {};
   const isFirst = input.courts[0] === input.court;
@@ -31,12 +26,12 @@ export function kingQueen(input: MatchmakingInput): Decision {
 
   if (sides.length === 2) return { teamA: sides[0], teamB: sides[1] };
   if (sides.length === 0) {
-    if (window.length < 4) return { hold: "not_enough_players", needed: 4 - window.length };
+    if (window.length < 4) return { hold: "not_enough_players", needed: shortfall(window.length, 4) };
     return balanced(input, ctx);
   }
 
   const side = sides[0];
-  if (window.length < 2) return { hold: "not_enough_players", needed: 2 - window.length };
+  if (window.length < 2) return { hold: "not_enough_players", needed: shortfall(window.length, 2) };
   const first = window[0];
   const inWindow = (x: LineEntry) =>
     x.pairId ? window.find((o) => o.pairId === x.pairId && o.playerId !== x.playerId) : undefined;
@@ -44,6 +39,7 @@ export function kingQueen(input: MatchmakingInput): Decision {
   const candidates = firstPartner
     ? [firstPartner]
     : window.slice(1, 6).filter((x) => !inWindow(x));
+  // Players are present but none can legally partner: a line change, not just one more player, resolves it.
   if (candidates.length === 0) return { hold: "not_enough_players", needed: 1 };
   const options: Option[] = candidates.map((partner) => ({
     four: [first, partner],

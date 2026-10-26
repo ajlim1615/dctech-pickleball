@@ -1,5 +1,6 @@
 import { pairCounts, pairKey } from "./history";
-import { DEFAULT_RATING, WINDOW_SIZE, type LineEntry, type Teams } from "./types";
+import type { StrategyCtx } from "./index";
+import { DEFAULT_RATING, WINDOW_SIZE, type LineEntry, type MatchmakingInput, type Teams } from "./types";
 
 /** The partner of `entry` if they are waiting in `line`, otherwise undefined (treated as solo). */
 function partnerIn(entry: LineEntry, line: LineEntry[]): LineEntry | undefined {
@@ -153,5 +154,19 @@ export function seededRandom(seed: string): () => number {
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Players still missing from a window of `have` to reach `want`; never below 1 for a hold. */
+export function shortfall(have: number, want: number): number {
+  return Math.max(1, want - have);
+}
+
+/** The shared strategy context for a window built from `input.line`. */
+export function buildCtx(input: MatchmakingInput, window: LineEntry[]): StrategyCtx {
+  return {
+    window,
+    counts: pairCounts(input.history),
+    ratings: new Map(input.line.map((x) => [x.playerId, ratingOf(x)])),
   };
 }

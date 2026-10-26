@@ -1,5 +1,5 @@
 import { lastResults } from "../history";
-import { enumerateOptions, pickCheapest, type Option } from "../scoring";
+import { enumerateOptions, pickCheapest, shortfall, type Option } from "../scoring";
 import type { Decision } from "../types";
 import type { Strategy } from "../index";
 import { balancedCost } from "./balanced";
@@ -24,5 +24,5 @@ export const winnersLosers: Strategy = (input, ctx) => {
     (o) => MIXED_RESULTS_WEIGHT * mixedResults(o.four, results) + balancedCost(o, ctx),
     "line"
   );
-  return (best ? best.teams : { hold: "not_enough_players", needed: 4 - ctx.window.length }) as Decision;
+  return (best ? best.teams : { hold: "not_enough_players", needed: shortfall(ctx.window.length, 4) }) as Decision;
 };

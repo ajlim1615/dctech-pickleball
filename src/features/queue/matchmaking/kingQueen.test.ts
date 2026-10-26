@@ -73,6 +73,40 @@ describe("king/queen", () => {
     expect(d.teamA).not.toEqual(["a", "b"]);
   });
 
+  it("rank 2 winners are promoted to the court above, not to Court 1", () => {
+    const h = [game(["a", "b"], ["x", "y"], "A", "c3")];
+    const line = [e("a"), e("b"), ...ids(5)];
+    const c2 = decide({ ...kq(line, h), court: "c2" }) as Teams;
+    expect(c2.teamA).toEqual(["a", "b"]);
+    expect([...c2.teamB].sort()).toEqual(["p1", "p2"]);
+    const c1 = decide({ ...kq(line, h), court: "c1" }) as Teams;
+    expect(c1).toHaveProperty("teamA");
+    expect(players(c1)).not.toContain("a");
+    expect(players(c1)).not.toContain("b");
+  });
+
+  it("Court 1 staying pair alone faces two from the line", () => {
+    const h = [game(["k1", "k2"], ["x", "y"], "A", "c1")];
+    const d = decide({ ...kq([e("k1"), e("k2"), e("p1"), e("p2"), e("p3")], h), court: "c1" }) as Teams;
+    expect(d.teamA).toEqual(["k1", "k2"]);
+    expect([...d.teamB].sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("picks the Balanced-cost best partner, not simply the next in line", () => {
+    const h = [game(["a", "b"], ["x", "y"], "A", "c2")];
+    const line = [e("a", 3), e("b", 3), e("f", 4), e("w", 5), e("g", 2), e("h", 2), e("i", 3)];
+    const d = decide({ ...kq(line, h), court: "c1" }) as Teams;
+    expect(d.teamA).toEqual(["a", "b"]);
+    expect([...d.teamB].sort()).toEqual(["f", "g"]);
+  });
+
+  it("holds with needed 1 when everyone after the first is a locked pair", () => {
+    const h = [game(["a", "b"], ["x", "y"], "A", "c2")];
+    const line = [e("a"), e("b"), e("x1"), e("l1", 3, "L"), e("l2", 3, "L"), e("m1", 3, "M"), e("m2", 3, "M")];
+    // A line change, not just one more player, resolves this.
+    expect(decide({ ...kq(line, h), court: "c1" })).toEqual({ hold: "not_enough_players", needed: 1 });
+  });
+
   it("a locked pair fills the opponent side together", () => {
     const h = [game(["a", "b"], ["x", "y"], "A", "c2")];
     const line = [e("a"), e("b"), e("l1", 3, "L"), e("p1"), e("p2"), e("l2", 3, "L")];
