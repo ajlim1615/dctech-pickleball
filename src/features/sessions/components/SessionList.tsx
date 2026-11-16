@@ -15,9 +15,17 @@ interface SessionListProps {
   /** RSVP head count per upcoming session, and the ones the viewer is going to. */
   rsvpCounts?: Record<string, number>;
   myRsvps?: string[];
+  /** The non-playing system admin account; everyone else, admins included, can RSVP. */
+  isSystemAdmin?: boolean;
 }
 
-export function SessionList({ initialSessions, userRole = "player", rsvpCounts = {}, myRsvps = [] }: SessionListProps) {
+export function SessionList({
+  initialSessions,
+  userRole = "player",
+  rsvpCounts = {},
+  myRsvps = [],
+  isSystemAdmin = false,
+}: SessionListProps) {
   const isAdmin = userRole === "admin";
   const sessions: Session[] = initialSessions;
 
@@ -142,7 +150,7 @@ export function SessionList({ initialSessions, userRole = "player", rsvpCounts =
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    {isScheduled && !isAdmin && (
+                    {isScheduled && !isSystemAdmin && (
                       <RsvpButton sessionId={s.id} going={myRsvps.includes(s.id)} count={rsvpCounts[s.id] || 0} />
                     )}
                     <Link

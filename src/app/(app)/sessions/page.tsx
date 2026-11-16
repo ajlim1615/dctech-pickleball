@@ -14,6 +14,7 @@ export default async function SessionsPage() {
       userRole={authData?.profile?.role || "player"}
       rsvpCounts={rsvpCounts}
       myRsvps={myRsvps}
+      isSystemAdmin={authData?.user?.email?.toLowerCase() === "admin@dctechmicro.com"}
     />
   );
 }

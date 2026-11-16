@@ -150,6 +150,16 @@ export default async function HomePage() {
                 </Link>
               ) : (
                 isAdmin ? (
+                  <>
+                  {/* Playing admins get in the line the same way as everyone else. */}
+                  {nextSession && !isSystemAdmin && (
+                    <RsvpButton
+                      variant="dark"
+                      sessionId={nextSession.id}
+                      going={myRsvps.includes(nextSession.id)}
+                      count={rsvpCounts[nextSession.id] || 0}
+                    />
+                  )}
                   <Link href="/admin">
                     <button
                       type="button"
@@ -162,6 +172,7 @@ export default async function HomePage() {
                       </span>
                     </button>
                   </Link>
+                  </>
                 ) : (
                   <>
                   {nextSession && (
@@ -358,7 +369,7 @@ export default async function HomePage() {
                         </p>
                       </div>
 
-                      {!isAdmin && (
+                      {!isSystemAdmin && (
                         <RsvpButton
                           sessionId={session.id}
                           going={myRsvps.includes(session.id)}
