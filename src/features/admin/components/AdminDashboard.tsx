@@ -135,6 +135,8 @@ export function AdminDashboard({
   const [sessionTargetPoints, setSessionTargetPoints] = useState<number>(11);
   const [sessionWinByTwo, setSessionWinByTwo] = useState<boolean>(true);
   const [sessionTrackScores, setSessionTrackScores] = useState<boolean>(true);
+  const [sessionAllowPartners, setSessionAllowPartners] = useState<boolean>(false);
+  const [editAllowPartners, setEditAllowPartners] = useState<boolean>(false);
   const [showMoreMatchingModes, setShowMoreMatchingModes] = useState<boolean>(false);
 
   // Session Edit Config State
@@ -173,6 +175,7 @@ export function AdminDashboard({
       setEditWinByTwo(meta.winByTwo);
       setEditTrackScores(meta.trackScores);
       setEditSkillSpread(String(meta.skillSpread));
+      setEditAllowPartners(meta.allowPartners);
     }
   }, [isEditingSession]);
 
@@ -806,6 +809,10 @@ export function AdminDashboard({
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Only for this session. The courts switch to this number when it starts.
                     </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Partners</label>
+                    <AllowPartnersToggle checked={sessionAllowPartners} onChange={setSessionAllowPartners} />
                   </div>
                 </div>
 
@@ -1478,6 +1485,11 @@ export function AdminDashboard({
                         );
                       })()}
                     </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Partners</label>
+                      <AllowPartnersToggle checked={editAllowPartners} onChange={setEditAllowPartners} />
                     </div>
 
                     {(editMatchingMode === "skill_separated" || editMatchingMode === "skill_courts") && (
@@ -2548,6 +2560,35 @@ function TrackScoresToggle({
           {checked
             ? "Record points for each game. Point difference breaks leaderboard ties."
             : "Win/loss only: tap the team that won, no points to enter. Leaderboard ties go to win rate."}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+/** Whether players may join this session's line with a partner (coworker or guest). */
+function AllowPartnersToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-2.5 cursor-pointer select-none">
+      <input type="hidden" name="allowPartners" value={checked ? "true" : "false"} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 accent-emerald-500"
+      />
+      <span className="space-y-0.5">
+        <span className="block text-xs font-bold text-slate-900 dark:text-slate-100">Allow partners</span>
+        <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+          {checked
+            ? "Players can join with a coworker or guest and always play on the same team."
+            : "Everyone joins solo; the game mode makes all the teams."}
         </span>
       </span>
     </label>

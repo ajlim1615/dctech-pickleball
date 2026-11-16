@@ -208,7 +208,7 @@ export async function createSession(formData: FormData) {
   const skillSpreadTag = usesSkillSpread
     ? ` [skill_spread:${parseSkillSpread(formData.get("skillSpread") as string | null)}]`
     : "";
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag} [courts:${courtCount}]`;
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag} [courts:${courtCount}] [partners:${formData.get("allowPartners") === "true"}]`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();

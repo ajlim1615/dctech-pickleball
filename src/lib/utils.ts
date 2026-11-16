@@ -27,6 +27,7 @@ export function cleanSessionDescription(description?: string | null): string {
     .replace(/\s*\[scoring:[^\]]+\]/gi, "")
     .replace(/\s*\[skill_spread:[^\]]+\]/gi, "")
     .replace(/\s*\[courts:[^\]]+\]/gi, "")
+    .replace(/\s*\[partners:[^\]]+\]/gi, "")
     .trim();
 }
 
@@ -54,6 +55,8 @@ export function parseSessionMetadata(description?: string | null): {
   skillSpread: number;
   /** Courts this session runs on; null for older sessions that never set one. */
   courtCount: number | null;
+  /** Players may join with a partner (coworker or guest). Off unless the admin turns it on. */
+  allowPartners: boolean;
   cleanDescription: string;
 } {
   const desc = description || "";
@@ -64,6 +67,7 @@ export function parseSessionMetadata(description?: string | null): {
   const scoringMatch = desc.match(/\[scoring:(points|result)\]/i);
   const skillSpreadMatch = desc.match(/\[skill_spread:([^\]]+)\]/i);
   const courtsMatch = desc.match(/\[courts:(\d+)\]/i);
+  const partnersMatch = desc.match(/\[partners:(true|false)\]/i);
 
   const rawMode = matchingModeMatch ? matchingModeMatch[1].toLowerCase() : "balanced";
   const validModes: MatchingStyle[] = [
@@ -92,6 +96,7 @@ export function parseSessionMetadata(description?: string | null): {
     trackScores: scoringMatch ? scoringMatch[1].toLowerCase() !== "result" : true,
     skillSpread: parseSkillSpread(skillSpreadMatch ? skillSpreadMatch[1] : null),
     courtCount: parseCourtCount(courtsMatch ? courtsMatch[1] : null),
+    allowPartners: partnersMatch ? partnersMatch[1].toLowerCase() === "true" : false,
     cleanDescription: cleanSessionDescription(desc),
   };
 }

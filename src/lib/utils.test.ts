@@ -46,6 +46,14 @@ describe("utils", () => {
     expect(parseSessionMetadata("[courts:0]").courtCount).toBe(1);
   });
 
+  it("allows partners only when the admin turned it on", () => {
+    expect(parseSessionMetadata("[matching_mode:balanced]").allowPartners).toBe(false);
+    expect(parseSessionMetadata("[partners:false]").allowPartners).toBe(false);
+    const meta = parseSessionMetadata("Bring a buddy [partners:true]");
+    expect(meta.allowPartners).toBe(true);
+    expect(meta.cleanDescription).toBe("Bring a buddy");
+  });
+
   it("parses the win-by rule, defaulting by target points for older sessions", () => {
     expect(parseSessionMetadata("[target_points:11]").winByTwo).toBe(true);
     expect(parseSessionMetadata("[target_points:6]").winByTwo).toBe(false);

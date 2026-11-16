@@ -119,7 +119,7 @@ export function GuideView() {
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Choose Partner Mode</h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                You can join the rotation as a <strong>Solo Player</strong> or pair up with a registered <strong>Coworker</strong> to guarantee you play on the same doubles team.
+                You join the rotation as a <strong>Solo Player</strong>, and the game mode makes the teams. If the admin turned on <strong>Allow partners</strong> for the session, you can also pair up with a registered <strong>Coworker</strong> or a guest to guarantee you play on the same doubles team.
               </p>
             </Card>
 
@@ -308,7 +308,7 @@ export function GuideView() {
                     6. Coworker Partner Lock
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    When joining with <strong>&quot;+ Coworker&quot;</strong>, the engine guarantees you stay on the same doubles team against 2 challengers.
+                    Only in sessions where the admin turned on <strong>Allow partners</strong>. When joining with <strong>&quot;+ Coworker&quot;</strong>, the engine guarantees you stay on the same doubles team against 2 challengers.
                   </p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-emerald-500/20 text-[11px] font-mono text-slate-600 dark:text-slate-400 space-y-1">
@@ -559,7 +559,7 @@ export function GuideView() {
               Can I pair up with a specific colleague for Doubles?
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
-              Yes! In the Queue screen, choose &quot;+ Coworker&quot; and pick their name from the employee list. You will be assigned to the same team when called.
+              Yes, if the admin turned on <strong>Allow partners</strong> for that session. Then, in the Queue screen, choose &quot;+ Coworker&quot; and pick their name from the employee list. You will be assigned to the same team when called. Otherwise everyone joins solo and the game mode makes the teams.
             </p>
           </Card>
 

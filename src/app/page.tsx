@@ -300,6 +300,7 @@ export default async function HomePage() {
               courts={courts}
               history={pastGamesFromMatches(sessionMatches as unknown as MatchRowForHistory[])}
               skillSpread={activeSessionMeta?.skillSpread}
+              allowPartners={activeSessionMeta?.allowPartners}
             />
           </div>
         </div>

@@ -412,7 +412,7 @@ export async function editSession(sessionId: string, formData: FormData) {
   // This session's own court count; only touches the real courts if it is the live session.
   const courtCount = parseCourtCount(formData.get("courtCount") as string | null);
   const courtsTag = courtCount ? ` [courts:${courtCount}]` : "";
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}${courtsTag}`;
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}${courtsTag} [partners:${formData.get("allowPartners") === "true"}]`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();

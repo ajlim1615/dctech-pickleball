@@ -42,6 +42,8 @@ interface SessionQueueLiveBoardProps {
   history?: PastGame[];
   /** Biggest rating gap allowed within a group for Skill Separated. */
   skillSpread?: number;
+  /** The admin allowed joining with a partner (coworker or guest) for this session. */
+  allowPartners?: boolean;
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -82,6 +84,7 @@ export function SessionQueueLiveBoard({
   activity,
   history = EMPTY_HISTORY,
   skillSpread = DEFAULT_SKILL_SPREAD,
+  allowPartners = false,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -398,17 +401,19 @@ export function SessionQueueLiveBoard({
                   {!isSubmitting && <Plus className="h-4 w-4" />}
                   Join queue
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowJoinModal(true)}
-                  disabled={isSubmitting}
-                  aria-label="Join with a coworker or guest"
-                  title="Join with a coworker or guest"
-                  className="h-11 w-11 p-0 cursor-pointer"
-                >
-                  <UserPlus className="h-4 w-4" />
-                </Button>
+                {allowPartners && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowJoinModal(true)}
+                    disabled={isSubmitting}
+                    aria-label="Join with a coworker or guest"
+                    title="Join with a coworker or guest"
+                    className="h-11 w-11 p-0 cursor-pointer"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -550,7 +555,7 @@ export function SessionQueueLiveBoard({
       )}
 
       {/* Join with a coworker or guest */}
-      <Modal isOpen={showJoinModal} onClose={() => setShowJoinModal(false)}>
+      <Modal isOpen={showJoinModal && allowPartners} onClose={() => setShowJoinModal(false)}>
         <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl cursor-default">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Join the queue</h3>

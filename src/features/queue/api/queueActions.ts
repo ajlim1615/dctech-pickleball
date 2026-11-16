@@ -61,12 +61,17 @@ export async function joinQueue(params: {
   // get in: everyone going is shuffled into the starting line, so there is no pre-queue.
   const { data: sessionRow } = await supabase
     .from("sessions")
-    .select("status")
+    .select("status, description")
     .eq("id", params.sessionId)
     .maybeSingle();
 
   const closed = queueClosedReason(sessionRow?.status);
   if (closed) return { error: closed };
+
+  // Partners (a coworker or guest on your team) only when the admin allowed it for this session.
+  if ((params.partnerId || params.guestName) && !parseSessionMetadata(sessionRow?.description).allowPartners) {
+    return { error: "This session is solo only: join on your own and the game mode makes the teams." };
+  }
 
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
 

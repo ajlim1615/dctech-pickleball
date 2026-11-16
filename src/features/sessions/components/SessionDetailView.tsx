@@ -1224,6 +1224,7 @@ export function SessionDetailView({
             courts={courts || []}
             history={history}
             skillSpread={sessionMeta.skillSpread}
+            allowPartners={sessionMeta.allowPartners}
             onOpenBulkQueue={openAddPlayers}
             activity={{ events, names: activityNames, avgGameMinutes }}
           />
