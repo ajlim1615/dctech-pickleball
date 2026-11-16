@@ -166,9 +166,9 @@ export interface FlowStep {
 export const PLAYER_FLOW_STEPS: FlowStep[] = [
   {
     step: "01",
-    title: "Check In to a Session",
+    title: "RSVP & Check In to a Session",
     description:
-      "Open Sessions, pick today's active event, and check in to add yourself to the attendance roster and view live session standings.",
+      'Tap "I\'m going" on upcoming scheduled sessions to RSVP. Once a session starts, check in on the session page to join the roster and view live standings.',
     href: "/sessions",
     ctaLabel: "Open Sessions",
     accent: "emerald",
@@ -177,16 +177,16 @@ export const PLAYER_FLOW_STEPS: FlowStep[] = [
     step: "02",
     title: "Join Queue & Partner Mode",
     description:
-      "On the live session page, join the rotation as a Solo Player—or pair up with a Coworker or guest if the admin turned on Allow partners.",
+      "Once the session is live, join the rotation as a Solo Player—or pair up with a Coworker or guest if the admin turned on Allow partners.",
     href: "/sessions",
     ctaLabel: "Open Sessions",
     accent: "lime",
   },
   {
     step: "03",
-    title: "Live Court Call-Up",
+    title: "Wait Estimate, Activity & Call-Up",
     description:
-      "Watch your queue position and estimated wait time on the session page. When a court opens, you'll get a live call-up alert with your assigned court.",
+      "Track your queue position, estimated wait-time card, and live session activity feed. When a court opens, you'll get a live call-up alert with your assigned court.",
     href: "/sessions",
     ctaLabel: "Check Session",
     accent: "sky",
@@ -213,7 +213,7 @@ export const PLAYER_APP_FEATURES: AppFeatureCard[] = [
   {
     title: "Sessions & Final Standings",
     description:
-      "Browse scheduled, live, and completed sessions, check in, view session-specific leaderboards, and share final podium cards.",
+      "RSVP to upcoming sessions, check in when live, follow the session activity feed and wait-time card, and share high-res leaderboard or final standings cards.",
     href: "/sessions",
     ctaLabel: "Browse Sessions",
     iconName: "calendar",
@@ -221,7 +221,7 @@ export const PLAYER_APP_FEATURES: AppFeatureCard[] = [
   {
     title: "Company Leaderboard & Ratings",
     description:
-      "Official scores recorded in ranked sessions automatically adjust your skill rating and update the Gold, Silver, and Bronze podium.",
+      "Everyone starts at Beginner (2.00) and ratings never drop below 2.00. Official ranked scores update your rating and podium, and you can tap any player's avatar to view their photo full size.",
     href: "/rankings",
     ctaLabel: "View Rankings",
     iconName: "trophy",
@@ -273,7 +273,12 @@ export const PLAYER_FAQS: FaqItem[] = [
   {
     question: "How are match scores recorded and how does my rating change?",
     answer:
-      "To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your rating on the leaderboard (when the session is configured as Ranked).",
+      "Everyone starts at Beginner (2.00) and ratings never drop below 2.00. To guarantee fairness and integrity, only administrators finalize official match scores (and can correct a saved result if needed). Winning against higher-rated opponents boosts your rating in Ranked sessions.",
+  },
+  {
+    question: "When can I join the queue for a session?",
+    answer:
+      'You can tap "I\'m going" on upcoming scheduled sessions to RSVP early, while the live queue itself opens once the admin starts the session.',
   },
   {
     question: "What is the difference between 11-point, 6-point, and Result-Only sessions?",
@@ -319,9 +324,9 @@ export const STAFF_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail: "Trigger the built-in countdown timer when a team calls a timeout.",
       },
       {
-        label: "Call Next Up & Finalize",
+        label: "Admin Score & Queue Handoff",
         detail:
-          "Record the final score (or winning team in result-only sessions) to update rankings, then call the next 4 waiting players from the queue.",
+          "Staff handle live point tracking and timeouts in Court Monitor; finalizing official match scores, fixing saved results, and calling the next 4 players are admin-only actions.",
       },
     ],
   },
@@ -346,6 +351,11 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail:
           "Configure Ranked vs. Casual, target points (11 pts win-by-2 or 6 pts), and point-by-point vs. win/loss-only tracking.",
       },
+      {
+        label: "Per-Session Courts, Partners & Spread",
+        detail:
+          "Set a custom court count per session, toggle Allow partners on/off, and configure the max rating spread for Skill Separated mode.",
+      },
     ],
   },
   {
@@ -366,9 +376,14 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail: "Assign or unassign staff umpires to specific courts.",
       },
       {
-        label: "Live Queue Tools",
+        label: "Live Queue Tools & No-Show Swaps",
         detail:
-          "Bulk-add checked-in players, bump positions, swap two queued players, substitute a player, auto-fill all open courts, or reset the session queue.",
+          "Bulk-add checked-in players, bump positions, swap two queued players, swap out a no-show player for the next in line, auto-fill open courts, or reset the queue.",
+      },
+      {
+        label: "Result Correction & Activity Audit",
+        detail:
+          "Fix a saved match result from the session or leaderboard (recalculating ratings) and inspect timestamped session events in the Admin Activity Audit tab.",
       },
     ],
   },
@@ -385,9 +400,9 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail: "Quickly register walk-in players so they can check in and join the queue immediately.",
       },
       {
-        label: "Ratings, Roles & Status",
+        label: "Ratings, Photos, Roles & Status",
         detail:
-          "Edit player details, manually adjust skill ratings, toggle active status, or promote/demote player, staff, and admin roles.",
+          "Edit player details, manually adjust skill ratings, remove profile photos from the full-size viewer, toggle active status, or promote/demote player, staff, and admin roles.",
       },
     ],
   },
