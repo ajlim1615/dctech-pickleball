@@ -172,7 +172,9 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
             </div>
 
             {/* Ranked players all on the podium: nothing to list below it */}
-            {!(isDefaultView && listRows.length === 0 && rankedCount > 0) && (
+            {isDefaultView && listRows.length === 0 && rankedCount > 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Everyone ranked so far is on the podium.</p>
+            ) : (
               <RankingsLadder
                 rows={listRows}
                 search={search}

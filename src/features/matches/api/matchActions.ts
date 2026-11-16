@@ -168,6 +168,10 @@ export async function finalizeMatch(
   if (meta.isRanked) {
     const rated = await loadRatedTeams(supabase, matchId);
     if ("error" in rated) return { error: rated.error };
+    // A ranked game needs a rating change for every player, so both sides must have players.
+    if (rated.teamA.length === 0 || rated.teamB.length === 0) {
+      return { error: "This game is missing players on one side, so it can't be saved as ranked." };
+    }
     ratingChanges = calculateRatingChanges(rated.teamA, rated.teamB, teamAScore, teamBScore, meta.targetPoints);
   }
 

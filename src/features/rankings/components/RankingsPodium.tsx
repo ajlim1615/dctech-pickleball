@@ -61,7 +61,7 @@ function Finisher({
 }) {
   const p = PLACES[place];
   const name = player.full_name || player.display_name || "Player";
-  const losses = Math.max(0, (player.games_played || 0) - (player.games_won || 0));
+  const losses = player.games_lost || 0;
 
   return (
     <li className={`flex flex-col items-center ${place === 1 ? "order-2" : place === 2 ? "order-1" : "order-3"}`}>

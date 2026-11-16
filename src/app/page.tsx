@@ -469,7 +469,7 @@ export default async function HomePage() {
                           {player.full_name || player.display_name}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {player.games_won}W - {player.games_played - player.games_won}L ({player.win_rate}%)
+                          {player.games_won}W - {player.games_lost}L ({player.win_rate}%)
                         </div>
                       </div>
                     </div>
