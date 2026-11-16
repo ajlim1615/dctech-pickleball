@@ -2008,7 +2008,7 @@ export function AdminDashboard({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
                   <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 1: Create Session</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In the Sessions tab, set Title, Date/Time, and Rented Courts (2 to 6 courts).</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">In the Sessions tab, set Title, Date/Time, Rented Courts (1 to 12), Allow partners, and Skill Spread.</div>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
                   <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 2: Start Session</div>
@@ -2191,7 +2191,7 @@ export function AdminDashboard({
               </div>
               <ul className="space-y-1.5 list-disc list-inside">
                 <li><strong className="text-slate-900 dark:text-slate-100">Step 1 (Paddle Line Order):</strong> When <span className="text-emerald-600 dark:text-emerald-400 font-bold">Call Next 4</span> is clicked, the engine looks at the first few waiting players in arrival order. The first in line is always included.</li>
-                <li><strong className="text-slate-900 dark:text-slate-100">Step 2 (Locked Doubles Pairs):</strong> If two coworkers queued together as a pair (+Coworker), they are locked together on <span className="text-emerald-600 dark:text-emerald-400 font-bold">Team 1</span>.</li>
+                <li><strong className="text-slate-900 dark:text-slate-100">Step 2 (Locked Doubles Pairs):</strong> When <span className="text-emerald-600 dark:text-emerald-400 font-bold">Allow partners</span> is enabled for the session and two players queued together as a pair (+Coworker), they are locked together on <span className="text-emerald-600 dark:text-emerald-400 font-bold">Team 1</span>.</li>
                 <li><strong className="text-slate-900 dark:text-slate-100">Step 3 (Matching Mode Execution):</strong> The engine applies your session&apos;s mode: <em>Balanced</em> weighs even teams against repeats, <em>Social Mix</em> avoids repeats, and <em>Skill Separated</em> keeps the four within the session&apos;s rating spread.</li>
                 <li><strong className="text-slate-900 dark:text-slate-100">Step 4 (Court Dispatch):</strong> The match starts in-progress with live umpires and scoreboards. When completed, court frees up and queue automatically advances.</li>
               </ul>
@@ -2229,10 +2229,10 @@ export function AdminDashboard({
               <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-2 shadow-sm">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-sky-600 dark:text-sky-400 font-mono">
                   <ArrowLeftRight className="h-4 w-4" />
-                  ⇄ Swap / Substitute
+                  ⇄ Swap / No-Show
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Exchange spots between two queued players, or replace a slot with an available coworker from the directory.
+                  Exchange spots between two queued players, substitute from the directory, or swap a no-show player for the next in line.
                 </p>
               </Card>
 
@@ -2249,10 +2249,10 @@ export function AdminDashboard({
               <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-2 shadow-sm border-rose-500/30">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
                   <RefreshCw className="h-4 w-4" />
-                  🔄 Reset Queue
+                  🔄 Reset, Fix & Audit
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Located in the top Admin Header. Instantly clears all waiting/called players for the active session (e.g. at event wrap-up or emergency stoppage) while preserving completed match history.
+                  Reset Queue clears waiting/called players while keeping completed matches. Admins can also fix saved match results (recalculating ratings) and inspect the Activity Audit tab.
                 </p>
               </Card>
             </div>
