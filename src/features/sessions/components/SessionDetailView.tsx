@@ -51,6 +51,8 @@ import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { previewCourts } from "@/features/sessions/utils/previewCourts";
+import { CourtCapacityStrip } from "./CourtCapacityStrip";
+import { WhosGoing, type GoingPlayer } from "./WhosGoing";
 
 interface SessionDetailViewProps {
   session: Session & { checkins?: any[] };
@@ -63,7 +65,7 @@ interface SessionDetailViewProps {
   initialQueue?: QueueEntryWithPlayer[];
   employees?: Profile[];
   /** People who said they're going (upcoming sessions). */
-  rsvps?: { playerId: string; name: string }[];
+  rsvps?: GoingPlayer[];
   /** Session activity, newest first, and the average game length so far. */
   initialEvents?: SessionEvent[];
   avgGameMinutes?: number | null;
@@ -71,7 +73,7 @@ interface SessionDetailViewProps {
   history?: PastGame[];
 }
 
-const NO_RSVPS: { playerId: string; name: string }[] = [];
+const NO_RSVPS: GoingPlayer[] = [];
 const NO_EVENTS: SessionEvent[] = [];
 
 // Stable default: it is passed down to useLiveQueue, whose sync effect would
@@ -343,8 +345,9 @@ export function SessionDetailView({
           Back to all sessions
         </Link>
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 sm:gap-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 sm:p-6 backdrop-blur-md shadow-sm overflow-hidden">
-          <div className="space-y-2">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-4 sm:p-6 backdrop-blur-md shadow-sm overflow-hidden space-y-5">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 sm:gap-6">
+          <div className="space-y-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -364,38 +367,39 @@ export function SessionDetailView({
               <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 first-letter:uppercase">
                 {describeRule(sessionMeta)}
               </span>
-              <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                {(() => {
-                  const n =
-                    currentStatus === "active" && courts?.length
-                      ? courts.length
-                      : sessionMeta.courtCount ?? DEFAULT_COURT_COUNT;
-                  return `${n} ${n === 1 ? "court" : "courts"}`;
-                })()}
-              </span>
+              {currentStatus === "active" && (
+                <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {courts?.length || 0} {courts?.length === 1 ? "court" : "courts"}
+                </span>
+              )}
+            </div>
 
-              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5 shrink-0" />
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+              {session.title}
+            </h1>
+
+            {/* When and where: what people check first */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  {formatPHTDate(session.start_time)} • {formatPHTTime(session.start_time)} –{" "}
+                  {formatPHTDate(session.start_time)}, {formatPHTTime(session.start_time)} –{" "}
                   {formatPHTTime(session.end_time)}
                 </span>
               </span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              {session.title}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
-              {cleanedDescription || "DCTECH open play rotation on all facility courts."}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400 pt-1">
-              <span className="inline-flex items-center gap-1.5 shrink-0">
-                <MapPin className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{session.location}</span>
               </span>
+            </div>
 
+            {cleanedDescription && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">{cleanedDescription}</p>
+            )}
+
+            {/* Check-ins only exist once the session is live */}
+            {currentStatus !== "scheduled" && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400 pt-1">
               {checkins.length > 0 ? (
                 <button
                   type="button"
@@ -424,6 +428,7 @@ export function SessionDetailView({
                 </span>
               )}
             </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800/80">
@@ -481,37 +486,18 @@ export function SessionDetailView({
             )}
           </div>
         </div>
+
+          {/* How busy it will be: the session's courts filling up with everyone going */}
+          {canRsvp(currentStatus) && (
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+              <CourtCapacityStrip courts={sessionMeta.courtCount ?? DEFAULT_COURT_COUNT} going={rsvps.length} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Who said they're coming */}
-      {canRsvp(currentStatus) && (
-        <section aria-labelledby="rsvp-heading" className="space-y-2">
-          <h2 id="rsvp-heading" className="text-base font-bold text-slate-900 dark:text-slate-100">
-            Who&apos;s going ({rsvps.length})
-          </h2>
-          {rsvps.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No one yet. Tap I&apos;m going to let the organizers know.
-            </p>
-          ) : (
-            <ul className="flex flex-wrap gap-1.5">
-              {rsvps.map((r) => (
-                <li
-                  key={r.playerId}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    r.playerId === currentUserId
-                      ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-300"
-                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {r.name}
-                  {r.playerId === currentUserId && " (you)"}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+      {canRsvp(currentStatus) && <WhosGoing rsvps={rsvps} currentUserId={currentUserId} />}
 
       {/* Start / Reopen Session Confirmation Modal */}
       <Modal isOpen={showStartConfirm} onClose={() => !statusLoading && setShowStartConfirm(false)}>

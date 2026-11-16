@@ -57,7 +57,9 @@ export async function getMyRsvpSessionIds(sessionIds: string[]): Promise<string[
 }
 
 /** Names of everyone going to one session, earliest first. */
-export async function getSessionRsvps(sessionId: string): Promise<{ playerId: string; name: string }[]> {
+export async function getSessionRsvps(
+  sessionId: string
+): Promise<{ playerId: string; name: string; avatarUrl: string | null }[]> {
   const supabase = await createClient();
   const { data: rows, error } = await supabase
     .from("session_rsvps")
@@ -68,11 +70,15 @@ export async function getSessionRsvps(sessionId: string): Promise<{ playerId: st
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name, display_name")
+    .select("id, full_name, display_name, avatar_url")
     .in("id", rows.map((r) => r.player_id));
   const byId = new Map((profiles || []).map((p) => [p.id, p]));
   return rows.map((r) => {
     const p = byId.get(r.player_id);
-    return { playerId: r.player_id, name: p?.full_name || p?.display_name || "Player" };
+    return {
+      playerId: r.player_id,
+      name: p?.full_name || p?.display_name || "Player",
+      avatarUrl: p?.avatar_url || null,
+    };
   });
 }
