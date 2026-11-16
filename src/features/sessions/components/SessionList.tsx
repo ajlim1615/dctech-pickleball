@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cleanSessionDescription } from "@/lib/utils";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
+import { RankedBadge } from "@/features/sessions/components/RankedBadge";
 import type { Session } from "@/types";
 
 interface SessionListProps {
@@ -115,6 +116,8 @@ export function SessionList({
                           CANCELLED
                         </Badge>
                       )}
+
+                      <RankedBadge description={s.description} />
 
                       <span className="text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />

@@ -24,6 +24,7 @@ import { getCourts } from "@/features/courts/api/courtActions";
 import { getSessions, getSessionMatches } from "@/features/sessions/api/sessionActions";
 import { getMyRsvpSessionIds, getRsvpCounts } from "@/features/sessions/api/rsvpActions";
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
+import { RankedBadge } from "@/features/sessions/components/RankedBadge";
 import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
@@ -104,6 +105,8 @@ export default async function HomePage() {
                   <span>ARENA STANDBY • NO SESSION SCHEDULED</span>
                 </div>
               )}
+
+              {heroSession && <RankedBadge description={heroSession.description} onDark />}
 
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -354,9 +357,12 @@ export default async function HomePage() {
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40">
-                            SCHEDULED
-                          </Badge>
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40">
+                              SCHEDULED
+                            </Badge>
+                            <RankedBadge description={session.description} />
+                          </span>
                           <span className="text-[11px] font-mono text-slate-500">
                             {formatPHTTime(session.start_time)}
                           </span>
