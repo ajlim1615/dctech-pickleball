@@ -12,6 +12,45 @@ export interface ModalProps {
   preventBackdropClose?: boolean;
 }
 
+/*
+ * One page-wide scroll lock shared by every open modal. Modals can stack (a
+ * player card, then their photo on top), so each one used to save "the
+ * original" overflow and restore it on close; a modal that re-ran its effect
+ * while another was open saved "hidden" as the original and left the page
+ * unscrollable. Now the first open modal saves the real styles and only the
+ * last one to close restores them.
+ */
+const noopSubscribe = () => () => {};
+
+let openModals: symbol[] = [];
+let savedStyles: { overflow: string; paddingRight: string; htmlOverflow: string } | null = null;
+
+function lockScroll(id: symbol) {
+  if (openModals.length === 0) {
+    savedStyles = {
+      overflow: document.body.style.overflow,
+      paddingRight: document.body.style.paddingRight,
+      htmlOverflow: document.documentElement.style.overflow,
+    };
+    // Compensate for scrollbar removal to prevent layout shift
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+  }
+  openModals.push(id);
+}
+
+function unlockScroll(id: symbol) {
+  openModals = openModals.filter((m) => m !== id);
+  if (openModals.length === 0 && savedStyles) {
+    document.body.style.overflow = savedStyles.overflow;
+    document.body.style.paddingRight = savedStyles.paddingRight;
+    document.documentElement.style.overflow = savedStyles.htmlOverflow;
+    savedStyles = null;
+  }
+}
+
 export function Modal({
   isOpen,
   onClose,
@@ -19,44 +58,39 @@ export function Modal({
   className,
   preventBackdropClose = false,
 }: ModalProps) {
-  const [mounted, setMounted] = React.useState(false);
+  // True only in the browser (portals need document.body); false during server render.
+  const mounted = React.useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
+  const [id] = React.useState(() => Symbol("modal"));
 
+  // Latest close handler and setting, read by Escape without re-running the lock.
+  const closeRef = React.useRef(onClose);
+  const preventRef = React.useRef(preventBackdropClose);
   React.useEffect(() => {
-    setMounted(true);
-  }, []);
+    closeRef.current = onClose;
+    preventRef.current = preventBackdropClose;
+  });
 
-  // Lock body scrolling while modal is open to prevent background bleed and scroll shifting
+  // Lock body scrolling while open; depends only on isOpen so re-renders can't disturb it.
   React.useEffect(() => {
     if (!isOpen) return;
+    lockScroll(id);
 
-    const originalOverflow = document.body.style.overflow;
-    const originalPaddingRight = document.body.style.paddingRight;
-    const originalHtmlOverflow = document.documentElement.style.overflow;
-
-    // Compensate for scrollbar removal to prevent layout shift
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-
+    // Escape closes only the top-most modal.
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && onClose && !preventBackdropClose) {
-        onClose();
-      }
+      if (e.key !== "Escape" || openModals[openModals.length - 1] !== id) return;
+      if (closeRef.current && !preventRef.current) closeRef.current();
     };
-
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.paddingRight = originalPaddingRight;
-      document.documentElement.style.overflow = originalHtmlOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      unlockScroll(id);
     };
-  }, [isOpen, onClose, preventBackdropClose]);
+  }, [isOpen, id]);
 
   if (!isOpen || !mounted) return null;
 
