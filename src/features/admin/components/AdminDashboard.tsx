@@ -45,6 +45,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import {
   toggleCourtStatus,
@@ -159,6 +160,7 @@ export function AdminDashboard({
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const activeSession = sessions.find((s) => s.status === "active");
   const [employees, setEmployees] = useState<Profile[]>(initialEmployees);
+  const [photoTarget, setPhotoTarget] = useState<PhotoTarget | null>(null);
 
   // Sync edit modal state when an existing session is selected
   useEffect(() => {
@@ -1909,18 +1911,32 @@ export function AdminDashboard({
                       >
                         {/* Player Profile Column */}
                         <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs">
-                            {emp.avatar_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
+                          {emp.avatar_url ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPhotoTarget({
+                                  id: emp.id,
+                                  name: emp.full_name || emp.display_name || "Player",
+                                  avatarUrl: emp.avatar_url!,
+                                })
+                              }
+                              title="View photo"
+                              aria-label={`View ${emp.full_name || emp.display_name || "player"}'s photo`}
+                              className="h-11 w-11 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={emp.avatar_url}
-                                alt={emp.full_name || "Avatar"}
+                                alt=""
                                 className="h-full w-full object-cover"
                               />
-                            ) : (
-                              emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"
-                            )}
-                          </div>
+                            </button>
+                          ) : (
+                            <div className="h-11 w-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs">
+                              {emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"}
+                            </div>
+                          )}
                           <div className="min-w-0 space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -2417,6 +2433,17 @@ export function AdminDashboard({
           </Card>
         </div>
       )}
+
+      {/* Player photo: view full size, admins can remove it */}
+      <PlayerPhotoViewer
+        target={photoTarget}
+        canRemove
+        onClose={() => setPhotoTarget(null)}
+        onRemoved={(id) => {
+          setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, avatar_url: null } : e)));
+          showNotice("Photo removed.");
+        }}
+      />
 
       {/* Custom Confirmation Modal */}
       <Modal

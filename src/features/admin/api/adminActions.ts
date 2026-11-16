@@ -295,6 +295,28 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
   return { success: true, courts: updatedCourts || [] };
 }
 
+/** Admin removes a player's profile photo (e.g. an inappropriate picture). Only the photo is cleared. */
+export async function removePlayerPhoto(userId: string) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ avatar_url: null, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select("id");
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Player not found." };
+
+  revalidatePath("/admin");
+  revalidatePath("/rankings");
+  revalidatePath("/profile");
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function togglePlayerActiveStatus(userId: string, isActive: boolean) {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };

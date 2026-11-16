@@ -25,23 +25,26 @@ import { formatPHTDate } from "@/lib/timezone";
 import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
 import type { RankedPlayer } from "../api/rankingActions";
 import { formatMatchScore } from "@/features/matches/utils/scoring";
+import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
 
 interface LeaderboardTableProps {
   initialRankings?: RankedPlayer[];
+  /** Admins can remove a player's photo from the photo viewer. */
+  isAdmin?: boolean;
 }
 
 type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate";
 type SortOrder = "asc" | "desc";
 
-export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps) {
+export function LeaderboardTable({ initialRankings = [], isAdmin = false }: LeaderboardTableProps) {
   const [search, setSearch] = useState("");
+  const [rankings, setRankings] = useState<RankedPlayer[]>(initialRankings);
+  const [photoTarget, setPhotoTarget] = useState<PhotoTarget | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<RankedPlayer | null>(null);
   const [playerMatches, setPlayerMatches] = useState<any[]>([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
-
-  const rankings: RankedPlayer[] = initialRankings;
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -412,6 +415,17 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
         </>
       )}
 
+      {/* Player photo: anyone can view it; admins can remove it */}
+      <PlayerPhotoViewer
+        target={photoTarget}
+        canRemove={isAdmin}
+        onClose={() => setPhotoTarget(null)}
+        onRemoved={(id) => {
+          setRankings((prev) => prev.map((p) => (p.id === id ? { ...p, avatar_url: null } : p)));
+          setSelectedPlayer((prev) => (prev && prev.id === id ? { ...prev, avatar_url: null } : prev));
+        }}
+      />
+
       {/* View Player Stats & History Modal */}
       <Modal
         isOpen={Boolean(selectedPlayer)}
@@ -422,18 +436,28 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
             {/* Modal Header: Profile Picture, Name, Email, Rank */}
             <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-5">
               <div className="flex items-center gap-4 sm:gap-5">
-                <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-slate-100 dark:bg-slate-950 font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400 shadow-md">
-                  {selectedPlayer.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={selectedPlayer.avatar_url}
-                      alt={selectedPlayer.full_name || "Avatar"}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    selectedPlayer.full_name?.slice(0, 2).toUpperCase() || "DC"
-                  )}
-                </div>
+                {selectedPlayer.avatar_url ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPhotoTarget({
+                        id: selectedPlayer.id,
+                        name: selectedPlayer.full_name || selectedPlayer.display_name || "Player",
+                        avatarUrl: selectedPlayer.avatar_url!,
+                      })
+                    }
+                    title="View photo"
+                    aria-label={`View ${selectedPlayer.full_name || "player"}'s photo`}
+                    className="relative flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-emerald-500/50 shadow-md cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={selectedPlayer.avatar_url} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ) : (
+                  <div className="relative flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-slate-100 dark:bg-slate-950 font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400 shadow-md">
+                    {selectedPlayer.full_name?.slice(0, 2).toUpperCase() || "DC"}
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
