@@ -24,7 +24,7 @@ import { getCourts } from "@/features/courts/api/courtActions";
 import { getSessions, getSessionMatches } from "@/features/sessions/api/sessionActions";
 import { getMyRsvpSessionIds, getRsvpCounts } from "@/features/sessions/api/rsvpActions";
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
-import { RankedBadge } from "@/features/sessions/components/RankedBadge";
+import { CourtsBadge, RankedBadge } from "@/features/sessions/components/RankedBadge";
 import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
@@ -113,6 +113,13 @@ export default async function HomePage() {
               )}
 
               {heroSession && <RankedBadge description={heroSession.description} onDark />}
+              {heroSession && (
+                <CourtsBadge
+                  description={heroSession.description}
+                  count={activeSession ? courts.length : undefined}
+                  onDark
+                />
+              )}
 
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -369,6 +376,7 @@ export default async function HomePage() {
                               SCHEDULED
                             </Badge>
                             <RankedBadge description={session.description} />
+                            <CourtsBadge description={session.description} />
                           </span>
                           <span className="text-[11px] font-mono text-slate-500">
                             {formatPHTTime(session.start_time)}

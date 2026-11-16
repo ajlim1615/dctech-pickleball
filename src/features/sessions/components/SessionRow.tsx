@@ -1,6 +1,7 @@
 import { formatPHTTime } from "@/lib/timezone";
 import { parseSessionMetadata } from "@/lib/utils";
 import { describeRule } from "@/features/matches/utils/scoring";
+import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import type { Session } from "@/types";
 
 /** Ranked/Casual and scoring rule, as quiet chips. */
@@ -11,6 +12,9 @@ export function SessionRuleChips({ description }: { description?: string | null 
     <div className="flex flex-wrap items-center gap-1.5">
       <span className={chip}>{meta.isRanked ? "Ranked" : "Casual"}</span>
       <span className={`${chip} first-letter:uppercase`}>{describeRule(meta)}</span>
+      <span className={chip}>
+        {(meta.courtCount ?? DEFAULT_COURT_COUNT)} {(meta.courtCount ?? DEFAULT_COURT_COUNT) === 1 ? "court" : "courts"}
+      </span>
     </div>
   );
 }

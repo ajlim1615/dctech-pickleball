@@ -49,6 +49,7 @@ import type { PastGame } from "@/features/queue/matchmaking";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
+import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 
 interface SessionDetailViewProps {
   session: Session & { checkins?: any[] };
@@ -352,6 +353,15 @@ export function SessionDetailView({
               </span>
               <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 first-letter:uppercase">
                 {describeRule(sessionMeta)}
+              </span>
+              <span className="rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                {(() => {
+                  const n =
+                    currentStatus === "active" && courts?.length
+                      ? courts.length
+                      : sessionMeta.courtCount ?? DEFAULT_COURT_COUNT;
+                  return `${n} ${n === 1 ? "court" : "courts"}`;
+                })()}
               </span>
 
               <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
