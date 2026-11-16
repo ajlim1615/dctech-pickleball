@@ -34,7 +34,12 @@ const FILTERS: { id: string; label: string; types: SessionEventType[] | null }[]
 /** Admin-only audit trail: every session event with who did it. */
 export function AdminAuditView({ sessions, names }: { sessions: Session[]; names: Record<string, string> }) {
   const sorted = [...sessions].sort((a, b) => b.start_time.localeCompare(a.start_time));
-  const defaultSession = sorted.find((s) => s.status === "active") ?? sorted[0];
+  // Open on the live session, else the latest one that has already started; upcoming
+  // sessions have no activity yet, so with none of either show all sessions.
+  const now = new Date().toISOString();
+  const defaultSession =
+    sorted.find((s) => s.status === "active") ??
+    sorted.find((s) => s.status === "completed" || (s.status !== "scheduled" && s.start_time <= now));
   const [sessionId, setSessionId] = useState<string>(defaultSession?.id ?? "");
   const [filterId, setFilterId] = useState("all");
   const [events, setEvents] = useState<AdminAuditEvent[]>([]);
@@ -96,7 +101,9 @@ export function AdminAuditView({ sessions, names }: { sessions: Session[]; names
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading activity…</p>
       ) : events.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-5 text-sm text-slate-500 dark:text-slate-400">
-          No activity for this selection.
+          {sessionId
+            ? "Nothing here yet. Activity shows up once this session starts."
+            : "Nothing here yet. Activity shows up once a session starts."}
         </p>
       ) : (
         <ol
