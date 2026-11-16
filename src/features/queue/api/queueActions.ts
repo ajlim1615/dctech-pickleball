@@ -8,7 +8,17 @@ import { parseSessionMetadata } from "@/lib/utils";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
+import {
+  BREAK_USED_MESSAGE,
+  NO_LIMITS_USED,
+  REJOIN_USED_MESSAGE,
+  canRejoin,
+  canTakeBreak,
+  type QueueLimits,
+} from "@/features/queue/utils/queueLimits";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
@@ -71,6 +81,11 @@ export async function joinQueue(params: {
   // Partners (a coworker or guest on your team) only when the admin allowed it for this session.
   if ((params.partnerId || params.guestName) && !parseSessionMetadata(sessionRow?.description).allowPartners) {
     return { error: "This session is solo only: join on your own and the game mode makes the teams." };
+  }
+
+  // One rejoin per session: after leaving twice, only an admin can add the player back.
+  if (!canRejoin(await loadQueueLimits(supabase, params.sessionId, user.id))) {
+    return { error: REJOIN_USED_MESSAGE };
   }
 
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
@@ -260,24 +275,29 @@ export async function leaveQueue(sessionId: string) {
     return { error: "Authentication required." };
   }
 
-  const { error } = await supabase
+  const { data: removed, error } = await supabase
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", user.id)
-    .not("status", "in", "(playing,left)"); // waiting, called or on_break
+    .not("status", "in", "(playing,left)") // waiting, called or on_break
+    .select("id");
 
   if (error) {
     return { error: error.message };
   }
 
-  recordSessionEvent({
-    sessionId,
-    type: "left_queue",
-    actorId: user.id,
-    actorRole: "self",
-    subjectIds: [user.id],
-  });
+  // Only a real leave counts toward the one-rejoin limit, and it is written before
+  // replying so a quick rejoin always sees it.
+  if (removed && removed.length > 0) {
+    await logSessionEvent(createAdminClient() as unknown as Parameters<typeof logSessionEvent>[0], {
+      sessionId,
+      type: "left_queue",
+      actorId: user.id,
+      actorRole: "self",
+      subjectIds: [user.id],
+    });
+  }
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
@@ -749,9 +769,18 @@ export async function fillOpenCourts(sessionId: string) {
   return { success: true, filled, remainingOpen: openCourts.length - filled };
 }
 
+/** The signed-in player's breaks and leaves used in this session (one break, one rejoin). */
+export async function getMyQueueLimits(sessionId: string): Promise<QueueLimits> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NO_LIMITS_USED;
+  return loadQueueLimits(supabase, sessionId, user.id);
+}
+
 /**
  * Puts a player on a break (skipped by "Call next" but keeps their place) or brings
- * them back. Players change their own entry; admins can change anyone's.
+ * them back. Players change their own entry; admins can change anyone's. Players get
+ * one break per session; breaks an admin sets (like a no-show swap) don't count.
  */
 export async function setQueueBreak(sessionId: string, onBreak: boolean, playerId?: string) {
   const supabase = await createClient();
@@ -763,6 +792,11 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
     const auth = await requireAdminUser();
     if (auth.error) return { error: "Only admins can put other players on a break." };
     targetPlayerId = playerId;
+  }
+  const isSelf = targetPlayerId === user.id;
+
+  if (onBreak && isSelf && !canTakeBreak(await loadQueueLimits(supabase, sessionId, user.id))) {
+    return { error: BREAK_USED_MESSAGE };
   }
 
   const { data: entry } = await supabase
@@ -793,13 +827,19 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
     };
   }
 
-  recordSessionEvent({
+  const breakEvent = {
     sessionId,
-    type: onBreak ? "break_started" : "break_ended",
+    type: onBreak ? ("break_started" as const) : ("break_ended" as const),
     actorId: user.id,
-    actorRole: targetPlayerId === user.id ? "self" : "admin",
+    actorRole: isSelf ? ("self" as const) : ("admin" as const),
     subjectIds: [targetPlayerId],
-  });
+  };
+  if (onBreak && isSelf) {
+    // Written before replying: this row is what limits a player to one break.
+    await logSessionEvent(createAdminClient() as unknown as Parameters<typeof logSessionEvent>[0], breakEvent);
+  } else {
+    recordSessionEvent(breakEvent);
+  }
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");

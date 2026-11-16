@@ -42,6 +42,7 @@ import {
   type SessionRankedPlayer,
 } from "../api/sessionActions";
 import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
+import { NO_LIMITS_USED, leaveIsFinal, type QueueLimits } from "@/features/queue/utils/queueLimits";
 import { createWalkInPlayer } from "@/features/admin/api/adminActions";
 import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
@@ -71,6 +72,8 @@ interface SessionDetailViewProps {
   avgGameMinutes?: number | null;
   /** Finished games, for the Up next preview. */
   history?: PastGame[];
+  /** Breaks and leaves the signed-in player used this session (one break, one rejoin). */
+  queueLimits?: QueueLimits;
 }
 
 const NO_RSVPS: GoingPlayer[] = [];
@@ -94,6 +97,7 @@ export function SessionDetailView({
   initialEvents = NO_EVENTS,
   avgGameMinutes = null,
   history,
+  queueLimits = NO_LIMITS_USED,
 }: SessionDetailViewProps) {
   const events = useLiveFeed(session.id, initialEvents);
   // Names for the activity feed: everyone the page knows about.
@@ -304,7 +308,9 @@ export function SessionDetailView({
     if (checkingOutPlayerId || !targetPlayerId) return;
     const isSelf = targetPlayerId === currentUserId;
     const confirmMessage = isSelf
-      ? "Check out of this session? You will also be removed from the active queue."
+      ? leaveIsFinal(queueLimits)
+        ? "Check out for good? You already left once, so you won't be able to check back in yourself. An admin can add you back."
+        : "Check out of this session? You'll be taken out of the line. You can check back in once, at the back of the line."
       : `Check out ${playerName}? They will be removed from attendance and taken out of the queue.`;
 
     if (!confirm(confirmMessage)) return;
@@ -1250,6 +1256,7 @@ export function SessionDetailView({
             history={history}
             skillSpread={sessionMeta.skillSpread}
             allowPartners={sessionMeta.allowPartners}
+            queueLimits={queueLimits}
             onOpenBulkQueue={openAddPlayers}
             activity={{ events, names: activityNames, avgGameMinutes }}
           />

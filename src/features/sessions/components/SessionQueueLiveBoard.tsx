@@ -20,6 +20,13 @@ import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/c
 import { formatRating } from "@/lib/utils";
 import type { ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
 import { WaitCard } from "@/features/activity/components/WaitCard";
+import {
+  NO_LIMITS_USED,
+  canRejoin,
+  canTakeBreak as breakAllowed,
+  leaveIsFinal,
+  type QueueLimits,
+} from "@/features/queue/utils/queueLimits";
 
 interface SessionQueueLiveBoardProps {
   initialQueue?: QueueEntryWithPlayer[];
@@ -44,6 +51,8 @@ interface SessionQueueLiveBoardProps {
   skillSpread?: number;
   /** The admin allowed joining with a partner (coworker or guest) for this session. */
   allowPartners?: boolean;
+  /** Breaks and leaves the signed-in player used this session (one break, one rejoin). */
+  queueLimits?: QueueLimits;
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -85,6 +94,7 @@ export function SessionQueueLiveBoard({
   history = EMPTY_HISTORY,
   skillSpread = DEFAULT_SKILL_SPREAD,
   allowPartners = false,
+  queueLimits = NO_LIMITS_USED,
 }: SessionQueueLiveBoardProps) {
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -113,6 +123,11 @@ export function SessionQueueLiveBoard({
   const [joinMode, setJoinMode] = useState<"solo" | "coworker" | "guest">("solo");
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [guestName, setGuestName] = useState("");
+  // One break per session: true once taken, before the refreshed page confirms it.
+  const [tookBreak, setTookBreak] = useState(false);
+  const canTakeBreak = breakAllowed(queueLimits) && !tookBreak;
+  const canJoinAgain = canRejoin(queueLimits);
+  const finalLeave = leaveIsFinal(queueLimits);
 
   const isUserInQueue = Boolean(myEntry);
 
@@ -205,7 +220,9 @@ export function SessionQueueLiveBoard({
       const res = await setQueueBreak(sessionId, takeBreak);
       if (res?.error) {
         alert(res.error);
+        if (takeBreak && res.error.includes("used your break")) setTookBreak(true);
       } else {
+        if (takeBreak) setTookBreak(true);
         router.refresh();
       }
     } finally {
@@ -293,7 +310,16 @@ export function SessionQueueLiveBoard({
           ) : isUserInQueue ? (
             showLeaveConfirm ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Leave and lose your spot?</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    {finalLeave ? "Leave for good?" : "Leave and lose your spot?"}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {finalLeave
+                      ? "You already left once, so only an admin can add you back."
+                      : "You can rejoin once, at the back of the line."}
+                  </p>
+                </div>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={() => setShowLeaveConfirm(false)} disabled={isSubmitting} className="h-11 cursor-pointer">
                     Stay
@@ -342,17 +368,19 @@ export function SessionQueueLiveBoard({
                   </span>
                 </p>
                 <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleBreak(true)}
-                    disabled={isSubmitting}
-                    title="Skip games until you're back, without losing your place"
-                    className="h-11 px-3 font-semibold cursor-pointer"
-                  >
-                    <Coffee className="h-4 w-4 mr-1.5" />
-                    Take a break
-                  </Button>
+                  {canTakeBreak && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleBreak(true)}
+                      disabled={isSubmitting}
+                      title="Skip games until you're back, without losing your place. One break per session."
+                      className="h-11 px-3 font-semibold cursor-pointer"
+                    >
+                      <Coffee className="h-4 w-4 mr-1.5" />
+                      Take a break
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -363,6 +391,12 @@ export function SessionQueueLiveBoard({
                     Leave
                   </Button>
                 </div>
+                {!canTakeBreak && !isSessionScheduled && (
+                  <p className="basis-full flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <Coffee className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    You&apos;ve used your break for this session.
+                  </p>
+                )}
                 {activity && currentUserId && (
                   <div className="basis-full">
                     <WaitCard
@@ -386,9 +420,15 @@ export function SessionQueueLiveBoard({
                 When the session starts, everyone going is shuffled into the line, then the game mode picks each match.
               </span>
             </p>
+          ) : !canJoinAgain ? (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              You&apos;ve left the line twice this session. Ask an admin if you want to play again.
+            </p>
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Ready for the next game?</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {queueLimits.timesLeft > 0 ? "Coming back? You can rejoin once, at the back of the line." : "Ready for the next game?"}
+              </p>
               <div className="flex shrink-0 gap-2">
                 <Button
                   type="button"

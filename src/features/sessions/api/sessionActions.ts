@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parsePHTToISO } from "@/lib/timezone";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
+import { REJOIN_USED_MESSAGE, canRejoin } from "@/features/queue/utils/queueLimits";
 import { planStartingLine } from "@/features/queue/startingLine";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
@@ -422,6 +425,16 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
   const closed = queueClosedReason(sessionRow?.status);
   if (closed) return { error: closed };
 
+  // One rejoin per session: a player who left twice needs an admin to check them back in.
+  {
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    if (caller && caller.id === targetPlayerId) {
+      if (!canRejoin(await loadQueueLimits(supabase, sessionId, targetPlayerId))) {
+        return { error: REJOIN_USED_MESSAGE };
+      }
+    }
+  }
+
   // Guard: Root system admin cannot check in to play
   const { data: profile } = await supabase.from("profiles").select("email").eq("id", targetPlayerId).single();
   if (profile?.email?.toLowerCase() === "admin@dctechmicro.com") {
@@ -508,24 +521,34 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
     return { error: checkinError.message };
   }
 
-  recordSessionEvent({
-    sessionId,
-    type: "checked_out",
-    actorId: user.id,
-    actorRole: targetPlayerId === user.id ? "self" : "admin",
-    subjectIds: [targetPlayerId],
-  });
-
   // 2. Automatically remove player from the active queue so they are not matched or called
-  const { error: queueError } = await supabase
+  const { data: removed, error: queueError } = await supabase
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .not("status", "in", "(playing,left)"); // waiting, called or on_break
+    .not("status", "in", "(playing,left)") // waiting, called or on_break
+    .select("id");
 
   if (queueError) {
     console.error("Failed to remove player from queue on check-out:", queueError.message);
+  }
+
+  const isSelf = targetPlayerId === user.id;
+  const leftLine = Boolean(removed && removed.length > 0);
+  const checkoutEvent = {
+    sessionId,
+    type: "checked_out" as const,
+    actorId: user.id,
+    actorRole: isSelf ? ("self" as const) : ("admin" as const),
+    subjectIds: [targetPlayerId],
+    // A self check-out that took the player out of line uses their one rejoin.
+    details: { left_line: leftLine },
+  };
+  if (isSelf && leftLine) {
+    await logSessionEvent(createAdminClient() as unknown as Parameters<typeof logSessionEvent>[0], checkoutEvent);
+  } else {
+    recordSessionEvent(checkoutEvent);
   }
 
   revalidatePath(`/sessions/${sessionId}`);

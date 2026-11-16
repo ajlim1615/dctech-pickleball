@@ -5,7 +5,7 @@ import {
 import { computeSessionLeaderboard } from "@/features/sessions/utils/sessionLeaderboard";
 import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getCourts } from "@/features/courts/api/courtActions";
-import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { getMyQueueLimits, getQueueForSession } from "@/features/queue/api/queueActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { SessionDetailView } from "@/features/sessions/components/SessionDetailView";
@@ -19,7 +19,7 @@ export default async function SessionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [sessionData, authData, courts, matches, queue, employees, rsvps, initialEvents, avgGameMinutes] = await Promise.all([
+  const [sessionData, authData, courts, matches, queue, employees, rsvps, initialEvents, avgGameMinutes, queueLimits] = await Promise.all([
     getSessionById(id),
     getCurrentUser(),
     getCourts(),
@@ -29,6 +29,7 @@ export default async function SessionDetailPage({
     getSessionRsvps(id),
     getSessionFeed(id),
     getAverageGameMinutes(id),
+    getMyQueueLimits(id),
   ]);
 
   const leaderboard = computeSessionLeaderboard(
@@ -67,6 +68,7 @@ export default async function SessionDetailPage({
       rsvps={rsvps}
       initialEvents={initialEvents}
       avgGameMinutes={avgGameMinutes}
+      queueLimits={queueLimits}
     />
   );
 }
