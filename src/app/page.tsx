@@ -42,7 +42,12 @@ export default async function HomePage() {
   const isAdmin = authData?.profile?.role === "admin" || isSystemAdmin;
   const activeSession = sessions.find((s) => s.status === "active");
   const activeSessionMeta = activeSession ? parseSessionMetadata(activeSession.description) : null;
-  const upcomingSessions = sessions.filter((s) => s.status === "scheduled");
+  const upcomingSessions = sessions
+    .filter((s) => s.status === "scheduled")
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  // When nothing is live, the hero leads with the next scheduled session.
+  const nextSession = activeSession ? null : upcomingSessions[0] ?? null;
+  const heroSession = activeSession ?? nextSession;
   const activeCourtsCount = courts.filter((c) => c.status === "occupied").length;
   const totalCourtsCount = courts.length;
 
@@ -51,7 +56,7 @@ export default async function HomePage() {
     ? await Promise.all([getAllEmployees(), getQueueForSession(activeSession.id)])
     : [[], []];
 
-  const activeDescription = cleanSessionDescription(activeSession?.description);
+  const heroDescription = cleanSessionDescription(heroSession?.description);
 
   // Top 3 players from leaderboard
   const topPlayers = (leaderboard || []).slice(0, 3);
@@ -77,31 +82,31 @@ export default async function HomePage() {
                   </span>
                   <span>LIVE MATCHES IN PLAY</span>
                 </div>
+              ) : nextSession ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#d4e938]/40 bg-lime-950/40 px-3.5 py-1 text-xs font-mono font-extrabold text-[#d4e938] shadow-sm">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>UP NEXT • {formatPHTDate(nextSession.start_time).toUpperCase()}</span>
+                </div>
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/60 px-3.5 py-1 text-xs font-mono font-extrabold text-amber-400 shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-amber-500 inline-block"></span>
-                  <span>ARENA STANDBY • SCHEDULED PLAY</span>
+                  <span>ARENA STANDBY • NO SESSION SCHEDULED</span>
                 </div>
               )}
 
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span>{activeSession?.location || "DCTECH Sports Arena"}</span>
+                <span>{heroSession?.location || "DCTECH Sports Arena"}</span>
               </span>
             </div>
 
-            {activeSession ? (
+            {heroSession ? (
               <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
                 <span>
-                  {formatPHTTime(activeSession.start_time)} –{" "}
-                  {formatPHTTime(activeSession.end_time)}
+                  {formatPHTTime(heroSession.start_time)} –{" "}
+                  {formatPHTTime(heroSession.end_time)}
                 </span>
-              </div>
-            ) : upcomingSessions.length > 0 ? (
-              <div className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Next Session: {formatPHTDate(upcomingSessions[0].start_time)}</span>
               </div>
             ) : null}
           </div>
@@ -110,10 +115,10 @@ export default async function HomePage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
               <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
-                {activeSession ? activeSession.title : "DCTECH Open Play & Arena Matrix"}
+                {heroSession ? heroSession.title : "DCTECH Open Play & Arena Matrix"}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 font-normal leading-relaxed">
-                {activeDescription ||
+                {heroDescription ||
                   "Real-time court match matrices, referee scoreboards, and FIFO paddle rotation queue for DCTECH pickleball athletes."}
               </p>
             </div>
@@ -147,13 +152,13 @@ export default async function HomePage() {
                     </button>
                   </Link>
                 ) : (
-                  <Link href="/sessions">
+                  <Link href={nextSession ? `/sessions/${nextSession.id}` : "/sessions"}>
                     <button
                       type="button"
                       className="group inline-flex items-center justify-between gap-3 rounded-full bg-[#d4e938] hover:bg-[#c3d82f] text-slate-950 font-extrabold text-xs sm:text-sm pl-5 pr-2 py-2 shadow-lg shadow-[#d4e938]/20 transition-all active:scale-[0.98] cursor-pointer"
                     >
                       <Calendar className="h-4 w-4" />
-                      <span>View Schedule</span>
+                      <span>{nextSession ? "View Session" : "View Schedule"}</span>
                       <span className="h-8 w-8 rounded-full bg-slate-950/10 flex items-center justify-center text-slate-950 transition-transform group-hover:translate-x-0.5">
                         <ArrowRight className="h-4 w-4" />
                       </span>
