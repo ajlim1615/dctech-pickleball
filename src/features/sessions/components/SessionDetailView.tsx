@@ -497,7 +497,26 @@ export function SessionDetailView({
       </div>
 
       {/* Who said they're coming */}
-      {canRsvp(currentStatus) && <WhosGoing rsvps={rsvps} currentUserId={currentUserId} />}
+      {canRsvp(currentStatus) && (
+        <WhosGoing
+          rsvps={rsvps}
+          currentUserId={currentUserId}
+          sessionId={session.id}
+          isAdmin={isAdmin}
+          availablePlayers={
+            isAdmin
+              ? eligibleEmployees
+                  .filter((e) => !rsvps.some((r) => r.playerId === e.id))
+                  .map((e) => ({
+                    playerId: e.id,
+                    name: e.full_name || e.display_name || e.email || "Player",
+                    avatarUrl: e.avatar_url || null,
+                  }))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+              : undefined
+          }
+        />
+      )}
 
       {/* Start / Reopen Session Confirmation Modal */}
       <Modal isOpen={showStartConfirm} onClose={() => !statusLoading && setShowStartConfirm(false)}>

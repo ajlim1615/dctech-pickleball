@@ -2,8 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { isRootSystemAdmin } from "@/lib/security/authGuard";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
+
+function revalidateRsvpPaths(sessionId: string) {
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/sessions");
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
 
 /** Say you're going to an upcoming session, or take it back. */
 export async function setRsvp(sessionId: string, going: boolean) {
@@ -23,10 +31,55 @@ export async function setRsvp(sessionId: string, going: boolean) {
     : await supabase.from("session_rsvps").delete().eq("session_id", sessionId).eq("player_id", user.id);
   if (error) return { error: error.message };
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/sessions");
-  revalidatePath("/admin");
-  revalidatePath("/");
+  revalidateRsvpPaths(sessionId);
+  return { success: true as const };
+}
+
+/** Admin-only: remove a player from an upcoming session's Who's Going list. */
+export async function removeRsvp(sessionId: string, playerId: string) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const supabase = await createClient();
+  const { data: session } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  if (!session) return { error: "Session not found." };
+  if (!canRsvp(session.status)) return { error: "RSVPs close when the session starts." };
+
+  const { error } = await supabase
+    .from("session_rsvps")
+    .delete()
+    .eq("session_id", sessionId)
+    .eq("player_id", playerId);
+  if (error) return { error: error.message };
+
+  revalidateRsvpPaths(sessionId);
+  return { success: true as const };
+}
+
+/** Admin-only: add one or more players to an upcoming session's Who's Going list. */
+export async function addRsvps(sessionId: string, playerIds: string[]) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const uniqueIds = Array.from(new Set(playerIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return { error: "Select at least one player." };
+
+  const supabase = await createClient();
+  const { data: session } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  if (!session) return { error: "Session not found." };
+  if (!canRsvp(session.status)) return { error: "RSVPs close when the session starts." };
+
+  // INSERT RLS only permits auth.uid() = player_id, so admin adds use the service client after requireAdminUser().
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
+    .from("session_rsvps")
+    .upsert(
+      uniqueIds.map((player_id) => ({ session_id: sessionId, player_id })),
+      { onConflict: "session_id,player_id" }
+    );
+  if (error) return { error: error.message };
+
+  revalidateRsvpPaths(sessionId);
   return { success: true as const };
 }
 
