@@ -22,6 +22,7 @@ export default async function ProfilePage() {
     games_played: 0,
     games_won: 0,
     is_active: true,
+    employee_no: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
