@@ -243,7 +243,6 @@ export function SessionDetailView({
     } else {
       setSelectedPlayerIds([]);
       setShowBulkModal(false);
-      router.refresh();
     }
     setIsBulkAdding(false);
   }
@@ -267,7 +266,6 @@ export function SessionDetailView({
       setWalkInName("");
       setWalkInEmail("");
       setShowBulkModal(false);
-      router.refresh();
     }
     setIsCreatingWalkIn(false);
   }
@@ -282,7 +280,6 @@ export function SessionDetailView({
       } else {
         if ("warning" in res && res.warning) alert(res.warning);
         setCurrentStatus("active");
-        router.refresh();
       }
     } finally {
       setStatusLoading(false);
@@ -297,7 +294,6 @@ export function SessionDetailView({
       const res = await checkInToSession(session.id);
       if (!res?.error) {
         setIsCheckedIn(true);
-        router.refresh();
       }
     } finally {
       setLoading(false);
@@ -330,7 +326,6 @@ export function SessionDetailView({
         if (isSelf) {
           setIsCheckedIn(false);
         }
-        router.refresh();
       }
     } finally {
       setCheckingOutPlayerId(null);
@@ -631,7 +626,6 @@ export function SessionDetailView({
                     setCurrentStatus("completed");
                     setShowFinishConfirm(false);
                     setShowFinalStandings(true);
-                    router.refresh();
                   }
                   setIsFinishing(false);
                 }}
@@ -654,7 +648,6 @@ export function SessionDetailView({
             if (isAdmin) {
               router.push("/admin");
             } else {
-              router.refresh();
               window.location.reload();
             }
           }}

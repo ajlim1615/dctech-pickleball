@@ -210,7 +210,6 @@ export function AdminDashboard({
     );
     await toggleCourtStatus(courtId, newStatus);
     showNotice(`Court ${courtId} status set to ${newStatus.toUpperCase()}`);
-    router.refresh();
   }
 
   const playerName = (p?: Profile) => p?.full_name || p?.display_name || "this player";
@@ -237,7 +236,6 @@ export function AdminDashboard({
         }
         setEmployees((prev) => prev.map((e) => (e.id === userId ? { ...e, role: newRole } : e)));
         showNotice(`${name} is now ${promoting ? "an admin" : "a player"}.`);
-        router.refresh();
       },
     });
   }
@@ -266,7 +264,6 @@ export function AdminDashboard({
     setEmployees((prev) => prev.map((e) => (e.id === target.id ? { ...e, skill_rating: rounded } : e)));
     setRatingTarget(null);
     showNotice(`${playerName(target)}'s rating is now ${formatRating(rounded)}.`);
-    router.refresh();
   }
 
   /** Any admin can switch an account on or off (it can be switched back any time). */
@@ -280,7 +277,6 @@ export function AdminDashboard({
       showNotice(`Error: ${res.error}`);
     } else {
       showNotice(`${name}'s account is now ${nextState ? "on" : "off"}.`);
-      router.refresh();
     }
   }
 
@@ -319,7 +315,6 @@ export function AdminDashboard({
       } else {
         setIsCreatingSession(false);
         showNotice(`Session created and ${courtCount} rented courts provisioned!`);
-        router.refresh();
       }
     } finally {
       setIsSubmittingSession(false);
@@ -345,7 +340,6 @@ export function AdminDashboard({
       showNotice(
         "warning" in res && res.warning ? res.warning : "Session settings updated successfully!"
       );
-      router.refresh();
     } finally {
       setIsSubmittingEditSession(false);
     }
@@ -426,7 +420,6 @@ export function AdminDashboard({
         );
         await cancelSession(session.id);
         showNotice(`Session "${session.title}" cancelled.`);
-        router.refresh();
       },
     });
   }
@@ -1439,7 +1432,6 @@ export function AdminDashboard({
                         setIsAddingPlayer(false);
                         setWalkInName("");
                         setWalkInEmail("");
-                        router.refresh();
                       }
                     }}
                     className="space-y-4"

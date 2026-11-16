@@ -32,7 +32,6 @@ export async function getQueueForSession(sessionId?: string): Promise<QueueEntry
         id,
         full_name,
         display_name,
-        avatar_url,
         skill_rating
       )
     `)

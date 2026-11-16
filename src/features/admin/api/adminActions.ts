@@ -7,6 +7,7 @@ import type { UserRole, CourtStatus, Profile } from "@/types";
 
 import { isRootSystemAdmin, requireAdminUser, requireSystemAdmin } from "@/lib/security/authGuard";
 import { DEFAULT_PASSWORD } from "@/lib/security/defaultPassword";
+import { deleteAvatar } from "@/features/players/server/avatarStorage";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, AdjustRatingSchema, sanitizeString } from "@/lib/security/validation";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
@@ -320,6 +321,7 @@ export async function removePlayerPhoto(userId: string) {
 
   if (error) return { error: error.message };
   if (!data || data.length === 0) return { error: "Player not found." };
+  await deleteAvatar(userId);
 
   revalidatePath("/admin");
   revalidatePath("/rankings");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, Search, UserPlus, X } from "lucide-react";
 import { addRsvps, removeRsvp } from "@/features/sessions/api/rsvpActions";
 
@@ -32,7 +31,6 @@ export function WhosGoing({
   isAdmin?: boolean;
   availablePlayers?: GoingPlayer[];
 }) {
-  const router = useRouter();
   const [showAll, setShowAll] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -73,7 +71,6 @@ export function WhosGoing({
         setSelectedIds([]);
         setAddSearch("");
         setShowAdd(false);
-        router.refresh();
       }
     });
   }
@@ -89,7 +86,6 @@ export function WhosGoing({
       if (res?.error) {
         setError(res.error);
       } else {
-        router.refresh();
       }
     });
   }

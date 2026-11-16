@@ -22,7 +22,7 @@ export async function getCourts(): Promise<ActiveCourtView[]> {
           id,
           full_name,
           display_name,
-          avatar_url
+          skill_rating
         )
       `)
       .order("sort_order", { ascending: true }),
@@ -47,7 +47,6 @@ export async function getCourts(): Promise<ActiveCourtView[]> {
             id,
             full_name,
             display_name,
-            avatar_url,
             skill_rating
           )
         )

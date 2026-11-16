@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -96,7 +95,6 @@ export function SessionQueueLiveBoard({
   allowPartners = false,
   queueLimits = NO_LIMITS_USED,
 }: SessionQueueLiveBoardProps) {
-  const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = !readOnly && (userRole === "admin" || isSystemAdmin);
 
@@ -184,7 +182,6 @@ export function SessionQueueLiveBoard({
       if (res?.error) {
         alert(`Error joining queue: ${res.error}`);
       } else {
-        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -206,7 +203,6 @@ export function SessionQueueLiveBoard({
         alert(`Error joining queue: ${res.error}`);
       } else {
         setShowJoinModal(false);
-        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -223,7 +219,6 @@ export function SessionQueueLiveBoard({
         if (takeBreak && res.error.includes("used your break")) setTookBreak(true);
       } else {
         if (takeBreak) setTookBreak(true);
-        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -236,7 +231,6 @@ export function SessionQueueLiveBoard({
     try {
       await leaveQueue(sessionId);
       setShowLeaveConfirm(false);
-      router.refresh();
     } finally {
       setIsSubmitting(false);
     }
@@ -248,7 +242,6 @@ export function SessionQueueLiveBoard({
       setIsSubmitting(true);
       await adminRemovePlayerFromQueue(sessionId, entryId);
       setIsSubmitting(false);
-      router.refresh();
     }
   }
 

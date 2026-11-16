@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { setRsvp } from "@/features/sessions/api/rsvpActions";
 
@@ -19,7 +18,6 @@ export function RsvpButton({
   variant?: "default" | "dark";
 }) {
   const dark = variant === "dark";
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState({ going, count });
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +32,6 @@ export function RsvpButton({
         setState(previous);
         setError(res.error);
       } else {
-        router.refresh();
       }
     });
   }

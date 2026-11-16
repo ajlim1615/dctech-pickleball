@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,7 +64,6 @@ export function CourtCard({
   winByTwo,
   trackScores = true,
 }: CourtCardProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const isAdministrator = !readOnly && (isAdmin ?? (userRole === "admin"));
@@ -141,7 +139,6 @@ export function CourtCard({
         setSuccessMessage(
           `${res.replacementName} is in. ${player.full_name || player.display_name || "The no-show"} is on a break.`
         );
-        router.refresh();
       }
     });
   }
@@ -207,7 +204,6 @@ export function CourtCard({
         setHold("hold" in res && res.hold ? res.hold : null);
       } else {
         setSuccessMessage("Next group called onto this court.");
-        router.refresh();
       }
     });
   }
@@ -253,7 +249,6 @@ export function CourtCard({
         setScoreA(0);
         setScoreB(0);
         setPendingWinner(null);
-        router.refresh();
       }
     });
   }

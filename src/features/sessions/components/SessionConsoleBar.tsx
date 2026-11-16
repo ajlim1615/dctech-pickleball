@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { PlayCircle, Square, Users, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fillOpenCourts } from "@/features/queue/api/queueActions";
@@ -74,7 +73,6 @@ export function SessionConsoleBar({
   onAddPlayers,
   onEnd,
 }: SessionConsoleBarProps) {
-  const router = useRouter();
   const [isFilling, startFilling] = useTransition();
   const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
 
@@ -100,7 +98,6 @@ export function SessionConsoleBar({
             res.remainingOpen ? ` · ${res.remainingOpen} still open (not enough players)` : ""
           }`,
         });
-        router.refresh();
       }
     });
   }

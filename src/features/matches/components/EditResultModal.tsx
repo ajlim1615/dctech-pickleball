@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { correctMatchResult } from "@/features/matches/api/matchActions";
@@ -17,7 +16,6 @@ export interface EditableMatch {
 
 /** Admin dialog to correct a saved game. Ratings and wins follow on the server. */
 export function EditResultModal({ match, rule, onClose }: { match: EditableMatch; rule: ScoringRule; onClose: () => void }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [scoreA, setScoreA] = useState(String(match.team_a_score ?? 0));
   const [scoreB, setScoreB] = useState(String(match.team_b_score ?? 0));
@@ -41,7 +39,6 @@ export function EditResultModal({ match, rule, onClose }: { match: EditableMatch
       if (res?.error) {
         setError(res.error);
       } else {
-        router.refresh();
         onClose();
       }
     });

@@ -260,7 +260,6 @@ export function StaffCourtMonitor({
         setScoreB(0);
         setServerNumber(2);
         setServingTeam("A");
-        router.refresh();
       }
     });
   }

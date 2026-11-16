@@ -324,7 +324,6 @@ export async function getMatchesList(limit = 20) {
           id,
           full_name,
           display_name,
-          avatar_url,
           skill_rating
         )
       )
@@ -345,7 +344,6 @@ export async function getMatchesList(limit = 20) {
               id,
               full_name,
               display_name,
-              avatar_url,
               skill_rating
             )
           )

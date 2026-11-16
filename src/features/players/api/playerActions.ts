@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, Match, PlayerRatingHistory, Database } from "@/types";
+import { deleteAvatar, saveAvatar } from "@/features/players/server/avatarStorage";
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = await createClient();
@@ -18,15 +19,14 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 
 export async function updateProfile(userId: string, formData: FormData) {
   const supabase = await createClient();
+  // Players edit only their own profile; the id comes from the session, not the caller.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in to update your profile." };
+  if (userId !== user.id) return { error: "You can only update your own profile." };
+
   const displayName = formData.get("displayName") as string;
   const fullName = formData.get("fullName") as string;
   const avatarUrl = formData.get("avatarUrl") as string;
-
-  // Server-Side Guard: Max 250KB storage cap per avatar
-  const MAX_AVATAR_STORAGE_BYTES = 250 * 1024;
-  if (avatarUrl && avatarUrl !== "__REMOVE__" && avatarUrl.length > MAX_AVATAR_STORAGE_BYTES) {
-    return { error: "Avatar image data exceeds the maximum allowed storage limit (250KB)." };
-  }
 
   const updates: Database["public"]["Tables"]["profiles"]["Update"] = {
     updated_at: new Date().toISOString(),
@@ -35,13 +35,21 @@ export async function updateProfile(userId: string, formData: FormData) {
   if (displayName) updates.display_name = displayName;
   if (fullName) updates.full_name = fullName;
   if (formData.has("avatarUrl")) {
-    updates.avatar_url = avatarUrl === "__REMOVE__" || !avatarUrl ? null : avatarUrl;
+    if (avatarUrl === "__REMOVE__" || !avatarUrl) {
+      await deleteAvatar(user.id);
+      updates.avatar_url = null;
+    } else {
+      // The photo is saved as a file in Storage; the row keeps only its URL.
+      const saved = await saveAvatar(user.id, avatarUrl);
+      if (saved.error || !saved.url) return { error: saved.error || "The photo couldn't be saved." };
+      updates.avatar_url = saved.url;
+    }
   }
 
   const { error } = await supabase
     .from("profiles")
     .update(updates)
-    .eq("id", userId);
+    .eq("id", user.id);
 
   if (error) {
     return { error: error.message };
@@ -111,7 +119,7 @@ export async function getPlayerMatchHistory(userId: string) {
 
   const { data: profilesData } = await supabase
     .from("profiles")
-    .select("id, full_name, display_name, avatar_url")
+    .select("id, full_name, display_name")
     .in("id", allPlayerIds);
 
   const profileMap = new Map((profilesData || []).map((p) => [p.id, p]));
@@ -132,7 +140,6 @@ export async function getPlayerMatchHistory(userId: string) {
       player_id: mp.player_id,
       team: mp.team,
       name: prof?.full_name || prof?.display_name || "Player",
-      avatar_url: prof?.avatar_url,
     });
     matchPlayersByMatchId.set(mp.match_id, list);
   }
