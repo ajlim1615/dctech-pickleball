@@ -151,7 +151,7 @@ export async function joinQueue(params: {
       full_name: params.guestName.includes("(Guest)") ? params.guestName : `${params.guestName} (Guest)`,
       display_name: params.guestName,
       role: "player",
-      skill_rating: 3.0,
+      skill_rating: 2.0,
       is_active: true,
     });
 

@@ -315,7 +315,7 @@ export function AdminDashboard({
   async function handleRatingChange(playerId: string, delta: number) {
     const player = employees.find((e) => e.id === playerId);
     if (!player || player.email?.toLowerCase() === "admin@dctechmicro.com") return;
-    const newRating = Math.max(1.0, Math.min(6.0, (player.skill_rating || 3.0) + delta));
+    const newRating = Math.max(2.0, Math.min(6.0, (player.skill_rating || 2.0) + delta));
     const rounded = Math.round(newRating * 100) / 100;
     setEmployees((prev) =>
       prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
@@ -518,7 +518,7 @@ export function AdminDashboard({
           "Display Name": emp.display_name || "N/A",
           "Email": emp.email || "Unregistered",
           "Role": emp.role.toUpperCase(),
-          "DUPR Rating": Number(emp.skill_rating || 3.0).toFixed(2),
+          "DUPR Rating": Number(emp.skill_rating || 2.0).toFixed(2),
           "Skill Tier": starInfo.label,
           "Games Played": emp.games_played || 0,
           "Games Won": emp.games_won || 0,

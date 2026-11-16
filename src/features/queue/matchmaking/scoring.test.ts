@@ -40,7 +40,7 @@ it("teamStats matches the old balance formula", () => {
     { teamARatingAvg: 3.5, teamBRatingAvg: 3, ratingDelta: 0.5, balanceScorePercent: 80 });
 });
 
-it("missing rating counts as 3.0", () => expect(ratingOf(e("x", null))).toBe(3));
+it("missing rating counts as Beginner (2.0)", () => expect(ratingOf(e("x", null))).toBe(2));
 
 it("seededRandom is deterministic per seed and stays in [0, 1)", () => {
   const a = seededRandom("x");

@@ -95,7 +95,7 @@ export async function signUpWithEmail(formData: FormData) {
           full_name: fullName || split_email(email),
           display_name: fullName || split_email(email),
           role: "player",
-          skill_rating: 3.0,
+          skill_rating: 2.0,
           is_active: true,
         },
         { onConflict: "id" }

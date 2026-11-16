@@ -427,7 +427,7 @@ export async function createWalkInPlayer(params: {
     name: params.fullName,
     email: params.email,
     type: params.isGuest ? "guest" : "employee",
-    skillRating: params.skillRating || 3.0,
+    skillRating: params.skillRating || 2.0,
   });
 
   if (!validation.success) {

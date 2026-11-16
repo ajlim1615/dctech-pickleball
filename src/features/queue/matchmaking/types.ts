@@ -44,6 +44,6 @@ export interface Teams {
 
 export type Decision = Teams | { hold: "not_enough_players"; needed: number } | { hold: "no_skill_match" };
 
-export const DEFAULT_RATING = 3.0;
+export const DEFAULT_RATING = 2.0;
 export const DEFAULT_SKILL_SPREAD = 0.75;
 export const WINDOW_SIZE = 6;

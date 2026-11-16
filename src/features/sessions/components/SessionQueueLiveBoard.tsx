@@ -143,7 +143,7 @@ export function SessionQueueLiveBoard({
     });
     if (!("teamA" in decision)) return { hold: decision.hold };
     const byId = new Map(callLine.map((q) => [q.player_id, q]));
-    const ratingOf = (id: string) => byId.get(id)?.player?.skill_rating ?? 3.0;
+    const ratingOf = (id: string) => byId.get(id)?.player?.skill_rating ?? 2.0;
     const profilesOf = (ids: string[]) =>
       ids.map((id) => ((byId.get(id)?.player ?? byId.get(id)) as unknown) as Profile);
     return {
@@ -734,7 +734,7 @@ function PlayerLine({
         )}
       </span>
       <span className="shrink-0 font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
-        {formatRating(rating ?? 3.0)}
+        {formatRating(rating ?? 2.0)}
       </span>
       {onRemove && (
         <button

@@ -114,7 +114,7 @@ export async function getLeaderboard(): Promise<RankedPlayer[]> {
 
     const gamesPlayed = stats.games_played;
     const gamesWon = stats.games_won;
-    const skillRating = Number(profile.skill_rating || 3.0);
+    const skillRating = Number(profile.skill_rating || 2.0);
     const winRate =
       gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0;
     const pointDiff = stats.points_scored - stats.points_conceded;

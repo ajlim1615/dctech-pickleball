@@ -828,7 +828,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
 
       {/* Rating Trend */}
       {profile.email?.toLowerCase() !== "admin@dctechmicro.com" && (
-        <RatingTrend history={ratingHistory} currentRating={Number(profile.skill_rating || 3)} />
+        <RatingTrend history={ratingHistory} currentRating={Number(profile.skill_rating || 2)} />
       )}
 
       {/* Match History Table */}

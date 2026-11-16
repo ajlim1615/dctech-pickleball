@@ -97,7 +97,7 @@ export const WalkInPlayerSchema = z.object({
     .or(z.literal(""))
     .transform((val) => (val ? val.toLowerCase().trim() : undefined)),
   type: z.enum(["guest", "employee"]).default("guest"),
-  skillRating: z.number().min(1.0).max(6.0).default(3.0),
+  skillRating: z.number().min(1.0).max(6.0).default(2.0),
   role: z.enum(["player", "admin"]).default("player"),
 });
 

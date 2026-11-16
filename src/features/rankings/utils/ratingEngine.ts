@@ -6,8 +6,11 @@
  * K × (actual − expected). Pure so it can be unit-tested without Supabase.
  */
 
-export const RATING_MIN = 1.0;
+/** Everyone starts at Beginner, and losing can't take a rating below it. */
+export const RATING_MIN = 2.0;
 export const RATING_MAX = 6.0;
+/** Starting rating for every player (Beginner). */
+export const STARTING_RATING = RATING_MIN;
 
 /** Base change for a single game between evenly matched teams. */
 const BASE_K = 0.1;
@@ -36,7 +39,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number) => Math.min(RATING_MAX, Math.max(RATING_MIN, n));
 
 function teamRating(team: RatedPlayer[]): number {
-  return team.reduce((sum, p) => sum + (Number(p.rating) || 3.0), 0) / Math.max(1, team.length);
+  return team.reduce((sum, p) => sum + (Number(p.rating) || STARTING_RATING), 0) / Math.max(1, team.length);
 }
 
 /** Probability that team A beats team B. */
@@ -69,7 +72,7 @@ export function calculateRatingChanges(
   const deltaA = k * ((aWon ? 1 : 0) - expectedA);
 
   const change = (p: RatedPlayer, delta: number): RatingChange => {
-    const oldRating = round2(Number(p.rating) || 3.0);
+    const oldRating = round2(Number(p.rating) || STARTING_RATING);
     const playerK = p.gamesPlayed < PROVISIONAL_GAMES ? PROVISIONAL_MULTIPLIER : 1;
     const newRating = round2(clamp(oldRating + delta * playerK));
     return { playerId: p.id, oldRating, newRating, change: round2(newRating - oldRating) };

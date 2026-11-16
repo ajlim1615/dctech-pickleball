@@ -52,6 +52,7 @@ describe("calculateRatingChanges", () => {
     const bottom = calculateRatingChanges([p("a", RATING_MIN, 0)], [p("b", RATING_MIN, 0)], 0, 11, 11)[0];
     expect(top.newRating).toBe(RATING_MAX);
     expect(bottom.newRating).toBe(RATING_MIN);
+    expect(RATING_MIN).toBe(2.0);
   });
 
   it("returns nothing for an empty team or a tie", () => {

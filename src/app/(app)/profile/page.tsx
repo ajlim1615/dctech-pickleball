@@ -18,7 +18,7 @@ export default async function ProfilePage() {
     display_name: authData.user.user_metadata?.display_name || "Player",
     avatar_url: null,
     role: "player",
-    skill_rating: 3.50,
+    skill_rating: 2.0,
     games_played: 0,
     games_won: 0,
     is_active: true,

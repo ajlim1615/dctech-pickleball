@@ -419,7 +419,7 @@ async function loadRatedTeams(
     const profile = byId.get(row.player_id);
     const player: RatedPlayer = {
       id: row.player_id,
-      rating: Number(profile?.skill_rating ?? 3.0),
+      rating: Number(profile?.skill_rating ?? 2.0),
       gamesPlayed: Number(profile?.games_played ?? 0),
     };
     (row.team === "team_a" ? teams.teamA : teams.teamB).push(player);
