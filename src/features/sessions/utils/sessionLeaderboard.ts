@@ -11,7 +11,10 @@ export interface SessionRankedPlayer {
   points_scored: number;
   points_conceded: number;
   point_diff: number;
+  /** Shared rank: players level on everything but name share a number (1, 2, 2, 4). */
   rank: number;
+  /** Shares their rank with at least one other player. */
+  tied?: boolean;
 }
 
 export function computeSessionLeaderboard(
@@ -144,19 +147,22 @@ export function computeSessionLeaderboard(
   // 2) Games Played desc
   // 3) Win Rate desc
   // 4) Point Differential desc
-  // 5) DUPR skill rating desc
-  // 6) Alphabetical
-  list.sort((a, b) => {
-    if (b.games_won !== a.games_won) return b.games_won - a.games_won;
-    if (b.games_played !== a.games_played) return b.games_played - a.games_played;
-    if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
-    if (b.point_diff !== a.point_diff) return b.point_diff - a.point_diff;
-    if (b.skill_rating !== a.skill_rating) return b.skill_rating - a.skill_rating;
-    return a.full_name.localeCompare(b.full_name);
-  });
+  // 5) Rating desc
+  // 6) Alphabetical, only to order players who are tied (they share a rank)
+  const standing = (a: SessionRankedPlayer, b: SessionRankedPlayer) =>
+    b.games_won - a.games_won ||
+    b.games_played - a.games_played ||
+    b.win_rate - a.win_rate ||
+    b.point_diff - a.point_diff ||
+    b.skill_rating - a.skill_rating;
+  list.sort((a, b) => standing(a, b) || a.full_name.localeCompare(b.full_name));
 
-  return list.map((p, idx) => ({
-    ...p,
-    rank: idx + 1,
-  }));
+  return list.map((p, idx) => {
+    let first = idx;
+    while (first > 0 && standing(list[first - 1], p) === 0) first--;
+    const tied =
+      (idx > 0 && standing(list[idx - 1], p) === 0) ||
+      (idx < list.length - 1 && standing(list[idx + 1], p) === 0);
+    return { ...p, rank: first + 1, tied };
+  });
 }

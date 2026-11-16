@@ -11,8 +11,14 @@ export interface PlayerTotals {
 }
 
 export interface RankedPlayer extends Profile {
-  /** 1..n for qualified players, null for players still earning their first ranked games. */
+  /**
+   * For qualified players, a shared ("competition") rank: players level on rating, win
+   * rate and wins share a number, and the next one skips (1, 2, 2, 4). Null for players
+   * still earning their first ranked games.
+   */
   rank: number | null;
+  /** Shares their rank with at least one other player. */
+  tied: boolean;
   games_played: number;
   games_won: number;
   games_lost: number;
@@ -49,19 +55,26 @@ export function buildLeaderboard(
       qualified,
       gamesToQualify: Math.max(0, rules.qualifyGames - games),
       rank: null as number | null,
+      tied: false,
     };
   });
 
-  const ranked = players
+  // Rating, win rate and wins decide the order; name only orders players who are tied.
+  const standing = (a: (typeof players)[number], b: (typeof players)[number]) =>
+    b.skill_rating - a.skill_rating || winRatio(b) - winRatio(a) || b.games_won - a.games_won;
+
+  const sorted = players
     .filter((p) => p.qualified)
-    .sort(
-      (a, b) =>
-        b.skill_rating - a.skill_rating ||
-        winRatio(b) - winRatio(a) ||
-        b.games_won - a.games_won ||
-        nameOf(a).localeCompare(nameOf(b)),
-    )
-    .map((p, i) => ({ ...p, rank: i + 1 }));
+    .sort((a, b) => standing(a, b) || nameOf(a).localeCompare(nameOf(b)));
+
+  const ranked = sorted.map((p, i) => {
+    let first = i;
+    while (first > 0 && standing(sorted[first - 1], p) === 0) first--;
+    const tied =
+      (i > 0 && standing(sorted[i - 1], p) === 0) ||
+      (i < sorted.length - 1 && standing(sorted[i + 1], p) === 0);
+    return { ...p, rank: first + 1, tied };
+  });
 
   const unranked = players
     .filter((p) => !p.qualified)

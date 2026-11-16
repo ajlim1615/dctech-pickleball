@@ -59,7 +59,11 @@ function Finisher({
   onView: (p: RankedPlayer) => void;
   onPhoto: (p: RankedPlayer) => void;
 }) {
-  const p = PLACES[place];
+  // Height and size follow the podium position; the metal and number follow the rank,
+  // so two players tied for 1st both wear gold.
+  const rank = player.rank ?? place;
+  const look = PLACES[Math.min(3, rank) as Place];
+  const p = { ...look, height: PLACES[place].height, avatar: PLACES[place].avatar };
   const name = player.full_name || player.display_name || "Player";
   const losses = player.games_lost || 0;
 
@@ -70,11 +74,11 @@ function Finisher({
         {p.glow && (
           <div aria-hidden className="pointer-events-none absolute -top-10 left-1/2 h-56 w-56 -translate-x-1/2" style={{ background: p.glow }} />
         )}
-        {place === 1 && <Crown className="relative mb-1 h-5 w-5 sm:h-7 sm:w-7 text-[#f5c84c]" strokeWidth={2.2} aria-hidden />}
+        {rank === 1 && <Crown className="relative mb-1 h-5 w-5 sm:h-7 sm:w-7 text-[#f5c84c]" strokeWidth={2.2} aria-hidden />}
 
         <div className="relative">
           {/* Metal ring */}
-          <div className={`rounded-full p-[3px] ${place === 1 ? "shadow-[0_0_32px_rgba(245,200,76,0.45)]" : "shadow-lg"}`} style={{ background: p.metal }}>
+          <div className={`rounded-full p-[3px] ${rank === 1 ? "shadow-[0_0_32px_rgba(245,200,76,0.45)]" : "shadow-lg"}`} style={{ background: p.metal }}>
             {player.avatar_url ? (
               <button
                 type="button"
@@ -96,9 +100,9 @@ function Finisher({
           <span
             className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex h-7 min-w-7 items-center justify-center rounded-full px-2 font-mono text-xs font-black shadow-md ring-2 ring-slate-950"
             style={{ background: p.metal, color: p.text }}
-            aria-label={`${p.label}, rank ${place}`}
+            aria-label={`${p.label}, rank ${rank}${player.tied ? ", tied" : ""}`}
           >
-            {place}
+            {rank}
           </span>
         </div>
 
@@ -118,6 +122,11 @@ function Finisher({
         <p className="font-mono text-[11px] text-slate-400 tabular-nums whitespace-nowrap">
           {player.games_won}W {losses}L · {player.win_rate}%
         </p>
+        {player.tied && (
+          <span className="mt-1 rounded-full border border-white/15 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-slate-300">
+            Tied
+          </span>
+        )}
         <button
           type="button"
           onClick={() => onView(player)}
@@ -138,7 +147,7 @@ function Finisher({
           className="font-black leading-none select-none text-3xl sm:text-6xl"
           style={{ backgroundImage: p.metal, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
         >
-          {place}
+          {rank}
         </span>
       </div>
     </li>

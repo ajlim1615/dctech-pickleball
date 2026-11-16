@@ -74,7 +74,9 @@ export function FinalStandingsModal({
                 <span>Session Podium</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {top3.map((player, idx) => {
+                {top3.map((player, position) => {
+                  // Medal follows the shared rank: two players tied for 1st both get gold.
+                  const idx = Math.min(2, (player.rank || position + 1) - 1);
                   const medalLabels = ["🥇 GOLD", "🥈 SILVER", "🥉 BRONZE"];
                   const medalBg = [
                     "border-amber-400/50 bg-amber-50/40 dark:bg-amber-950/20 ring-1 ring-amber-400/30",
@@ -136,14 +138,14 @@ export function FinalStandingsModal({
               Rankings Breakdown
             </div>
             <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 bg-slate-50/40 dark:bg-slate-950/40">
-              {displayRankings.slice(0, 10).map((player, idx) => (
+              {displayRankings.slice(0, 10).map((player) => (
                 <div
                   key={player.id}
                   className="px-4 py-2.5 flex items-center justify-between text-xs font-mono"
                 >
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-slate-400 w-5 text-center">
-                      #{idx + 1}
+                      {player.tied ? "T" : "#"}{player.rank}
                     </span>
                     <div className="flex items-center gap-2">
                       <div className="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-[10px] overflow-hidden shrink-0 border border-slate-300 dark:border-slate-700">

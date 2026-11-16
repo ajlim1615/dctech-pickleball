@@ -102,10 +102,11 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
     }
   }
 
-  // The podium already shows the top three, so the list starts at #4 in the default view.
+  // The podium already shows the first three ranked players, so the list starts after
+  // them. By position, not rank number: a fourth player tied for 3rd still shows here.
   const isDefaultView = sortField === "rank" && sortOrder === "asc" && !search.trim();
   const rankedCount = rankings.filter((p) => p.rank !== null).length;
-  const listRows = isDefaultView ? sorted.filter((p) => p.rank !== null && p.rank > 3) : sorted;
+  const listRows = isDefaultView ? sorted.filter((p) => p.rank !== null).slice(3) : sorted;
   const newPlayers = sorted.filter((p) => p.rank === null);
 
   function openPhoto(p: RankedPlayer) {

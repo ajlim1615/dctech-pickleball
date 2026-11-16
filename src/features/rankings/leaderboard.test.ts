@@ -40,11 +40,31 @@ describe("buildLeaderboard", () => {
     expect(res.map((p) => p.id)).toEqual(["c", "d", "b", "a"]);
   });
 
-  it("gives unique consecutive ranks even when tied", () => {
+  it("gives players level on rating, win rate and wins the same rank, then skips", () => {
     const res = buildLeaderboard(
-      [prof("a", "Same", 3), prof("b", "Same", 3)],
-      [tot("a", 5, 3), tot("b", 5, 3)],
+      [prof("a", "Ann", 3), prof("z", "Zed", 3), prof("b", "Bob", 3), prof("c", "Cy", 2.5)],
+      [tot("a", 5, 3), tot("z", 5, 3), tot("b", 5, 4), tot("c", 5, 5)],
     );
+    // b leads on win rate; Ann and Zed are level (listed by name); Cy is lower rated.
+    expect(res.map((p) => p.id)).toEqual(["b", "a", "z", "c"]);
+    expect(res.map((p) => p.rank)).toEqual([1, 2, 2, 4]);
+    expect(res.map((p) => p.tied)).toEqual([false, true, true, false]);
+  });
+
+  it("breaks no tie on name alone", () => {
+    const res = buildLeaderboard(
+      [prof("a", "Same", 3), prof("b", "Same", 3), prof("c", "Same", 3)],
+      [tot("a", 5, 3), tot("b", 5, 3), tot("c", 5, 3)],
+    );
+    expect(res.map((p) => p.rank)).toEqual([1, 1, 1]);
+  });
+
+  it("treats equal win rates from different game counts as a tie only when wins match too", () => {
+    const res = buildLeaderboard(
+      [prof("a", "Ann", 3), prof("b", "Bob", 3)],
+      [tot("a", 10, 6), tot("b", 5, 3)],
+    );
+    // Both 60%, but Ann has more wins.
     expect(res.map((p) => p.rank)).toEqual([1, 2]);
   });
 

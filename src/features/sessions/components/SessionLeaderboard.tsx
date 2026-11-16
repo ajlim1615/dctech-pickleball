@@ -207,7 +207,9 @@ export function SessionLeaderboard({
           {/* Top 3 Podium Cards (when games have been played) */}
           {top3.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {top3.map((player, idx) => {
+              {top3.map((player, position) => {
+                // Medal follows the shared rank: two players tied for 1st both get gold.
+                const idx = Math.min(2, (player.rank || position + 1) - 1);
                 const medalColors = [
                   "border-amber-400/60 bg-gradient-to-b from-amber-500/10 to-amber-500/5 dark:border-amber-400/40 text-amber-600 dark:text-amber-400",
                   "border-slate-300 bg-gradient-to-b from-slate-200/40 to-slate-200/10 dark:border-slate-700 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300",
@@ -223,7 +225,7 @@ export function SessionLeaderboard({
                   >
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" className="text-[10px] font-mono font-bold">
-                        {medalIcons[idx]} {medalTitles[idx]}
+                        {medalIcons[idx]} {player.tied ? "TIED " : ""}{medalTitles[idx]}
                       </Badge>
                       <span className="text-xs font-mono font-bold">
                         Rating {formatRating(player.skill_rating)}
@@ -366,13 +368,19 @@ export function SessionLeaderboard({
                           key={player.id}
                           className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                         >
-                          <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
+                          <td
+                            className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300"
+                            title={player.tied ? `Tied for #${player.rank}` : undefined}
+                          >
                             {isPodium ? (
                               <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 text-xs">
                                 {player.rank === 1 ? "🥇" : player.rank === 2 ? "🥈" : "🥉"}
                               </span>
                             ) : (
                               `#${player.rank}`
+                            )}
+                            {player.tied && player.games_played > 0 && (
+                              <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Tied</span>
                             )}
                           </td>
                           <td className="py-3 px-4">

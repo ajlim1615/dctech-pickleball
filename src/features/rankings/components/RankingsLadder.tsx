@@ -92,7 +92,15 @@ export function RankingsLadder({ rows, search, emptyMessage, sortField, sortOrde
                         key={player.id}
                         className="grid grid-cols-[44px_minmax(0,1fr)_auto] sm:grid-cols-[64px_minmax(0,1fr)_88px_72px_72px_80px_88px] items-center gap-2 px-3 sm:px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                       >
-                        <span className={`font-mono text-sm font-black tabular-nums ${medal}`}>{player.rank === null ? "New" : `#${player.rank}`}</span>
+                        <span
+                          className={`font-mono text-sm font-black tabular-nums leading-tight ${medal}`}
+                          title={player.tied ? `Tied for #${player.rank}` : undefined}
+                        >
+                          {player.rank === null ? "New" : `#${player.rank}`}
+                          {player.tied && (
+                            <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tied</span>
+                          )}
+                        </span>
 
                         <div className="flex items-center gap-3 min-w-0">
                           {player.avatar_url ? (

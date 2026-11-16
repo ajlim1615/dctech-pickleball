@@ -324,7 +324,10 @@ function StoryCanvas({
 
             {/* Top 5 Standings List */}
             <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "14px" }}>
-              {topPlayers.map((player, idx) => {
+              {topPlayers.map((player, position) => {
+                // Colours and number follow the shared rank: two players tied for 1st are both gold.
+                const rankNo = player.rank || position + 1;
+                const idx = rankNo - 1;
                 const playerName = player.full_name || player.display_name || "Player";
                 const initials = getPlayerInitials(playerName);
                 const gamesPlayed = player.games_played || 0;
@@ -356,7 +359,7 @@ function StoryCanvas({
 
                 return (
                   <div
-                    key={player.id || idx}
+                    key={player.id || position}
                     style={{
                       width: "100%",
                       borderRadius: "24px",
@@ -386,7 +389,7 @@ function StoryCanvas({
                           flexShrink: 0,
                         }}
                       >
-                        {idx + 1}
+                        {rankNo}
                       </div>
 
                       <div
@@ -540,8 +543,9 @@ export function ShareLeaderboardModal({
   async function handleShare() {
     let shareText = `🏆 ${sessionTitle} Results\n📅 ${formattedDate}\n👥 ${totalPlayers} Players • 🏓 ${effectiveTotalGames} Games\n\n`;
     topPlayers.forEach((p, idx) => {
-      const medals = ["🥇", "🥈", "🥉", "4.", "5."];
-      shareText += `${medals[idx] || `${idx + 1}.`} ${p.full_name || p.display_name}: ${p.games_won}W/${p.games_played}G (${p.win_rate}%)\n`;
+      const rankNo = p.rank || idx + 1;
+      const medals = ["🥇", "🥈", "🥉"];
+      shareText += `${medals[rankNo - 1] || `${rankNo}.`} ${p.full_name || p.display_name}: ${p.games_won}W/${p.games_played}G (${p.win_rate}%)\n`;
     });
     if (remainingCount > 0) {
       shareText += `\n+ ${remainingCount} more players\n`;

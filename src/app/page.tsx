@@ -447,22 +447,23 @@ export default async function HomePage() {
                     {`No one is ranked yet. Players need ${RATING_RULES.qualifyGames} ranked games.`}
                   </p>
                 )}
-                {topPlayers.map((player, idx) => (
+                {topPlayers.map((player) => (
                   <div
                     key={player.id}
                     className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60 shadow-2xs"
                   >
                     <div className="flex items-center gap-2.5">
                       <div
-                        className={`h-7 w-7 rounded-full flex items-center justify-center font-mono font-extrabold text-xs shadow-2xs ${
-                          idx === 0
+                        title={player.tied ? `Tied for #${player.rank}` : undefined}
+                        className={`h-7 min-w-7 px-1 rounded-full flex items-center justify-center font-mono font-extrabold text-xs shadow-2xs ${
+                          player.rank === 1
                             ? "bg-amber-400 text-slate-950"
-                            : idx === 1
+                            : player.rank === 2
                             ? "bg-slate-300 text-slate-900 dark:bg-slate-700 dark:text-slate-100"
                             : "bg-amber-700/60 text-amber-100"
                         }`}
                       >
-                        #{idx + 1}
+                        {player.tied ? "T" : "#"}{player.rank}
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate max-w-28">
