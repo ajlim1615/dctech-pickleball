@@ -112,7 +112,7 @@ export async function getSessionMatches(sessionId: string) {
     const courtMap = new Map((courtsRes.data || []).map((c) => [c.id, c]));
     return matchesRes.data.map((m) => ({
       ...m,
-      court: courtMap.get(m.court_id) || { id: m.court_id, name: "Court", surface_type: "Standard Court" },
+      court: (m.court_id && courtMap.get(m.court_id)) || { id: m.court_id, name: "Court", surface_type: "Standard Court" },
     }));
   }
   return data || [];

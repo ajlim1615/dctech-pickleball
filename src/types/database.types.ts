@@ -285,7 +285,8 @@ export interface Database {
         Row: {
           id: string;
           session_id: string;
-          court_id: string;
+          /** Null once the court was removed; the game itself is kept. */
+          court_id: string | null;
           format: MatchFormat;
           match_type: MatchType;
           status: MatchStatus;
@@ -327,7 +328,7 @@ export interface Database {
         Update: {
           id?: string;
           session_id?: string;
-          court_id?: string;
+          court_id?: string | null;
           format?: MatchFormat;
           match_type?: MatchType;
           status?: MatchStatus;

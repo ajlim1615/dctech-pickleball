@@ -373,11 +373,39 @@ export function AdminDashboard({
       const res = await editSession(isEditingSession.id, formData);
       if (res?.error) {
         showNotice(`Error: ${res.error}`);
-      } else {
-        setIsEditingSession(null);
-        showNotice("Session settings updated successfully!");
-        router.refresh();
+        return;
       }
+
+      // Court count lives on the arena, not the session row, so apply it separately.
+      const requestedCourts = parseInt((formData.get("courtCount") as string) || "", 10);
+      if (requestedCourts && requestedCourts !== courts.length) {
+        const courtRes = await setRentedCourtCount(requestedCourts, "Standard Court");
+        if (courtRes?.error) {
+          setIsEditingSession(null);
+          showNotice(`Session saved, but courts weren't changed: ${courtRes.error}`);
+          router.refresh();
+          return;
+        }
+        if (courtRes?.courts) {
+          setCourts(
+            courtRes.courts.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              status: c.status,
+              surface: c.surface_type || "Standard Court",
+              assignedStaffId: c.assigned_staff_id || null,
+            }))
+          );
+        }
+      }
+
+      setIsEditingSession(null);
+      showNotice(
+        requestedCourts && requestedCourts !== courts.length
+          ? `Session updated and set to ${requestedCourts} courts!`
+          : "Session settings updated successfully!"
+      );
+      router.refresh();
     } finally {
       setIsSubmittingEditSession(false);
     }
@@ -1407,8 +1435,9 @@ export function AdminDashboard({
                       </div>
                     </div>
 
-                    {/* Matching Mode */}
-                    <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    {/* Matching Mode + Courts */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Matching Mode</label>
                       <select
                         name="matchingStyle"
@@ -1425,6 +1454,36 @@ export function AdminDashboard({
                         <option value="king_queen">King/Queen of the Court</option>
                         <option value="club_wars">Club Wars</option>
                       </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Courts</label>
+                      {(() => {
+                        // Courts are shared by the whole arena, so another live session would lose or gain them too.
+                        const otherLive = activeSession && activeSession.id !== isEditingSession.id ? activeSession : null;
+                        const options = Array.from(new Set([2, 3, 4, 5, 6, courts.length])).sort((a, b) => a - b);
+                        return (
+                          <>
+                            <select
+                              name="courtCount"
+                              defaultValue={String(courts.length)}
+                              disabled={!!otherLive}
+                              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-bold disabled:opacity-60"
+                            >
+                              {options.map((n) => (
+                                <option key={n} value={n}>
+                                  {n} courts ({n * 4} players at once)
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {otherLive
+                                ? `Locked while "${otherLive.title}" is live, since courts are shared.`
+                                : "Adds or removes arena courts. Past games are kept; a court with a game in progress can't be removed."}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
                     </div>
 
                     {(editMatchingMode === "skill_separated" || editMatchingMode === "skill_courts") && (

@@ -216,7 +216,7 @@ export async function finalizeMatch(
 
       // Free court
       const { data: match } = await supabase.from("matches").select("court_id").eq("id", matchId).single();
-      if (match) {
+      if (match?.court_id) {
         await supabase
           .from("courts")
           .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
@@ -387,7 +387,7 @@ export async function getMatchesList(limit = 20) {
     const courtMap = new Map((courtsRes.data || []).map((c) => [c.id, c]));
     return matchesRes.data.map((m) => ({
       ...m,
-      court: courtMap.get(m.court_id) || { name: "Court", surface_type: "Standard Court" },
+      court: (m.court_id && courtMap.get(m.court_id)) || { name: "Court", surface_type: "Standard Court" },
     }));
   }
 

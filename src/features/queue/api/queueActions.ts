@@ -884,7 +884,9 @@ export async function swapNoShow(matchId: string, noShowPlayerId: string) {
 
   const actorId = auth.context!.userId;
   recordSessionEvent(async () => {
-    const { data: swapCourt } = await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle();
+    const { data: swapCourt } = match.court_id
+      ? await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle()
+      : { data: null };
     return {
       sessionId: match.session_id,
       type: "no_show_swapped",

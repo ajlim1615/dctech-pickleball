@@ -255,6 +255,8 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
       };
     }
 
+    // Past games on a removed court are kept; matches.court_id is set null
+    // (migration 20261116010000_keep_matches_when_court_removed).
     const toRemove = courtsCandidateForRemoval.map((c) => c.id);
     if (toRemove.length > 0) {
       const { error: delError } = await supabase.from("courts").delete().in("id", toRemove);
