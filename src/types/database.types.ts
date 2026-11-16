@@ -15,6 +15,7 @@ export type MatchFormat = "singles" | "doubles";
 export type MatchType = "open_play" | "challenge" | "tournament";
 export type MatchStatus = "pending" | "in_progress" | "completed" | "abandoned";
 export type WinningTeam = "team_a" | "team_b" | "tie";
+export type RatingHistoryReason = "game" | "correction" | "admin";
 
 export type SessionEventType =
   | "session_started"
@@ -376,29 +377,37 @@ export interface Database {
         Row: {
           id: string;
           player_id: string;
-          match_id: string;
+          /** null for an admin's manual edit (reason 'admin'). */
+          match_id: string | null;
           old_rating: number;
           new_rating: number;
           rating_change: number;
           recorded_at: string;
+          /** RATING_RULES.version the row was computed with (1 = before versioning). */
+          rules_version: number;
+          reason: RatingHistoryReason;
         };
         Insert: {
           id?: string;
           player_id: string;
-          match_id: string;
+          match_id?: string | null;
           old_rating: number;
           new_rating: number;
           rating_change: number;
           recorded_at?: string;
+          rules_version?: number;
+          reason?: RatingHistoryReason;
         };
         Update: {
           id?: string;
           player_id?: string;
-          match_id?: string;
+          match_id?: string | null;
           old_rating?: number;
           new_rating?: number;
           rating_change?: number;
           recorded_at?: string;
+          rules_version?: number;
+          reason?: RatingHistoryReason;
         };
         Relationships: [];
       };
@@ -445,6 +454,7 @@ export interface Database {
           created_at: string;
         }[];
       };
+      /** The 11-argument overload (the old 8-argument one still exists for the previous app build). */
       apply_result_correction: {
         Args: {
           p_match_id: string;
@@ -455,8 +465,50 @@ export interface Database {
           p_winning_team: WinningTeam;
           p_rating_updates: Json;
           p_wins_moves: Json;
+          p_rules_version: number;
+          p_min_rating: number;
+          p_max_rating: number;
         };
         Returns: Json;
+      };
+      /** Saves a finished game (score, court, totals, ratings, history) in one transaction. */
+      record_match_result: {
+        Args: {
+          p_match_id: string;
+          p_team_a_score: number;
+          p_team_b_score: number;
+          p_winning_team: WinningTeam;
+          p_ranked: boolean;
+          /** [{ player_id, old_rating, new_rating, change }] */
+          p_rating_changes: Json;
+          p_rules_version: number;
+          p_min_rating: number;
+          p_max_rating: number;
+        };
+        Returns: Json;
+      };
+      /** An admin's manual rating edit: clamps, saves and logs a history row. */
+      admin_set_rating: {
+        Args: {
+          p_player_id: string;
+          p_new_rating: number;
+          p_rules_version: number;
+          p_min_rating: number;
+          p_max_rating: number;
+        };
+        Returns: Json;
+      };
+      /** Games, wins, losses and points per player from counted games, optionally since a time. */
+      leaderboard_stats: {
+        Args: { p_since?: string | null };
+        Returns: {
+          player_id: string;
+          games: number;
+          wins: number;
+          losses: number;
+          points_for: number;
+          points_against: number;
+        }[];
       };
     };
     Enums: {

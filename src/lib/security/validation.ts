@@ -80,8 +80,8 @@ export const AdjustRatingSchema = z.object({
   userId: z.string().uuid("Invalid user UUID."),
   newRating: z
     .number()
-    .min(1.0, "Rating cannot be lower than 1.00")
-    .max(6.0, "Rating cannot exceed 6.00"),
+    .min(RATING_RULES.min, `Rating cannot be lower than ${RATING_RULES.min.toFixed(2)}`)
+    .max(RATING_RULES.max, `Rating cannot exceed ${RATING_RULES.max.toFixed(2)}`),
 });
 
 // Walk-in / Guest player validation
@@ -98,7 +98,7 @@ export const WalkInPlayerSchema = z.object({
     .or(z.literal(""))
     .transform((val) => (val ? val.toLowerCase().trim() : undefined)),
   type: z.enum(["guest", "employee"]).default("guest"),
-  skillRating: z.number().min(1.0).max(6.0).default(RATING_RULES.start),
+  skillRating: z.number().min(RATING_RULES.min).max(RATING_RULES.max).default(RATING_RULES.start),
   role: z.enum(["player", "admin"]).default("player"),
 });
 

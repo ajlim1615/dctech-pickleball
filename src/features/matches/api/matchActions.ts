@@ -11,6 +11,7 @@ import {
   calculateRatingChanges,
   type RatedPlayer,
 } from "@/features/rankings/utils/ratingEngine";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { gamesPlayedBefore, planResultCorrection } from "@/features/matches/utils/resultCorrection";
 import { requireAdminUser } from "@/lib/security/authGuard";
 
@@ -123,7 +124,7 @@ export async function finalizeMatch(
     return { error: validation.error.issues[0]?.message || "Invalid match score parameters." };
   }
 
-  // Only admins score games; complete_match enforces the same in the database.
+  // Only admins score games; record_match_result enforces the same in the database.
   const auth = await requireAdminUser();
   if (auth.error || !auth.context) return { error: auth.error || "Authentication required to finalize match." };
   const user = { id: auth.context.userId };
@@ -136,7 +137,7 @@ export async function finalizeMatch(
     return { error: rateLimit.error };
   }
 
-  // Check if this match belongs to a Casual / Unranked session ([ranked:false])
+  // The game and its session (scoring rule; ranked or casual).
   const { data: matchRecord } = await supabase
     .from("matches")
     .select("session_id, court_id, status, sessions:session_id (description, status)")
@@ -148,88 +149,52 @@ export async function finalizeMatch(
     return { error: "This game was already saved." };
   }
 
-  const isUnranked = Boolean(
-    (matchRecord as any)?.sessions?.description?.includes("[ranked:false]")
-  );
-
   // Enforce the session's scoring rule so no unfinished or impossible score is recorded.
   const sessionDescription = (matchRecord as { sessions?: { description?: string | null } | null } | null)
     ?.sessions?.description;
   const meta = parseSessionMetadata(sessionDescription);
   const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo, trackScores: meta.trackScores };
-  if (!getWinner(teamAScore, teamBScore, rule)) {
+  const winnerSide = getWinner(teamAScore, teamBScore, rule);
+  if (!winnerSide) {
     return {
       error: `${teamAScore}-${teamBScore} is not a finished game. This session plays ${describeRule(rule)}.`,
     };
   }
+  const winningTeam: WinningTeam = winnerSide === "A" ? "team_a" : "team_b";
 
-  if (isUnranked) {
-    // Unranked casual match: record official score & free court, but bypass DUPR updates
-    const winner: WinningTeam =
-      teamAScore > teamBScore ? "team_a" : teamBScore > teamAScore ? "team_b" : "tie";
+  // Ranked games: rate from each player's rating and game count before this game
+  // (record_match_result bumps games_played), then save everything at once.
+  const ratingChanges = meta.isRanked
+    ? await (async () => {
+        const { teamA, teamB } = await loadRatedTeams(supabase, matchId);
+        return calculateRatingChanges(teamA, teamB, teamAScore, teamBScore, meta.targetPoints);
+      })()
+    : [];
 
-    await supabase
-      .from("matches")
-      .update({
-        team_a_score: teamAScore,
-        team_b_score: teamBScore,
-        winning_team: winner,
-        status: "completed",
-        ended_at: new Date().toISOString(),
-        recorded_by: user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", matchId);
-
-    if (matchRecord?.court_id) {
-      await supabase
-        .from("courts")
-        .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
-        .eq("id", matchRecord.court_id);
-    }
-  } else {
-    // Read ratings before the game is recorded (the RPC bumps games_played).
-    const ratedTeams = await loadRatedTeams(supabase, matchId);
-
-    // Call the database complete_match stored procedure for ranked matches
-    const { error } = await supabase.rpc("complete_match", {
-      p_match_id: matchId,
-      p_team_a_score: teamAScore,
-      p_team_b_score: teamBScore,
-      p_recorded_by: user.id,
-    });
-
-    if (error) {
-      // Fallback: manually update match & court if RPC is unavailable in client preview
-      const winner: WinningTeam =
-        teamAScore > teamBScore ? "team_a" : teamBScore > teamAScore ? "team_b" : "tie";
-
-      await supabase
-        .from("matches")
-        .update({
-          team_a_score: teamAScore,
-          team_b_score: teamBScore,
-          winning_team: winner,
-          status: "completed",
-          ended_at: new Date().toISOString(),
-          recorded_by: user.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", matchId);
-
-      // Free court
-      const { data: match } = await supabase.from("matches").select("court_id").eq("id", matchId).single();
-      if (match?.court_id) {
-        await supabase
-          .from("courts")
-          .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
-          .eq("id", match.court_id);
-      }
-    }
-
-    // Ranked games move player ratings and leave a history row per player.
-    await applyRatingChanges(supabase, matchId, ratedTeams, teamAScore, teamBScore, meta.targetPoints);
+  // One transaction: score, winner, court, totals, ratings and history. It only
+  // saves a game that is still in progress, so a double tap can't record it twice.
+  const { data: saved, error: saveError } = await supabase.rpc("record_match_result", {
+    p_match_id: matchId,
+    p_team_a_score: teamAScore,
+    p_team_b_score: teamBScore,
+    p_winning_team: winningTeam,
+    p_ranked: meta.isRanked,
+    p_rating_changes: ratingChanges.map((c) => ({
+      player_id: c.playerId,
+      old_rating: c.oldRating,
+      new_rating: c.newRating,
+      change: c.change,
+    })),
+    p_rules_version: RATING_RULES.version,
+    p_min_rating: RATING_RULES.min,
+    p_max_rating: RATING_RULES.max,
+  });
+  if (saveError) {
+    console.error("record_match_result failed:", saveError.message);
+    return { error: "The game couldn't be saved. Nothing was changed; please try again." };
   }
+  const savedOutcome = saved as { error?: string } | null;
+  if (savedOutcome?.error) return { error: savedOutcome.error };
 
   recordSessionEvent(async () => ({
     sessionId: matchRecord?.session_id ?? null,
@@ -243,7 +208,7 @@ export async function finalizeMatch(
       courtName: await courtName(supabase, matchRecord?.court_id),
       scoreA: teamAScore,
       scoreB: teamBScore,
-      winner: teamAScore > teamBScore ? "team_a" : "team_b",
+      winner: winningTeam,
     },
   }));
 
@@ -430,36 +395,6 @@ async function loadRatedTeams(
   return teams;
 }
 
-async function applyRatingChanges(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  matchId: string,
-  { teamA, teamB }: RatedTeams,
-  scoreA: number,
-  scoreB: number,
-  targetPoints: number
-) {
-  const changes = calculateRatingChanges(teamA, teamB, scoreA, scoreB, targetPoints);
-  if (changes.length === 0) return;
-
-  const now = new Date().toISOString();
-  await Promise.all(
-    changes.map((c) =>
-      supabase.from("profiles").update({ skill_rating: c.newRating, updated_at: now }).eq("id", c.playerId)
-    )
-  );
-
-  const { error } = await supabase.from("player_ratings_history").insert(
-    changes.map((c) => ({
-      player_id: c.playerId,
-      match_id: matchId,
-      old_rating: c.oldRating,
-      new_rating: c.newRating,
-      rating_change: c.change,
-    }))
-  );
-  if (error) console.error("Failed to record rating history:", error.message);
-}
-
 /** Admin fix for a saved game: new score, winner, ratings and wins follow. */
 export async function correctMatchResult(matchId: string, scoreA: number, scoreB: number) {
   const auth = await requireAdminUser();
@@ -502,6 +437,7 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
         .from("player_ratings_history")
         .select("id", { count: "exact", head: true })
         .eq("player_id", h.player_id)
+        .not("match_id", "is", null) // admin edits aren't games
         .gt("recorded_at", h.recorded_at);
       gamesAfter.set(h.player_id, count || 0);
     })
@@ -536,6 +472,9 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
     p_winning_team: plan.winningTeam,
     p_rating_updates: plan.ratingUpdates.map((u) => ({ player_id: u.playerId, delta: u.delta, new_change: u.newChange })),
     p_wins_moves: plan.winsMoves.map((m) => ({ player_id: m.playerId, by: m.by })),
+    p_rules_version: RATING_RULES.version,
+    p_min_rating: RATING_RULES.min,
+    p_max_rating: RATING_RULES.max,
   });
   if (error) {
     return {

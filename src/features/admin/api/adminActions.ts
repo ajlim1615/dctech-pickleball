@@ -7,7 +7,8 @@ import type { UserRole, CourtStatus, Profile } from "@/types";
 
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
-import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, sanitizeString } from "@/lib/security/validation";
+import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, AdjustRatingSchema, sanitizeString } from "@/lib/security/validation";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { parsePHTToISO } from "@/lib/timezone";
 import { parseCourtCount, parseSkillSpread } from "@/lib/utils";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -129,6 +130,11 @@ export async function adjustPlayerRating(userId: string, newRating: number) {
   const rateLimit = checkRateLimit(auth.context?.userId || "admin", "admin_rating_adjust", RATE_LIMIT_CONFIGS.ADMIN_ACTIONS);
   if (!rateLimit.success) return { error: rateLimit.error };
 
+  const validation = AdjustRatingSchema.safeParse({ userId, newRating });
+  if (!validation.success) {
+    return { error: validation.error.issues[0]?.message || "Invalid rating." };
+  }
+
   const supabase = await createClient();
 
   // Guard: System admin does not have a player rating
@@ -137,12 +143,18 @@ export async function adjustPlayerRating(userId: string, newRating: number) {
     return { error: "The System Admin account (admin@dctechmicro.com) is a non-playing administrator and cannot have a rating." };
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ skill_rating: newRating, updated_at: new Date().toISOString() })
-    .eq("id", userId);
+  // Clamps to the rules' bounds, refuses the System Admin, and leaves a history row.
+  const { data: result, error } = await supabase.rpc("admin_set_rating", {
+    p_player_id: userId,
+    p_new_rating: validation.data.newRating,
+    p_rules_version: RATING_RULES.version,
+    p_min_rating: RATING_RULES.min,
+    p_max_rating: RATING_RULES.max,
+  });
 
   if (error) return { error: error.message };
+  const outcome = result as { error?: string } | null;
+  if (outcome?.error) return { error: outcome.error };
 
   revalidatePath("/admin");
   revalidatePath("/rankings");

@@ -1,5 +1,6 @@
 /**
- * Rating updates for ranked games, on the app's 1.0–6.0 (DUPR-style) scale.
+ * Rating updates for ranked games, on the app's DUPR-style scale (bounds come
+ * from RATING_RULES.min / .max in ratingConfig).
  *
  * Elo-style: each team's strength is its players' average rating, the expected
  * result comes from the rating gap, and every player moves by
