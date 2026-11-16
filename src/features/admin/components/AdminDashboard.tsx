@@ -462,7 +462,15 @@ export function AdminDashboard({
       });
       return;
     }
-    startSessionAndOpenConsole(session);
+    setConfirmModal({
+      isOpen: true,
+      title: `Start "${session.title}"?`,
+      message:
+        "Everyone going will be shuffled into the line, courts open for games, and \"I'm going\" closes. Start only when you're at the courts.",
+      confirmLabel: "Yes, start session",
+      isDestructive: false,
+      action: () => startSessionAndOpenConsole(session),
+    });
   }
 
   function handleCancelSession(session: Session) {

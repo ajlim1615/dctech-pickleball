@@ -131,6 +131,7 @@ export function SessionDetailView({
   const [showCheckedInList, setShowCheckedInList] = useState(false);
   const [searchCheckin, setSearchCheckin] = useState("");
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showFinalStandings, setShowFinalStandings] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
@@ -268,6 +269,7 @@ export function SessionDetailView({
       }
     } finally {
       setStatusLoading(false);
+      setShowStartConfirm(false);
     }
   }
 
@@ -411,7 +413,7 @@ export function SessionDetailView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleStartSession}
+                onClick={() => setShowStartConfirm(true)}
                 disabled={statusLoading}
                 className="w-full md:w-auto text-xs font-mono text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 h-11 sm:h-9 justify-center"
               >
@@ -490,6 +492,61 @@ export function SessionDetailView({
           )}
         </section>
       )}
+
+      {/* Start / Reopen Session Confirmation Modal */}
+      <Modal isOpen={showStartConfirm} onClose={() => !statusLoading && setShowStartConfirm(false)}>
+        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-2xl cursor-default">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <PlayCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                  {currentStatus === "completed" ? `Reopen ${session.title}?` : `Start ${session.title}?`}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {currentStatus === "completed"
+                    ? "The session goes live again, so players can rejoin the line and games can be recorded."
+                    : `The ${rsvps.length} ${rsvps.length === 1 ? "player" : "players"} going will be shuffled into the line, courts open for games, and "I'm going" closes. Any other live session is ended.`}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowStartConfirm(false)}
+              disabled={statusLoading}
+              aria-label="Close"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowStartConfirm(false)}
+              disabled={statusLoading}
+              className="font-semibold text-xs"
+            >
+              Not yet
+            </Button>
+            <Button
+              type="button"
+              variant="volt"
+              onClick={handleStartSession}
+              disabled={statusLoading}
+              className="font-bold text-xs cursor-pointer"
+            >
+              {statusLoading
+                ? currentStatus === "completed" ? "Reopening…" : "Starting…"
+                : currentStatus === "completed" ? "Yes, reopen" : "Yes, start session"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Finish Session Confirmation Modal */}
       <Modal
@@ -1127,7 +1184,7 @@ export function SessionDetailView({
           checkedInCount={checkins.length}
           autoFill={autoFill}
           onAutoFillChange={setAutoFill}
-          onStart={handleStartSession}
+          onStart={() => setShowStartConfirm(true)}
           isStarting={statusLoading}
           onAddPlayers={openAddPlayers}
           onEnd={() => setShowFinishConfirm(true)}
