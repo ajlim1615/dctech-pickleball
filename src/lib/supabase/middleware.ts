@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database.types";
 
+const SET_PASSWORD_PATH = "/set-password";
+
 // Helper to inject enterprise security headers
 function applySecurityHeaders(res: NextResponse) {
   res.headers.set("X-Frame-Options", "DENY");
@@ -75,6 +77,23 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    return applySecurityHeaders(NextResponse.redirect(url));
+  }
+
+  // Accounts still on the shared default password must set their own before
+  // using the app. The flag is server-written (app_metadata), so users can't skip it.
+  const mustChangePassword = user?.app_metadata?.must_change_password === true;
+  const isSetPasswordPage = pathname.startsWith(SET_PASSWORD_PATH);
+  if (user && mustChangePassword && !isSetPasswordPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = SET_PASSWORD_PATH;
+    url.search = "";
+    return applySecurityHeaders(NextResponse.redirect(url));
+  }
+  if (user && !mustChangePassword && isSetPasswordPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 

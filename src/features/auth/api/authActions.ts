@@ -7,6 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, resetRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { SignInSchema, MagicLinkSchema, sanitizeString } from "@/lib/security/validation";
 
+/** Shared starting password for admin-created accounts; never allowed as a chosen password. */
+const DEFAULT_PASSWORD = "dctech123";
+
 export async function signInWithEmail(formData: FormData) {
   const rawEmail = formData.get("email") as string;
   const rawPassword = formData.get("password") as string;
@@ -185,6 +188,10 @@ export async function updateUserPassword(formData: FormData) {
     return { error: "New password and confirmation password do not match." };
   }
 
+  if (newPassword === DEFAULT_PASSWORD) {
+    return { error: "Choose a password other than the shared default." };
+  }
+
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -211,7 +218,17 @@ export async function updateUserPassword(formData: FormData) {
     return { error: updateError.message };
   }
 
-  revalidatePath("/profile");
+  // Lift the first-sign-in lock. The database only clears it once the stored
+  // password is really no longer the default.
+  if (user.app_metadata?.must_change_password) {
+    const { error: flagError } = await supabase.rpc("clear_password_change_flag");
+    if (flagError) {
+      console.error("clear_password_change_flag error:", flagError.message);
+      return { error: "Your password was changed, but we couldn't unlock your account. Please try again." };
+    }
+  }
+
+  revalidatePath("/", "layout");
   return { success: true, message: "Password updated successfully!" };
 }
 

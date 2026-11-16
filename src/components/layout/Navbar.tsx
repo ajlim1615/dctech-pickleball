@@ -49,7 +49,8 @@ function LiveNavbarClock() {
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === "/login";
+  // No app navigation on the sign-in screens, including the forced password change.
+  const isLoginPage = pathname === "/login" || pathname === "/set-password";
   const [userProfile, setUserProfile] = useState<{
     id: string;
     email: string;

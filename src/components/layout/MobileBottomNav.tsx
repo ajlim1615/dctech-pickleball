@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/login";
+  // No app navigation on the sign-in screens, including the forced password change.
+  const isLoginPage = pathname === "/login" || pathname === "/set-password";
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {

@@ -411,6 +411,11 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
       };
+      /** Clears the caller's must_change_password flag once their password is no longer the default. */
+      clear_password_change_flag: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
       complete_match: {
         Args: {
           p_match_id: string;

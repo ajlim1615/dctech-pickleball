@@ -72,6 +72,8 @@ export async function updatePlayerDetails(userId: string, fullName: string, emai
         email: cleanEmail,
         password: "dctech123",
         email_confirm: true,
+        // Shared default: the user must set their own password on first sign-in.
+        app_metadata: { must_change_password: true },
         user_metadata: {
           full_name: cleanName,
         },
@@ -487,6 +489,8 @@ export async function createWalkInPlayer(params: {
         email: providedEmail,
         password: "dctech123",
         email_confirm: true,
+        // Shared default: the user must set their own password on first sign-in.
+        app_metadata: { must_change_password: true },
         user_metadata: {
           full_name: formattedName,
         },
