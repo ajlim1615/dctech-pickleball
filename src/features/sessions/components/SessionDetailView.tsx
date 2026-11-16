@@ -262,6 +262,7 @@ export function SessionDetailView({
       if (res?.error) {
         alert(`Error starting session: ${res.error}`);
       } else {
+        if ("warning" in res && res.warning) alert(res.warning);
         setCurrentStatus("active");
         router.refresh();
       }

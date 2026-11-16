@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, UserPlus, X, CheckCircle2, Users, Coffee } from "lucide-react";
+import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
@@ -29,7 +29,7 @@ interface SessionQueueLiveBoardProps {
   userEmail?: string;
   employees?: Profile[];
   isSessionActive?: boolean;
-  /** Not started yet: players may pre-queue, but no one is called until it goes live. */
+  /** Not started yet: no joining; everyone going is shuffled into the line at the start. */
   isSessionScheduled?: boolean;
   onOpenBulkQueue?: () => void;
   readOnly?: boolean;
@@ -334,7 +334,7 @@ export function SessionQueueLiveBoard({
                   <span>
                     You&apos;re <span className="font-mono tabular-nums">#{myPosition || 1}</span>
                     {isSessionScheduled
-                      ? " in line · games start when the session goes live"
+                      ? " in line for now · the line is shuffled when the session starts"
                       : myPosition && myPosition <= 4 ? " · up next" : " in line"}
                   </span>
                 </p>
@@ -374,11 +374,18 @@ export function SessionQueueLiveBoard({
                 )}
               </div>
             )
+          ) : isSessionScheduled ? (
+            // No pre-queue: the starting line is shuffled from everyone going when the session starts.
+            <p className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <Shuffle className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+              <span>
+                Tap <span className="font-semibold text-slate-900 dark:text-slate-100">I&apos;m going</span> to be in the line.
+                When the session starts, everyone going is shuffled into the line, then the game mode picks each match.
+              </span>
+            </p>
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {isSessionScheduled ? "Get in line before it starts" : "Ready for the next game?"}
-              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Ready for the next game?</p>
               <div className="flex shrink-0 gap-2">
                 <Button
                   type="button"

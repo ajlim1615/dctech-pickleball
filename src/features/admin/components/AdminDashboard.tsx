@@ -441,6 +441,7 @@ export function AdminDashboard({
         showNotice(`Error: ${res.error}`);
         return;
       }
+      if ("warning" in res && res.warning) alert(res.warning);
       // Go straight to the console: that's where players are queued and courts are run.
       router.push(`/sessions/${session.id}`);
     } finally {

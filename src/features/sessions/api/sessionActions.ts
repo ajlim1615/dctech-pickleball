@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parsePHTToISO } from "@/lib/timezone";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { planStartingLine } from "@/features/queue/startingLine";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -285,6 +286,10 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 
   const supabase = await createClient();
 
+  // Only a scheduled -> active start builds the shuffled starting line.
+  const { data: before } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const isFirstStart = status === "active" && before?.status === "scheduled";
+
   // If activating a session, deactivate any other active sessions to maintain single active session clarity
   if (status === "active") {
     await supabase
@@ -307,6 +312,11 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
     .eq("id", sessionId);
 
   if (error) return { error: error.message };
+
+  let startingLineError: string | null = null;
+  if (isFirstStart) {
+    startingLineError = await buildStartingLine(supabase, sessionId);
+  }
 
   if (status === "active" || status === "completed") {
     recordSessionEvent({
@@ -360,7 +370,66 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   revalidatePath("/queue");
   revalidatePath("/matches");
   revalidatePath("/");
+  if (startingLineError) {
+    return { success: true, warning: `Session started, but the line could not be built: ${startingLineError}` };
+  }
   return { success: true };
+}
+
+/**
+ * Shuffle everyone who said "I'm going" (and anyone already pre-queued) into the
+ * starting line, so tapping first is no head start. Returns an error message, or null.
+ */
+async function buildStartingLine(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+): Promise<string | null> {
+  const [rsvpRes, queueRes] = await Promise.all([
+    supabase.from("session_rsvps").select("player_id").eq("session_id", sessionId),
+    supabase
+      .from("queue_entries")
+      .select("id, player_id, group_id")
+      .eq("session_id", sessionId)
+      .not("status", "in", "(left,playing)"),
+  ]);
+  if (rsvpRes.error) return rsvpRes.error.message;
+  if (queueRes.error) return queueRes.error.message;
+
+  // Only active player accounts are added; the system admin never plays.
+  const rsvpIds = (rsvpRes.data || []).map((r) => r.player_id);
+  let goingPlayerIds: string[] = [];
+  if (rsvpIds.length > 0) {
+    const { data: players, error: playersError } = await supabase
+      .from("profiles")
+      .select("id, email, is_active")
+      .in("id", rsvpIds);
+    if (playersError) return playersError.message;
+    goingPlayerIds = (players || [])
+      .filter((p) => p.is_active && p.email?.toLowerCase() !== "admin@dctechmicro.com")
+      .map((p) => p.id);
+  }
+
+  const now = new Date();
+  const plan = planStartingLine({ goingPlayerIds, existing: queueRes.data || [], now });
+
+  if (plan.add.length > 0) {
+    const { error: insertError } = await supabase.from("queue_entries").insert(
+      plan.add.map((a) => ({ session_id: sessionId, player_id: a.playerId, status: "waiting" as const, joined_at: a.joinedAt }))
+    );
+    if (insertError) return insertError.message;
+
+    // Being in line counts as checked in, same as joining the queue yourself.
+    await supabase.from("session_checkins").upsert(
+      plan.add.map((a) => ({ session_id: sessionId, player_id: a.playerId, status: "checked_in" as const, checkin_time: now.toISOString() })),
+      { onConflict: "session_id,player_id" }
+    );
+  }
+
+  for (const r of plan.reorder) {
+    const { error: updateError } = await supabase.from("queue_entries").update({ joined_at: r.joinedAt }).eq("id", r.id);
+    if (updateError) return updateError.message;
+  }
+  return null;
 }
 
 export async function checkInToSession(sessionId: string, playerId?: string) {

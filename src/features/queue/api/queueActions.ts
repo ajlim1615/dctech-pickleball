@@ -56,14 +56,18 @@ export async function joinQueue(params: {
     return { error: "The System Admin account (admin@dctechmicro.com) is an administrative profile and cannot join the paddle queue." };
   }
 
-  // Players may pre-queue for a scheduled session, but not join one that is over
+  // The line opens when the session goes live. Before that, "I'm going" is how to
+  // get in: everyone going is shuffled into the starting line, so there is no pre-queue.
   const { data: sessionRow } = await supabase
     .from("sessions")
     .select("status")
     .eq("id", params.sessionId)
     .maybeSingle();
 
-  if (!sessionRow || (sessionRow.status !== "active" && sessionRow.status !== "scheduled")) {
+  if (sessionRow?.status === "scheduled") {
+    return { error: "The line opens when the session starts. Tap \"I'm going\" to be shuffled into it." };
+  }
+  if (!sessionRow || sessionRow.status !== "active") {
     return { error: "This session is not open for queueing." };
   }
 
