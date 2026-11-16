@@ -1173,7 +1173,7 @@ export function SessionDetailView({
         </div>
       </div>
 
-      <ActivityFeed events={events} names={activityNames} viewerId={currentUserId} />
+      <ActivityFeed events={events} names={activityNames} viewerId={currentUserId} sessionStatus={currentStatus} />
 
       {/* Session Leaderboard & Match Logs */}
       <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
