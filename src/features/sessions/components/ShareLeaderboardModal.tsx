@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
 import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
 
@@ -81,7 +80,7 @@ export function ShareLeaderboardModal({
     let shareText = `🏆 ${sessionTitle} Results\n📅 ${formattedDate}\n👥 ${totalPlayers} Players • 🏓 ${effectiveTotalGames} Games\n\n`;
     topPlayers.forEach((p, idx) => {
       const medals = ["🥇", "🥈", "🥉", "4.", "5."];
-      shareText += `${medals[idx] || `${idx + 1}.`} ${p.full_name || p.display_name}: ${p.games_won}W (${p.win_rate}%) • DUPR ${formatRating(p.skill_rating)}\n`;
+      shareText += `${medals[idx] || `${idx + 1}.`} ${p.full_name || p.display_name}: ${p.games_won}W (${p.win_rate}%)\n`;
     });
     if (remainingCount > 0) {
       shareText += `\n+ ${remainingCount} more players\n`;
@@ -277,20 +276,16 @@ export function ShareLeaderboardModal({
                             )}
                           </div>
 
-                          {/* Name and Rating */}
+                          {/* Name (and win rate once they've won) */}
                           <div className="truncate">
                             <div className="font-bold text-white text-[11px] truncate leading-tight">
                               {playerName}
                             </div>
-                            <div className="text-[9px] text-emerald-200/90 font-mono flex items-center gap-1">
-                              <span>DUPR {formatRating(player.skill_rating)}</span>
-                              {player.win_rate > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span>{player.win_rate}% Win</span>
-                                </>
-                              )}
-                            </div>
+                            {player.win_rate > 0 && (
+                              <div className="text-[9px] text-emerald-200/90 font-mono">
+                                {player.win_rate}% Win
+                              </div>
+                            )}
                           </div>
                         </div>
 
