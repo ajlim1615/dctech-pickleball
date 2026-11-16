@@ -92,16 +92,31 @@ export function Modal({
     };
   }, [isOpen, id]);
 
+  const backdropRef = React.useRef<HTMLDivElement>(null);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const pointerDownOnBackdrop = React.useRef(false);
+
+  const isBackdropTarget = (target: EventTarget | null) =>
+    target === backdropRef.current || target === wrapperRef.current;
+
   if (!isOpen || !mounted) return null;
 
   return createPortal(
     <div
+      ref={backdropRef}
       role="dialog"
       aria-modal="true"
+      onPointerDown={(e) => {
+        pointerDownOnBackdrop.current = isBackdropTarget(e.target);
+      }}
       onClick={(e) => {
-        if (!preventBackdropClose && onClose && e.target === e.currentTarget) {
-          onClose();
-        }
+        const startedOnBackdrop = pointerDownOnBackdrop.current;
+        pointerDownOnBackdrop.current = false;
+        if (!startedOnBackdrop || !isBackdropTarget(e.target)) return;
+        if (preventBackdropClose || !onClose) return;
+        if (openModals[openModals.length - 1] !== id) return;
+        e.stopPropagation();
+        onClose();
       }}
       className={cn(
         "fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen h-[100dvh] min-h-screen z-[100] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto cursor-pointer animate-in fade-in duration-150 select-none",
@@ -113,8 +128,8 @@ export function Modal({
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full flex items-center justify-center cursor-default select-text"
+        ref={wrapperRef}
+        className="w-full flex items-center justify-center select-text [&>*]:cursor-default"
       >
         {children}
       </div>
