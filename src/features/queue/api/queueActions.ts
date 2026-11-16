@@ -11,6 +11,8 @@ import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplace
 import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
+import { createPlayerAccount } from "@/features/players/server/createPlayer";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import {
   BREAK_USED_MESSAGE,
   NO_LIMITS_USED,
@@ -88,6 +90,9 @@ export async function joinQueue(params: {
   }
 
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
+  // Players can't write the line directly (the database only lets admins); this
+  // action has checked the rules above, so it writes with the service key.
+  const admin = createAdminClient();
 
   // Automatically record session check-in attendance
   try {
@@ -115,7 +120,7 @@ export async function joinQueue(params: {
 
   if (!existingQueue) {
     // Insert current player
-    const { error: userError } = await supabase.from("queue_entries").insert({
+    const { error: userError } = await admin.from("queue_entries").insert({
       session_id: params.sessionId,
       player_id: user.id,
       group_id: groupId,
@@ -130,7 +135,7 @@ export async function joinQueue(params: {
 
   // If doubles pair with a registered coworker
   if (params.partnerId) {
-    await supabase.from("session_checkins").upsert(
+    await admin.from("session_checkins").upsert(
       {
         session_id: params.sessionId,
         player_id: params.partnerId,
@@ -149,7 +154,7 @@ export async function joinQueue(params: {
       .maybeSingle();
 
     if (!existingPartnerQueue) {
-      await supabase.from("queue_entries").insert({
+      await admin.from("queue_entries").insert({
         session_id: params.sessionId,
         player_id: params.partnerId,
         group_id: groupId,
@@ -158,22 +163,20 @@ export async function joinQueue(params: {
       });
     }
   } else if (params.guestName) {
-    // Fast create guest profile
-    const guestId = crypto.randomUUID();
-    const guestEmail = `guest_${Date.now()}@guest.local`;
-    await supabase.from("profiles").insert({
-      id: guestId,
-      email: guestEmail,
-      full_name: params.guestName.includes("(Guest)") ? params.guestName : `${params.guestName} (Guest)`,
-      display_name: params.guestName,
-      role: "player",
-      skill_rating: 2.0,
-      is_active: true,
+    // A guest needs a player record (and so an account that can't sign in).
+    const guestName = params.guestName.trim().slice(0, 60);
+    const guest = await createPlayerAccount({
+      fullName: guestName.includes("(Guest)") ? guestName : `${guestName} (Guest)`,
+      displayName: guestName,
+      rating: RATING_RULES.start,
     });
+    if (guest.error || !guest.id) {
+      return { error: `You joined, but your guest couldn't be added: ${guest.error ?? "unknown error"}` };
+    }
 
-    await supabase.from("queue_entries").insert({
+    await admin.from("queue_entries").insert({
       session_id: params.sessionId,
-      player_id: guestId,
+      player_id: guest.id,
       group_id: groupId,
       status: "waiting",
       target_court_id: params.preferredCourtId || null,
@@ -196,6 +199,10 @@ export async function joinQueue(params: {
 }
 
 export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string[]) {
+  // Admins only: this skips the line rules (rejoin limit) and is logged as an admin action.
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -274,7 +281,8 @@ export async function leaveQueue(sessionId: string) {
     return { error: "Authentication required." };
   }
 
-  const { data: removed, error } = await supabase
+  // Players can't write the line directly; the service key writes only their own entry.
+  const { data: removed, error } = await createAdminClient()
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
@@ -813,7 +821,8 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
   }
 
   // joined_at is untouched, so coming back keeps the same place in line.
-  const { error } = await supabase
+  // Entry found above for this player (or one an admin may change): written with the service key.
+  const { error } = await createAdminClient()
     .from("queue_entries")
     .update({ status: onBreak ? "on_break" : "waiting" })
     .eq("id", entry.id);

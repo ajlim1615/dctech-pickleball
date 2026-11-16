@@ -92,16 +92,17 @@ export function CourtCard({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hold, setHold] = useState<"not_enough_players" | "no_skill_match" | null>(null);
 
-  // Sync state if activeMatch changes
+  // Follow the game's saved score. The admin scoring this court keeps their own
+  // count until the game changes, so a live refresh can't knock a tap back.
+  const matchId = activeMatch?.id ?? null;
+  const savedA = activeMatch?.team_a_score || 0;
+  const savedB = activeMatch?.team_b_score || 0;
+  const followSavedScore = !isAdministrator;
   useEffect(() => {
-    if (activeMatch) {
-      setScoreA(activeMatch.team_a_score || 0);
-      setScoreB(activeMatch.team_b_score || 0);
-    } else {
-      setScoreA(0);
-      setScoreB(0);
-    }
-  }, [activeMatch]);
+    setScoreA(savedA);
+    setScoreB(savedB);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scorers resync only when the game changes
+  }, [matchId, followSavedScore ? savedA : null, followSavedScore ? savedB : null]);
 
   // Extract players currently in active match
   const activeTeamAPlayers: Profile[] =

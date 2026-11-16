@@ -98,7 +98,7 @@ export function SessionQueueLiveBoard({
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = !readOnly && (userRole === "admin" || isSystemAdmin);
 
-  const { queue: allEntries, myPosition, calledAlert, dismissAlert } = useLiveQueue(initialQueue, currentUserId);
+  const { queue: allEntries, myPosition, calledAlert, dismissAlert } = useLiveQueue(initialQueue, currentUserId, sessionId);
   // Players on a break keep their entry (and place) but are not in line.
   const queue = useMemo(() => allEntries.filter((q) => q.status !== "on_break"), [allEntries]);
   const onBreak = useMemo(() => allEntries.filter((q) => q.status === "on_break"), [allEntries]);

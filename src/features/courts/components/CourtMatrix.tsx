@@ -3,7 +3,11 @@
 import { useState, useMemo } from "react";
 import { Activity, Sparkles, Filter } from "lucide-react";
 import { CourtCard } from "./CourtCard";
+import { useLiveCourts } from "../hooks/useLiveCourts";
 import type { ActiveCourtView, QueueEntryWithPlayer } from "@/types";
+
+// Stable default: a fresh [] each render would re-sync the live hook forever.
+const NO_COURTS: ActiveCourtView[] = [];
 
 const defaultFreshCourts: ActiveCourtView[] = [
   {
@@ -90,12 +94,15 @@ export function CourtMatrix({
       ? queue.filter((q) => q.status === "waiting").length
       : 0;
 
+  // Cards update live when a court or its game changes, without reloading the page.
+  const { courts: liveCourts } = useLiveCourts(initialCourts ?? NO_COURTS);
+
   const courtsToDisplay: ActiveCourtView[] = useMemo(() => {
-    if (initialCourts && initialCourts.length > 0) {
-      return initialCourts;
+    if (liveCourts.length > 0) {
+      return liveCourts;
     }
     return defaultFreshCourts;
-  }, [initialCourts]);
+  }, [liveCourts]);
 
   const filteredCourts = useMemo(() => {
     return courtsToDisplay.filter((c) => {

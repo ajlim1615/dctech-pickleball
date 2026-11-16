@@ -414,10 +414,14 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
   const supabase = await createClient();
   let targetPlayerId = playerId;
 
+  const { data: { user: me } } = await supabase.auth.getUser();
+  if (!me) return { error: "Authentication required to check in." };
   if (!targetPlayerId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Authentication required to check in." };
-    targetPlayerId = user.id;
+    targetPlayerId = me.id;
+  } else if (targetPlayerId !== me.id) {
+    // Checking someone else in (and into the line) is an admin action.
+    const auth = await requireAdminUser();
+    if (auth.error) return { error: auth.error };
   }
 
   // Checking in puts you in the queue, which only opens once the session is live.
@@ -476,7 +480,7 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     .maybeSingle();
 
   if (!existingQueue) {
-    await supabase.from("queue_entries").insert({
+    await createAdminClient().from("queue_entries").insert({
       session_id: sessionId,
       player_id: targetPlayerId,
       status: "waiting",
@@ -522,7 +526,7 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
   }
 
   // 2. Automatically remove player from the active queue so they are not matched or called
-  const { data: removed, error: queueError } = await supabase
+  const { data: removed, error: queueError } = await createAdminClient()
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)

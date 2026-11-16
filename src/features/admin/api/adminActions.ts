@@ -8,6 +8,7 @@ import type { UserRole, CourtStatus, Profile } from "@/types";
 import { isRootSystemAdmin, requireAdminUser, requireSystemAdmin } from "@/lib/security/authGuard";
 import { DEFAULT_PASSWORD } from "@/lib/security/defaultPassword";
 import { deleteAvatar } from "@/features/players/server/avatarStorage";
+import { createPlayerAccount } from "@/features/players/server/createPlayer";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, AdjustRatingSchema, sanitizeString } from "@/lib/security/validation";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
@@ -539,52 +540,23 @@ export async function createWalkInPlayer(params: {
     }
   }
 
-  const rawEmail =
-    providedEmail ||
-    `${params.isGuest ? "guest" : "unreg"}_${Date.now()}_${Math.floor(Math.random() * 1000)}@dctechmicro.local`;
-  const newId = crypto.randomUUID();
-
   const formattedName = params.isGuest
     ? cleanName.includes("(Guest)") ? cleanName : `${cleanName} (Guest)`
     : cleanName;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      id: newId,
-      email: rawEmail,
-      full_name: formattedName,
-      display_name: cleanName,
-      role: "player",
-      skill_rating: validation.data.skillRating,
-      is_active: true,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("createWalkInPlayer error:", error.message);
-    return { error: error.message };
+  // Every profile needs a sign-in account (profiles.id references auth.users), so
+  // create the account first; with an email they can sign in and set a password.
+  const created = await createPlayerAccount({
+    fullName: formattedName,
+    displayName: cleanName,
+    email: providedEmail || undefined,
+    rating: validation.data.skillRating,
+  });
+  if (created.error || !created.id) {
+    console.error("createWalkInPlayer error:", created.error);
+    return { error: created.error || "The player couldn't be added." };
   }
-
-  // Provision Supabase Auth User with default password 'dctech123' if corporate email provided
-  if (providedEmail && providedEmail.endsWith("@dctechmicro.com")) {
-    try {
-      const adminClient = createAdminClient();
-      await adminClient.auth.admin.createUser({
-        email: providedEmail,
-        password: DEFAULT_PASSWORD,
-        email_confirm: true,
-        // Shared default: the user must set their own password on first sign-in.
-        app_metadata: { must_change_password: true },
-        user_metadata: {
-          full_name: formattedName,
-        },
-      });
-    } catch (authErr) {
-      console.warn("Auth user creation note:", authErr);
-    }
-  }
+  const { data } = await supabase.from("profiles").select("*").eq("id", created.id).maybeSingle();
 
   revalidatePath("/admin");
   revalidatePath("/sessions");
