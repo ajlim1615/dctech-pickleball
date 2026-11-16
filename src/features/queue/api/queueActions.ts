@@ -527,6 +527,10 @@ export async function callNextUp(
   _count: number = 4,
   options: { force?: boolean } = {}
 ) {
+  // Only admins put games on court; RLS limits match inserts to admins too.
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
 
   // 0. Guard: Verify court is available and not currently in-play with an active match

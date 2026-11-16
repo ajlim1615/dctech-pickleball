@@ -21,6 +21,9 @@ export async function createMatch(params: {
   teamAPlayerIds: string[];
   teamBPlayerIds: string[];
 }) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
   const supabase = await createClient();
   const format = params.format || (params.teamAPlayerIds.length === 1 ? "singles" : "doubles");
 
