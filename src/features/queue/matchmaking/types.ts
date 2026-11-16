@@ -1,3 +1,5 @@
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
+
 export type MatchingStyle =
   | "balanced"
   | "social_mixer"
@@ -44,6 +46,6 @@ export interface Teams {
 
 export type Decision = Teams | { hold: "not_enough_players"; needed: number } | { hold: "no_skill_match" };
 
-export const DEFAULT_RATING = 2.0;
+export const DEFAULT_RATING = RATING_RULES.start;
 export const DEFAULT_SKILL_SPREAD = 0.75;
 export const WINDOW_SIZE = 6;

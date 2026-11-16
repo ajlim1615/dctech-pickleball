@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 
 /**
  * XSS & SQLi String Sanitizer
@@ -97,7 +98,7 @@ export const WalkInPlayerSchema = z.object({
     .or(z.literal(""))
     .transform((val) => (val ? val.toLowerCase().trim() : undefined)),
   type: z.enum(["guest", "employee"]).default("guest"),
-  skillRating: z.number().min(1.0).max(6.0).default(2.0),
+  skillRating: z.number().min(1.0).max(6.0).default(RATING_RULES.start),
   role: z.enum(["player", "admin"]).default("player"),
 });
 

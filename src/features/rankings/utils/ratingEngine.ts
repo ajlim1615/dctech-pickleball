@@ -6,21 +6,13 @@
  * K × (actual − expected). Pure so it can be unit-tested without Supabase.
  */
 
-/** Everyone starts at Beginner, and losing can't take a rating below it. */
-export const RATING_MIN = 2.0;
-export const RATING_MAX = 6.0;
-/** Starting rating for every player (Beginner). */
-export const STARTING_RATING = RATING_MIN;
+import { RATING_RULES, type RatingRules } from "@/features/rankings/ratingConfig";
 
-/** Base change for a single game between evenly matched teams. */
-const BASE_K = 0.1;
-/** Rating gap that makes the stronger team ~91% favourite (Elo's 400 points, rescaled). */
-const SCALE = 1.0;
-/** Players with fewer games than this move faster until their rating settles. */
-const PROVISIONAL_GAMES = 10;
-const PROVISIONAL_MULTIPLIER = 1.5;
-/** A blowout adds at most this much on top of the base change. */
-const MAX_MARGIN_BONUS = 0.5;
+/** Aliases of the rules config, kept for existing importers. */
+export const RATING_MIN = RATING_RULES.min;
+export const RATING_MAX = RATING_RULES.max;
+/** Starting rating for every player (Beginner). */
+export const STARTING_RATING = RATING_RULES.start;
 
 export interface RatedPlayer {
   id: string;
@@ -36,15 +28,21 @@ export interface RatingChange {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const clamp = (n: number) => Math.min(RATING_MAX, Math.max(RATING_MIN, n));
+const clamp = (n: number, rules: RatingRules) => Math.min(rules.max, Math.max(rules.min, n));
 
-function teamRating(team: RatedPlayer[]): number {
-  return team.reduce((sum, p) => sum + (Number(p.rating) || STARTING_RATING), 0) / Math.max(1, team.length);
+/** How much faster a player with this many games moves; 1 once established. */
+export function kMultiplier(gamesPlayed: number, rules: RatingRules = RATING_RULES): number {
+  const step = rules.newPlayerSchedule.find((s) => gamesPlayed < s.beforeGames);
+  return step ? step.multiplier : 1;
+}
+
+function teamRating(team: RatedPlayer[], rules: RatingRules): number {
+  return team.reduce((sum, p) => sum + (Number(p.rating) || rules.start), 0) / Math.max(1, team.length);
 }
 
 /** Probability that team A beats team B. */
-export function expectedScore(ratingA: number, ratingB: number): number {
-  return 1 / (1 + Math.pow(10, (ratingB - ratingA) / SCALE));
+export function expectedScore(ratingA: number, ratingB: number, rules: RatingRules = RATING_RULES): number {
+  return 1 / (1 + Math.pow(10, (ratingB - ratingA) / rules.scale));
 }
 
 /**
@@ -57,24 +55,24 @@ export function calculateRatingChanges(
   teamB: RatedPlayer[],
   scoreA: number,
   scoreB: number,
-  targetPoints: number
+  targetPoints: number,
+  rules: RatingRules = RATING_RULES
 ): RatingChange[] {
   if (teamA.length === 0 || teamB.length === 0 || scoreA === scoreB) return [];
 
   const aWon = scoreA > scoreB;
-  const expectedA = expectedScore(teamRating(teamA), teamRating(teamB));
+  const expectedA = expectedScore(teamRating(teamA, rules), teamRating(teamB, rules), rules);
 
   const margin = Math.abs(scoreA - scoreB);
   const isResultOnly = Math.max(scoreA, scoreB) === 1;
   const marginRatio = isResultOnly ? 0 : Math.min(1, margin / Math.max(1, targetPoints));
-  const k = BASE_K * (1 + MAX_MARGIN_BONUS * marginRatio);
+  const k = rules.baseK * (1 + rules.maxMarginBonus * marginRatio);
 
   const deltaA = k * ((aWon ? 1 : 0) - expectedA);
 
   const change = (p: RatedPlayer, delta: number): RatingChange => {
-    const oldRating = round2(Number(p.rating) || STARTING_RATING);
-    const playerK = p.gamesPlayed < PROVISIONAL_GAMES ? PROVISIONAL_MULTIPLIER : 1;
-    const newRating = round2(clamp(oldRating + delta * playerK));
+    const oldRating = round2(Number(p.rating) || rules.start);
+    const newRating = round2(clamp(oldRating + delta * kMultiplier(p.gamesPlayed, rules), rules));
     return { playerId: p.id, oldRating, newRating, change: round2(newRating - oldRating) };
   };
 
@@ -92,9 +90,10 @@ export function correctionDeltas(
   newScoreA: number,
   newScoreB: number,
   targetPoints: number,
-  oldChanges: Record<string, number>
+  oldChanges: Record<string, number>,
+  rules: RatingRules = RATING_RULES
 ): { playerId: string; newChange: number; delta: number }[] {
-  return calculateRatingChanges(teamA, teamB, newScoreA, newScoreB, targetPoints).map((c) => ({
+  return calculateRatingChanges(teamA, teamB, newScoreA, newScoreB, targetPoints, rules).map((c) => ({
     playerId: c.playerId,
     newChange: c.change,
     delta: round2(c.change - (oldChanges[c.playerId] ?? 0)),

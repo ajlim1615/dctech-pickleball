@@ -5,8 +5,11 @@ import {
   expectedScore,
   RATING_MAX,
   RATING_MIN,
+  STARTING_RATING,
+  kMultiplier,
   type RatedPlayer,
 } from "@/features/rankings/utils/ratingEngine";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 
 const p = (id: string, rating: number, gamesPlayed = 20): RatedPlayer => ({ id, rating, gamesPlayed });
 
@@ -14,6 +17,12 @@ describe("expectedScore", () => {
   it("is even for equal teams and favours the stronger team", () => {
     expect(expectedScore(3.5, 3.5)).toBeCloseTo(0.5);
     expect(expectedScore(4.0, 3.5)).toBeCloseTo(0.76, 2);
+  });
+});
+
+describe("kMultiplier", () => {
+  it("follows the new-player schedule", () => {
+    expect([0, 4, 5, 14, 15].map((g) => kMultiplier(g))).toEqual([2, 2, 1.5, 1.5, 1]);
   });
 });
 
@@ -52,7 +61,29 @@ describe("calculateRatingChanges", () => {
     const bottom = calculateRatingChanges([p("a", RATING_MIN, 0)], [p("b", RATING_MIN, 0)], 0, 11, 11)[0];
     expect(top.newRating).toBe(RATING_MAX);
     expect(bottom.newRating).toBe(RATING_MIN);
-    expect(RATING_MIN).toBe(2.0);
+  });
+
+  it("starts at 2.0 and floors at 1.5", () => {
+    expect(STARTING_RATING).toBe(2);
+    expect(RATING_MIN).toBe(1.5);
+  });
+
+  it("stops at the hard minimum", () => {
+    const changes = calculateRatingChanges([p("a", 1.5)], [p("b", 1.5)], 0, 11, 11);
+    expect(changes[0].newRating).toBe(1.5);
+    expect(changes[1].change).toBeGreaterThan(0);
+  });
+
+  it("even game, first game: winners +0.1, losers -0.1", () => {
+    const changes = calculateRatingChanges([p("a", 3, 0)], [p("b", 3, 0)], 1, 0, 11);
+    expect(changes[0].change).toBe(0.1);
+    expect(changes[1].change).toBe(-0.1);
+  });
+
+  it("rules can be overridden", () => {
+    const base = calculateRatingChanges([p("a", 3)], [p("b", 3)], 1, 0, 11)[0].change;
+    const doubled = calculateRatingChanges([p("a", 3)], [p("b", 3)], 1, 0, 11, { ...RATING_RULES, baseK: 0.2 })[0].change;
+    expect(doubled).toBeCloseTo(base * 2, 2);
   });
 
   it("returns nothing for an empty team or a tie", () => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import {
   ShieldCheck,
   Calendar,
@@ -326,7 +327,7 @@ export function AdminDashboard({
   async function handleRatingChange(playerId: string, delta: number) {
     const player = employees.find((e) => e.id === playerId);
     if (!player || player.email?.toLowerCase() === "admin@dctechmicro.com") return;
-    const newRating = Math.max(2.0, Math.min(6.0, (player.skill_rating || 2.0) + delta));
+    const newRating = Math.max(RATING_RULES.min, Math.min(RATING_RULES.max, (player.skill_rating || RATING_RULES.start) + delta));
     const rounded = Math.round(newRating * 100) / 100;
     setEmployees((prev) =>
       prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
