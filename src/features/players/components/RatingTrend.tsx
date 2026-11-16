@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatPHTDate } from "@/lib/timezone";
 import { formatRating } from "@/lib/utils";
 import type { PlayerRatingHistory } from "@/types";
+import { gameRows, isAdminAdjustment, lastGameChange } from "../utils/ratingHistory";
 
 const W = 320;
 const H = 96;
@@ -15,6 +16,7 @@ interface Point {
   rating: number;
   change: number;
   date: string | null;
+  admin?: boolean;
 }
 
 /** A player's rating over their ranked games: one line, latest value marked, hover for detail. */
@@ -23,13 +25,19 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
     if (history.length === 0) return [];
     return [
       { rating: Number(history[0].old_rating), change: 0, date: null },
-      ...history.map((h) => ({ rating: Number(h.new_rating), change: Number(h.rating_change), date: h.recorded_at })),
+      ...history.map((h) => ({
+        rating: Number(h.new_rating),
+        change: Number(h.rating_change),
+        date: h.recorded_at,
+        admin: isAdminAdjustment(h),
+      })),
     ];
   }, [history]);
   const [hover, setHover] = useState<number | null>(null);
 
-  const last = history[history.length - 1];
-  const lastChange = last ? Number(last.rating_change) : 0;
+  // Admin edits move the line but are not games: keep them out of the game figures.
+  const gameCount = useMemo(() => gameRows(history).length, [history]);
+  const lastChange = lastGameChange(history);
 
   if (points.length < 2) {
     return (
@@ -79,7 +87,7 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
           viewBox={`0 0 ${W} ${H}`}
           className="h-28 w-full touch-none"
           role="img"
-          aria-label={`Rating over your last ${history.length} ranked games, from ${formatRating(points[0].rating)} to ${formatRating(currentRating)}`}
+          aria-label={`Rating over your last ${gameCount} ranked games, from ${formatRating(points[0].rating)} to ${formatRating(currentRating)}`}
           onPointerMove={onMove}
           onPointerDown={onMove}
           onPointerLeave={() => setHover(null)}
@@ -118,7 +126,8 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
               <span className="text-slate-500 dark:text-slate-400">
                 {" "}
                 ({active.change > 0 ? "+" : ""}
-                {active.change.toFixed(2)}), {formatPHTDate(active.date)}
+                {active.change.toFixed(2)}
+                {active.admin ? ", adjusted by admin" : ""}), {formatPHTDate(active.date)}
               </span>
             ) : (
               <span className="text-slate-500 dark:text-slate-400"> starting rating</span>
@@ -128,7 +137,7 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
       </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {history.length} ranked {history.length === 1 ? "game" : "games"}. Hover or tap the line for each game.
+        {gameCount} ranked {gameCount === 1 ? "game" : "games"}. Hover or tap the line for each game.
       </p>
 
       {/* Same data as a table for screen readers */}
@@ -139,6 +148,7 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
             <th>Date</th>
             <th>Rating</th>
             <th>Change</th>
+            <th>Type</th>
           </tr>
         </thead>
         <tbody>
@@ -147,6 +157,7 @@ export function RatingTrend({ history, currentRating }: { history: PlayerRatingH
               <td>{formatPHTDate(h.recorded_at)}</td>
               <td>{formatRating(Number(h.new_rating))}</td>
               <td>{Number(h.rating_change).toFixed(2)}</td>
+              <td>{isAdminAdjustment(h) ? "Adjusted by admin" : "Ranked game"}</td>
             </tr>
           ))}
         </tbody>

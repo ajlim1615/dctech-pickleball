@@ -164,12 +164,12 @@ export async function finalizeMatch(
 
   // Ranked games: rate from each player's rating and game count before this game
   // (record_match_result bumps games_played), then save everything at once.
-  const ratingChanges = meta.isRanked
-    ? await (async () => {
-        const { teamA, teamB } = await loadRatedTeams(supabase, matchId);
-        return calculateRatingChanges(teamA, teamB, teamAScore, teamBScore, meta.targetPoints);
-      })()
-    : [];
+  let ratingChanges: ReturnType<typeof calculateRatingChanges> = [];
+  if (meta.isRanked) {
+    const rated = await loadRatedTeams(supabase, matchId);
+    if ("error" in rated) return { error: rated.error };
+    ratingChanges = calculateRatingChanges(rated.teamA, rated.teamB, teamAScore, teamBScore, meta.targetPoints);
+  }
 
   // One transaction: score, winner, court, totals, ratings and history. It only
   // saves a game that is still in progress, so a double tap can't record it twice.
@@ -366,29 +366,44 @@ export const getMatches = getMatchesList;
 
 type RatedTeams = { teamA: RatedPlayer[]; teamB: RatedPlayer[] };
 
+const RATED_LOAD_ERROR = "Couldn't read the players' ratings. Nothing was changed; please try again.";
+
+/** Never defaults a missing rating: a failed or incomplete read is an error, so a real rating can't be overwritten. */
 async function loadRatedTeams(
   supabase: Awaited<ReturnType<typeof createClient>>,
   matchId: string
-): Promise<RatedTeams> {
-  const { data: rows } = await supabase
+): Promise<RatedTeams | { error: string }> {
+  const { data: rows, error: rowsError } = await supabase
     .from("match_players")
     .select("player_id, team")
     .eq("match_id", matchId);
+  if (rowsError) {
+    console.error("loadRatedTeams (match_players) failed:", rowsError.message);
+    return { error: RATED_LOAD_ERROR };
+  }
   const teams: RatedTeams = { teamA: [], teamB: [] };
   if (!rows || rows.length === 0) return teams;
 
-  const { data: profiles } = await supabase
+  const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
     .select("id, skill_rating, games_played")
     .in("id", rows.map((r) => r.player_id));
-  const byId = new Map((profiles || []).map((p) => [p.id, p]));
+  if (profilesError || !profiles) {
+    console.error("loadRatedTeams (profiles) failed:", profilesError?.message);
+    return { error: RATED_LOAD_ERROR };
+  }
+  const byId = new Map(profiles.map((p) => [p.id, p]));
 
   for (const row of rows) {
     const profile = byId.get(row.player_id);
+    if (!profile) {
+      console.error("loadRatedTeams: no profile for player", row.player_id);
+      return { error: RATED_LOAD_ERROR };
+    }
     const player: RatedPlayer = {
       id: row.player_id,
-      rating: Number(profile?.skill_rating ?? 2.0),
-      gamesPlayed: Number(profile?.games_played ?? 0),
+      rating: Number(profile.skill_rating),
+      gamesPlayed: Number(profile.games_played ?? 0),
     };
     (row.team === "team_a" ? teams.teamA : teams.teamB).push(player);
   }
@@ -420,7 +435,7 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
   const rule = { targetPoints: meta.targetPoints, winByTwo: meta.winByTwo, trackScores: meta.trackScores };
   const oldScore = { a: Number(match.team_a_score ?? 0), b: Number(match.team_b_score ?? 0) };
 
-  const [{ teamA, teamB }, { data: historyRows }] = await Promise.all([
+  const [rated, { data: historyRows }] = await Promise.all([
     loadRatedTeams(supabase, matchId),
     supabase
       .from("player_ratings_history")
@@ -430,6 +445,8 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
 
   // Rate each player as they were when the game was played: count only the ranked
   // games they had before it, so provisional players keep their faster rate.
+  if ("error" in rated) return { error: rated.error };
+  const { teamA, teamB } = rated;
   const gamesAfter = new Map<string, number>();
   await Promise.all(
     (historyRows || []).map(async (h) => {
