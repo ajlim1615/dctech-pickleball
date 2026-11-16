@@ -3,6 +3,7 @@
 import { Crown, Eye } from "lucide-react";
 import { formatRating } from "@/lib/utils";
 import type { RankedPlayer } from "../api/rankingActions";
+import { RATING_RULES } from "../ratingConfig";
 
 /** Metal finishes for the three podium places. */
 const PLACES = {
@@ -144,19 +145,53 @@ function Finisher({
   );
 }
 
+/** A podium place nobody has earned yet: the same step with an empty dashed ring. */
+function OpenSpot({ place, delay }: { place: Place; delay: number }) {
+  const p = PLACES[place];
+
+  return (
+    <li className={`flex flex-col items-center ${place === 1 ? "order-2" : place === 2 ? "order-1" : "order-3"}`}>
+      <div className="podium-player relative flex flex-col items-center text-center px-1" style={{ animationDelay: `${delay + 350}ms` }}>
+        {place === 1 && <Crown className="relative mb-1 h-5 w-5 sm:h-7 sm:w-7 text-slate-600" strokeWidth={2.2} aria-hidden />}
+        <div
+          className={`${p.avatar} rounded-full border-2 border-dashed`}
+          style={{ borderColor: p.stepBorder }}
+          aria-hidden
+        />
+        <p className="mt-4 text-xs sm:text-base font-bold leading-tight text-slate-400">Open spot</p>
+        <span className="sr-only">{`${p.label}, rank ${place}`}</span>
+      </div>
+
+      <div
+        className={`podium-step mt-4 w-full ${p.height} rounded-t-2xl border-x border-t border-dashed flex items-start justify-center pt-2 sm:pt-3`}
+        style={{ background: p.step, borderColor: p.stepBorder, animationDelay: `${delay}ms` }}
+        aria-hidden
+      >
+        <span
+          className="font-black leading-none select-none text-3xl sm:text-6xl opacity-50"
+          style={{ backgroundImage: p.metal, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
+        >
+          {place}
+        </span>
+      </div>
+    </li>
+  );
+}
+
 /** The top three on stepped podium blocks: 2 · 1 · 3, with 1st raised and lit. */
 export function RankingsPodium({
-  top,
+  slots,
   totalPlayers,
   onView,
   onPhoto,
 }: {
-  top: RankedPlayer[];
+  /** Always three entries, 1st to 3rd; null is an open spot. */
+  slots: (RankedPlayer | null)[];
   totalPlayers: number;
   onView: (p: RankedPlayer) => void;
   onPhoto: (p: RankedPlayer) => void;
 }) {
-  const noGamesYet = top.every((p) => (p.games_played || 0) === 0);
+  const hasOpenSpot = slots.some((p) => p === null);
   // Rise order: 3rd, 2nd, then 1st last for the payoff.
   const delays: Record<Place, number> = { 3: 0, 2: 150, 1: 300 };
 
@@ -182,17 +217,19 @@ export function RankingsPodium({
 
       <ol className="mt-8 grid grid-cols-3 items-end gap-x-2 sm:gap-x-6 max-w-3xl mx-auto">
         {/* DOM order 1, 2, 3 for screen readers; shown 2 · 1 · 3 like a real podium */}
-        {top.map((player, i) => {
+        {slots.map((player, i) => {
           const place = (i + 1) as Place;
-          return (
+          return player ? (
             <Finisher key={player.id} player={player} place={place} delay={delays[place]} onView={onView} onPhoto={onPhoto} />
+          ) : (
+            <OpenSpot key={`open-${place}`} place={place} delay={delays[place]} />
           );
         })}
       </ol>
 
-      {noGamesYet && (
+      {hasOpenSpot && (
         <p className="relative -mx-4 sm:-mx-10 border-t border-white/10 bg-black/20 px-4 py-2.5 text-center text-xs text-slate-400">
-          No ranked games yet, so everyone is tied at the start. The podium fills in after the first ranked game.
+          Players need {RATING_RULES.qualifyGames} ranked games to get ranked.
         </p>
       )}
     </section>

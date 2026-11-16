@@ -20,6 +20,8 @@ const SORT_LABELS: Record<SortField, string> = {
 interface RankingsLadderProps {
   rows: RankedPlayer[];
   search: string;
+  /** Shown when there are no rows and no search is active. */
+  emptyMessage: string;
   sortField: SortField;
   sortOrder: SortOrder;
   onToggleSort: (field: SortField) => void;
@@ -27,7 +29,7 @@ interface RankingsLadderProps {
   onPhoto: (p: RankedPlayer) => void;
 }
 
-export function RankingsLadder({ rows, search, sortField, sortOrder, onToggleSort, onView, onPhoto }: RankingsLadderProps) {
+export function RankingsLadder({ rows, search, emptyMessage, sortField, sortOrder, onToggleSort, onView, onPhoto }: RankingsLadderProps) {
   function renderSortIcon(field: SortField) {
     if (sortField !== field) {
       return <ArrowUpDown className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />;
@@ -70,7 +72,7 @@ export function RankingsLadder({ rows, search, sortField, sortOrder, onToggleSor
 
               {rows.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-                  No players match &quot;{search}&quot;. Try a first or last name.
+                  {search.trim() ? <>No players match &quot;{search}&quot;. Try a first or last name.</> : emptyMessage}
                 </p>
               ) : (
                 <ol className="divide-y divide-slate-100 dark:divide-slate-800/70">
@@ -90,7 +92,7 @@ export function RankingsLadder({ rows, search, sortField, sortOrder, onToggleSor
                         key={player.id}
                         className="grid grid-cols-[44px_minmax(0,1fr)_auto] sm:grid-cols-[64px_minmax(0,1fr)_88px_72px_72px_80px_88px] items-center gap-2 px-3 sm:px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                       >
-                        <span className={`font-mono text-sm font-black tabular-nums ${medal}`}>{player.rank === null ? "—" : `#${player.rank}`}</span>
+                        <span className={`font-mono text-sm font-black tabular-nums ${medal}`}>{player.rank === null ? "New" : `#${player.rank}`}</span>
 
                         <div className="flex items-center gap-3 min-w-0">
                           {player.avatar_url ? (

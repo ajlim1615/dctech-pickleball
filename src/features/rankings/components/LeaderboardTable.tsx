@@ -6,8 +6,10 @@ import { Card } from "@/components/ui/card";
 import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
 import type { RankedPlayer } from "../api/rankingActions";
 import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
+import { podiumSlots } from "../utils/podium";
 import { RankingsPodium } from "./RankingsPodium";
 import { RankingsLadder, type SortField, type SortOrder } from "./RankingsLadder";
+import { NewPlayersList } from "./NewPlayersList";
 import { PlayerStatsModal } from "./PlayerStatsModal";
 
 interface LeaderboardTableProps {
@@ -47,7 +49,11 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
       let comparison = 0;
       switch (sortField) {
         case "rank":
-          comparison = (a.rank ?? 1e9) - (b.rank ?? 1e9);
+          // New players have no rank: last in either direction.
+          if (a.rank === null || b.rank === null) {
+            return a.rank === b.rank ? 0 : a.rank === null ? 1 : -1;
+          }
+          comparison = a.rank - b.rank;
           break;
         case "name":
           comparison = (a.full_name || a.display_name || "").localeCompare(
@@ -98,7 +104,9 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
 
   // The podium already shows the top three, so the list starts at #4 in the default view.
   const isDefaultView = sortField === "rank" && sortOrder === "asc" && !search.trim();
-  const listRows = isDefaultView ? sorted.filter((p) => p.rank === null || p.rank > 3) : sorted;
+  const rankedCount = rankings.filter((p) => p.rank !== null).length;
+  const listRows = isDefaultView ? sorted.filter((p) => p.rank !== null && p.rank > 3) : sorted;
+  const newPlayers = sorted.filter((p) => p.rank === null);
 
   function openPhoto(p: RankedPlayer) {
     if (!p.avatar_url) return;
@@ -118,7 +126,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
       ) : (
         <>
           <RankingsPodium
-            top={rankings.filter((p) => p.rank !== null).slice(0, 3)}
+            slots={podiumSlots(rankings)}
             totalPlayers={rankings.length}
             onView={handleViewPlayer}
             onPhoto={openPhoto}
@@ -163,16 +171,22 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
               </div>
             </div>
 
-            <RankingsLadder
-              rows={listRows}
-              search={search}
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onToggleSort={toggleSort}
-              onView={handleViewPlayer}
-              onPhoto={openPhoto}
-            />
+            {/* Ranked players all on the podium: nothing to list below it */}
+            {!(isDefaultView && listRows.length === 0 && rankedCount > 0) && (
+              <RankingsLadder
+                rows={listRows}
+                search={search}
+                emptyMessage="No one is ranked yet."
+                sortField={sortField}
+                sortOrder={sortOrder}
+                onToggleSort={toggleSort}
+                onView={handleViewPlayer}
+                onPhoto={openPhoto}
+              />
+            )}
           </section>
+
+          {isDefaultView && <NewPlayersList players={newPlayers} onView={handleViewPlayer} onPhoto={openPhoto} />}
         </>
       )}
 

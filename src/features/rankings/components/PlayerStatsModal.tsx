@@ -108,7 +108,7 @@ export function PlayerStatsModal({ player, matches, isLoading: isLoadingMatches,
                       {player.full_name || player.display_name}
                     </h2>
                     <Badge variant="volt" className="text-xs font-mono font-bold">
-                      {player.rank === null ? "—" : `#${player.rank}`} Rank
+                      {player.rank === null ? "New" : `#${player.rank} Rank`}
                     </Badge>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
