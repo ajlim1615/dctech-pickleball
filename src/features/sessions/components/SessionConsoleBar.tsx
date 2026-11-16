@@ -143,10 +143,13 @@ export function SessionConsoleBar({
             </Button>
           )}
 
-          <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-10 px-3 cursor-pointer">
-            <Users className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Add players</span>
-          </Button>
+          {/* Adding players to the line only works once the session is live. */}
+          {isLive && (
+            <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-10 px-3 cursor-pointer">
+              <Users className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Add players</span>
+            </Button>
+          )}
 
           {isLive && (
             <>

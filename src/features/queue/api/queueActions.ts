@@ -9,6 +9,7 @@ import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -64,12 +65,8 @@ export async function joinQueue(params: {
     .eq("id", params.sessionId)
     .maybeSingle();
 
-  if (sessionRow?.status === "scheduled") {
-    return { error: "The line opens when the session starts. Tap \"I'm going\" to be shuffled into it." };
-  }
-  if (!sessionRow || sessionRow.status !== "active") {
-    return { error: "This session is not open for queueing." };
-  }
+  const closed = queueClosedReason(sessionRow?.status);
+  if (closed) return { error: closed };
 
   const groupId = (params.partnerId || params.guestName) ? crypto.randomUUID() : null;
 
@@ -191,6 +188,10 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
   if (!playerIds || playerIds.length === 0) {
     return { error: "Please select at least one employee." };
   }
+
+  const { data: sessionRow } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const closed = queueClosedReason(sessionRow?.status);
+  if (closed) return { error: closed };
 
   // Exclude system admin from bulk queue
   const { data: profiles } = await supabase.from("profiles").select("id, email").in("id", playerIds);

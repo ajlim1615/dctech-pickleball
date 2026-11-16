@@ -260,7 +260,7 @@ export function SessionQueueLiveBoard({
           </p>
         </div>
 
-        {isAdmin && onOpenBulkQueue && (
+        {isAdmin && onOpenBulkQueue && isSessionActive && !isSessionScheduled && (
           <Button
             type="button"
             variant="outline"
@@ -433,7 +433,11 @@ export function SessionQueueLiveBoard({
         {queue.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-6 text-center">
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No one is in line yet</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">The first four to join play next.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {isSessionScheduled
+                ? "The line is built from everyone going when the session starts."
+                : "The first four to join play next."}
+            </p>
           </div>
         ) : nextMatchup ? (
           <div className="space-y-2">

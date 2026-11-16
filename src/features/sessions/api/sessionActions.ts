@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parsePHTToISO } from "@/lib/timezone";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 import { planStartingLine } from "@/features/queue/startingLine";
+import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -441,6 +442,11 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     if (!user) return { error: "Authentication required to check in." };
     targetPlayerId = user.id;
   }
+
+  // Checking in puts you in the queue, which only opens once the session is live.
+  const { data: sessionRow } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const closed = queueClosedReason(sessionRow?.status);
+  if (closed) return { error: closed };
 
   // Guard: Root system admin cannot check in to play
   const { data: profile } = await supabase.from("profiles").select("email").eq("id", targetPlayerId).single();
