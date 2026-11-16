@@ -177,18 +177,18 @@ export const PLAYER_FLOW_STEPS: FlowStep[] = [
     step: "02",
     title: "Join Queue & Partner Mode",
     description:
-      "Head to Queue and tap Join Open-Play Queue as a Solo Player or pair up with a Coworker to stay on the same doubles team.",
-    href: "/queue",
-    ctaLabel: "Open Queue",
+      "On the live session page, join the rotation as a Solo Player—or pair up with a Coworker or guest if the admin turned on Allow partners.",
+    href: "/sessions",
+    ctaLabel: "Open Sessions",
     accent: "lime",
   },
   {
     step: "03",
     title: "Live Court Call-Up",
     description:
-      "Watch your queue position and estimated wait time. When a court opens, you'll get a live call-up alert with your assigned court.",
-    href: "/queue",
-    ctaLabel: "Check Position",
+      "Watch your queue position and estimated wait time on the session page. When a court opens, you'll get a live call-up alert with your assigned court.",
+    href: "/sessions",
+    ctaLabel: "Check Session",
     accent: "sky",
   },
 ];
@@ -221,7 +221,7 @@ export const PLAYER_APP_FEATURES: AppFeatureCard[] = [
   {
     title: "Company Leaderboard & Ratings",
     description:
-      "Official scores recorded in ranked sessions automatically adjust your DUPR skill rating and update the Gold, Silver, and Bronze podium.",
+      "Official scores recorded in ranked sessions automatically adjust your skill rating and update the Gold, Silver, and Bronze podium.",
     href: "/rankings",
     ctaLabel: "View Rankings",
     iconName: "trophy",
@@ -237,7 +237,7 @@ export const PLAYER_APP_FEATURES: AppFeatureCard[] = [
   {
     title: "Player Profile & Rating History",
     description:
-      "Update your profile details and inspect your personal match log and DUPR rating progression over time.",
+      "Update your profile details and inspect your personal match log and rating progression over time.",
     href: "/profile",
     ctaLabel: "Open Profile",
     iconName: "user",
@@ -249,7 +249,7 @@ export const PARTNER_LOCK_FEATURE = {
   tag: "Team Pairing",
   title: "Coworker Partner Lock",
   description:
-    'When joining with "+ Coworker", the engine guarantees you stay on the same doubles team against 2 challengers.',
+    'Only in sessions where the admin turned on Allow partners. When joining with "+ Coworker", the engine guarantees you stay on the same doubles team against 2 challengers.',
   strategy: "Preserves premade doubles pairs.",
   bestFor: "Coworkers training for doubles tournaments.",
 };
@@ -263,17 +263,17 @@ export const PLAYER_FAQS: FaqItem[] = [
   {
     question: "What if I am called to a court but need a minute (tying shoes / arriving)?",
     answer:
-      "Ask an organizer or click the Bump / Play Next button on your paddle card in the Queue screen. It shifts you down so ready players play immediately and you take the court in the next rotation.",
+      "Ask an organizer or click the Bump / Play Next button on your paddle card in the queue on the session page. It shifts you down so ready players play immediately and you take the court in the next rotation.",
   },
   {
     question: "Can I pair up with a specific colleague for Doubles?",
     answer:
-      'Yes! In the Queue screen, choose "+ Coworker" and pick their name from the employee list. You will be assigned to the same team when called.',
+      'Yes, if the admin turned on Allow partners for that session. Then, in the queue on the session page, choose "+ Coworker" and pick their name from the employee list. You will be assigned to the same team when called. Otherwise everyone joins solo and the game mode makes the teams.',
   },
   {
-    question: "How are match scores recorded and how does DUPR adjust?",
+    question: "How are match scores recorded and how does my rating change?",
     answer:
-      "To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your DUPR rating on the leaderboard (when the session is configured as Ranked).",
+      "To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your rating on the leaderboard (when the session is configured as Ranked).",
   },
   {
     question: "What is the difference between 11-point, 6-point, and Result-Only sessions?",
@@ -385,9 +385,9 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail: "Quickly register walk-in players so they can check in and join the queue immediately.",
       },
       {
-        label: "DUPR Ratings, Roles & Status",
+        label: "Ratings, Roles & Status",
         detail:
-          "Edit player details, manually adjust DUPR ratings, toggle active status, or promote/demote player, staff, and admin roles.",
+          "Edit player details, manually adjust skill ratings, toggle active status, or promote/demote player, staff, and admin roles.",
       },
     ],
   },

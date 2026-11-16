@@ -1,4 +1,4 @@
-import type { MatchingStyle } from "@/features/queue/utils/matchingEngine";
+import type { MatchingStyle } from "@/features/queue/matchmaking";
 
 export type MatchingStyleAccent = "emerald" | "purple" | "sky" | "amber" | "slate";
 
@@ -32,10 +32,10 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     badge: "RECOMMENDED",
     badgeTone: "volt",
     tag: "Algorithm Pairing",
-    adminSummary: "Balances teams by rating. Avoids repeat matchups when possible.",
+    adminSummary: "Balances teams by rating. Avoids repeat partners and opponents when possible.",
     guideDescription:
-      "Sorts the 4 called players by skill rating: Team A (#1 Best + #4 Lowest) vs Team B (#2 + #3 Middle).",
-    strategy: "Equalizes combined team DUPR.",
+      "Picks four from the first six in line (the first person is always included) and splits them into the most even teams by rating, preferring people who haven't partnered or played each other this session.",
+    strategy: "Evens out team ratings and avoids repeats.",
     bestFor: "Competitive matches without blowouts.",
     accent: "emerald",
     adminTier: "primary",
@@ -45,10 +45,10 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     label: "Social Mix",
     badge: "CASUAL / SOCIAL",
     badgeTone: "purple",
-    tag: "Shuffle",
+    tag: "Avoids Repeats",
     adminSummary: "Avoids repeat partners and opponents. Doesn't use ratings.",
     guideDescription:
-      "Shuffles called players to minimize repeat partners and opponents across games, disregarding ratings.",
+      "Picks four from the first six in line and avoids repeat partners and opponents. Ratings are ignored, and equally good options are chosen at random.",
     strategy: "Maximizes player mingling and new interactions.",
     bestFor: "Team building and welcome sessions.",
     accent: "purple",
@@ -57,12 +57,12 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
   skill_separated: {
     id: "skill_separated",
     label: "Skill Separated",
-    badge: "TIER BASED",
+    badge: "RATING BASED",
     badgeTone: "sky",
-    tag: "Skill Tiers",
+    tag: "Closest Skill",
     adminSummary: "Keeps similar skill levels together. May leave a court waiting.",
     guideDescription:
-      "Groups similar skill levels together (e.g. Advanced vs Advanced, Beginner vs Beginner).",
+      "Pairs the first person in line with the next closest-rated players from the first ten waiting, so everyone on court is within the session's rating gap.",
     strategy: "High vs High and Beginner vs Beginner.",
     bestFor: "High-paced competitive sessions.",
     accent: "sky",
@@ -73,12 +73,12 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     label: "Winners / Losers",
     badge: "CHALLENGE",
     badgeTone: "amber",
-    tag: "Split Winners",
+    tag: "By Last Result",
     adminSummary: "Winners play winners. Losers play losers.",
     guideDescription:
-      "The winning pair stays on court, splits into opponents, and takes on 2 incoming challengers from the waiting queue.",
-    strategy: "Winner stays and splits with challengers.",
-    bestFor: "Challenge ladders and court streaks.",
+      "Groups people by their last result: winners with winners and losers with losers. Newcomers fit either, and the engine reaches a little down the line to find a matching group.",
+    strategy: "Winners play winners, losers play losers.",
+    bestFor: "Keeping games close in level after a few rounds.",
     accent: "amber",
     adminTier: "primary",
   },
@@ -88,7 +88,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     badge: "COURT TIERS",
     badgeTone: "sky",
     tag: "Dedicated Courts",
-    adminSummary: "Give each skill group its own courts and queue.",
+    adminSummary: "Works like Skill Separated for now. Courts by skill level coming soon.",
     guideDescription:
       "Assigns dedicated courts by skill tier so players naturally rotate within their skill bracket.",
     strategy: "Separates court pools by rating tier.",
@@ -102,7 +102,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     badge: "MIXED",
     badgeTone: "purple",
     tag: "Gender Balanced",
-    adminSummary: "Every team has one male and one female player.",
+    adminSummary: "Shuffled teams for now. One man and one woman per team coming soon.",
     guideDescription:
       "Pairs teams for mixed doubles play and shuffles matchups to keep games varied.",
     strategy: "Balances mixed doubles pairings across courts.",
@@ -116,7 +116,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     badge: "KING OF COURT",
     badgeTone: "amber",
     tag: "Court Ladder",
-    adminSummary: "Winners move up. Losers move down.",
+    adminSummary: "Winners move up a court. Losers rejoin the line.",
     guideDescription:
       "Winning pairs hold or move up toward the top court while challengers rotate in and split pairings.",
     strategy: "Winners advance and split against incoming challengers.",
@@ -130,7 +130,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     badge: "BETA",
     badgeTone: "purple",
     tag: "Team vs Team",
-    adminSummary: "Two groups compete. Every match is one group vs the other.",
+    adminSummary: "Shuffled teams for now. Group vs group coming soon.",
     guideDescription:
       "Pits two groups or departments against each other so every court match counts toward group bragging rights.",
     strategy: "Shuffles matchups between opposing groups.",
