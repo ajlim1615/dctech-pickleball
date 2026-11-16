@@ -7,8 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, resetRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { SignInSchema, MagicLinkSchema, sanitizeString } from "@/lib/security/validation";
 
-/** Shared starting password for admin-created accounts; never allowed as a chosen password. */
-const DEFAULT_PASSWORD = "dctech123";
+import { DEFAULT_PASSWORD } from "@/lib/security/defaultPassword";
 
 export async function signInWithEmail(formData: FormData) {
   const rawEmail = formData.get("email") as string;

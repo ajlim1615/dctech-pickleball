@@ -59,6 +59,22 @@ export async function requireAdminUser(): Promise<{ error?: string; context?: Au
 }
 
 /**
+ * Server-side guard for actions only the System Admin account may take: changing a
+ * player's rating, name, photo or role, and resetting passwords. Regular admins run
+ * sessions but can't change who people are.
+ */
+export async function requireSystemAdmin(): Promise<{ error?: string; context?: AuthContext }> {
+  const authRes = await requireAuthenticatedUser();
+  if (authRes.error || !authRes.context) {
+    return { error: authRes.error || "Authentication required." };
+  }
+  if (!isRootSystemAdmin(authRes.context.email)) {
+    return { error: "Only the System Admin account (admin@dctechmicro.com) can do this." };
+  }
+  return authRes;
+}
+
+/**
  * Checks if target email is the root system admin account.
  */
 export function isRootSystemAdmin(email?: string | null): boolean {

@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole, CourtStatus, Profile } from "@/types";
 
-import { requireAdminUser } from "@/lib/security/authGuard";
+import { isRootSystemAdmin, requireAdminUser, requireSystemAdmin } from "@/lib/security/authGuard";
+import { DEFAULT_PASSWORD } from "@/lib/security/defaultPassword";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, AdjustRatingSchema, sanitizeString } from "@/lib/security/validation";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
@@ -14,8 +15,8 @@ import { parseCourtCount, parseSkillSpread } from "@/lib/utils";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
-  // Server-side RBAC Guard
-  const auth = await requireAdminUser();
+  // Only the System Admin changes who a player is (name, email).
+  const auth = await requireSystemAdmin();
   if (auth.error) return { error: auth.error };
 
   // Rate Limiting
@@ -71,7 +72,7 @@ export async function updatePlayerDetails(userId: string, fullName: string, emai
       const adminClient = createAdminClient();
       await adminClient.auth.admin.createUser({
         email: cleanEmail,
-        password: "dctech123",
+        password: DEFAULT_PASSWORD,
         email_confirm: true,
         // Shared default: the user must set their own password on first sign-in.
         app_metadata: { must_change_password: true },
@@ -93,9 +94,10 @@ export async function updatePlayerDetails(userId: string, fullName: string, emai
 }
 
 export async function updatePlayerRole(userId: string, role: UserRole) {
-  // Server-side RBAC Guard
-  const auth = await requireAdminUser();
+  // Only the System Admin makes someone an admin or takes it away.
+  const auth = await requireSystemAdmin();
   if (auth.error) return { error: auth.error };
+  if (role !== "player" && role !== "admin") return { error: "A player can only be made a Player or an Admin." };
 
   // Rate Limiting
   const rateLimit = checkRateLimit(auth.context?.userId || "admin", "admin_role_update", RATE_LIMIT_CONFIGS.ADMIN_ACTIONS);
@@ -122,8 +124,8 @@ export async function updatePlayerRole(userId: string, role: UserRole) {
 }
 
 export async function adjustPlayerRating(userId: string, newRating: number) {
-  // Server-side RBAC Guard
-  const auth = await requireAdminUser();
+  // Only the System Admin sets a rating by hand; games move it otherwise.
+  const auth = await requireSystemAdmin();
   if (auth.error) return { error: auth.error };
 
   // Rate Limiting
@@ -304,9 +306,9 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
   return { success: true, courts: updatedCourts || [] };
 }
 
-/** Admin removes a player's profile photo (e.g. an inappropriate picture). Only the photo is cleared. */
+/** The System Admin removes a player's profile photo (e.g. an inappropriate picture). Only the photo is cleared. */
 export async function removePlayerPhoto(userId: string) {
-  const auth = await requireAdminUser();
+  const auth = await requireSystemAdmin();
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
@@ -324,6 +326,47 @@ export async function removePlayerPhoto(userId: string) {
   revalidatePath("/profile");
   revalidatePath("/");
   return { success: true };
+}
+
+/**
+ * System Admin only: puts a player's password back to the shared starting password.
+ * They must choose a new one the next time they sign in. Players without a sign-in
+ * account (guests, walk-ins without an email) have no password to reset.
+ */
+export async function resetPlayerPassword(userId: string) {
+  const auth = await requireSystemAdmin();
+  if (auth.error) return { error: auth.error };
+
+  const rateLimit = checkRateLimit(auth.context?.userId || "admin", "admin_password_reset", RATE_LIMIT_CONFIGS.ADMIN_ACTIONS);
+  if (!rateLimit.success) return { error: rateLimit.error };
+
+  const supabase = await createClient();
+  const { data: target } = await supabase
+    .from("profiles")
+    .select("full_name, display_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!target) return { error: "Player not found." };
+  if (isRootSystemAdmin(target.email)) {
+    return { error: "The System Admin password can't be reset here." };
+  }
+
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(userId, {
+    password: DEFAULT_PASSWORD,
+    app_metadata: { must_change_password: true },
+  });
+  if (error) {
+    const noAccount = /not.?found|user_not_found/i.test(error.message);
+    return {
+      error: noAccount
+        ? `${target.full_name || target.display_name || "This player"} has no sign-in account yet, so there's no password to reset.`
+        : `The password couldn't be reset: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/admin");
+  return { success: true as const };
 }
 
 export async function togglePlayerActiveStatus(userId: string, isActive: boolean) {
@@ -528,7 +571,7 @@ export async function createWalkInPlayer(params: {
       const adminClient = createAdminClient();
       await adminClient.auth.admin.createUser({
         email: providedEmail,
-        password: "dctech123",
+        password: DEFAULT_PASSWORD,
         email_confirm: true,
         // Shared default: the user must set their own password on first sign-in.
         app_metadata: { must_change_password: true },

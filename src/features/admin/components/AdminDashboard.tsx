@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
@@ -20,31 +20,22 @@ import {
   FastForward,
   ArrowLeftRight,
   UserCheck,
-  UserX,
   Lock,
   Layers,
-  Search,
-  Filter,
-  Mail,
   Trophy,
   ChevronDown,
   ChevronUp,
-  Star,
-  Sparkles,
-  Flame,
   Download,
   Edit3,
   Pencil,
   XCircle,
   ExternalLink,
-  Power,
   AlertTriangle,
   Loader2,
   History,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ADMIN_PRIMARY_MATCHING_STYLES,
   ADMIN_MORE_MATCHING_STYLES,
@@ -52,12 +43,15 @@ import {
 } from "@/features/queue/constants/matchingStyles";
 import { Modal } from "@/components/ui/modal";
 import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
+import { PlayerDirectory } from "./PlayerDirectory";
+import { RATING_PRESETS, ratingLevel } from "../utils/playerDirectory";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import {
   toggleCourtStatus,
   updatePlayerRole,
   adjustPlayerRating,
+  resetPlayerPassword,
   resetSessionQueue,
   assignStaffToCourt,
   setRentedCourtCount,
@@ -86,6 +80,8 @@ interface AdminDashboardProps {
   initialCourts?: ActiveCourtView[];
   /** RSVP head count per upcoming session. */
   rsvpCounts?: Record<string, number>;
+  /** Signed in as admin@dctechmicro.com: the only account that can change a player's rating, name, photo or role, or reset a password. */
+  isSystemAdmin?: boolean;
 }
 
 export function AdminDashboard({
@@ -93,6 +89,7 @@ export function AdminDashboard({
   initialSessions = [],
   initialCourts = [],
   rsvpCounts = {},
+  isSystemAdmin: viewerIsSystemAdmin = false,
 }: AdminDashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide" | "activity">("sessions");
@@ -112,8 +109,11 @@ export function AdminDashboard({
   const [isUpdatingPlayer, setIsUpdatingPlayer] = useState(false);
 
   // Player Tier Category Filter State (Combobox)
-  const [playerTierFilter, setPlayerTierFilter] = useState<string>("all");
-  const [playerSearch, setPlayerSearch] = useState<string>("");
+  // Change-rating dialog (System Admin)
+  const [ratingTarget, setRatingTarget] = useState<Profile | null>(null);
+  const [ratingDraft, setRatingDraft] = useState("");
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [isSavingRating, setIsSavingRating] = useState(false);
 
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isSubmittingSession, setIsSubmittingSession] = useState(false);
@@ -185,17 +185,6 @@ export function AdminDashboard({
     }
   }, [isEditingSession]);
 
-  // 6-Star Skill Tiers (Exact Mapping)
-  const SKILL_STAR_TIERS = [
-    { stars: 0, label: "Set skill", dupr: 2.0 },
-    { stars: 1, label: "Beginner (2.0)", dupr: 2.0 },
-    { stars: 2, label: "Adv. Beginner (2.5)", dupr: 2.5 },
-    { stars: 3, label: "Intermediate (3.0)", dupr: 3.0 },
-    { stars: 4, label: "Adv. Intermediate (3.5)", dupr: 3.5 },
-    { stars: 5, label: "Advanced (4.0)", dupr: 4.0 },
-    { stars: 6, label: "Expert (4.5+)", dupr: 4.5 },
-  ];
-
   function getStarSkillInfo(rating?: number | null) {
     const r = Number(rating || 0);
     if (r <= 0) return { stars: 0, label: "Set skill", dupr: 2.0 };
@@ -206,80 +195,6 @@ export function AdminDashboard({
     if (r < 4.25) return { stars: 5, label: "Advanced (4.0)", dupr: 4.0 };
     return { stars: 6, label: "Expert (4.5+)", dupr: 4.5 };
   }
-
-  // Single-pass Skill Tier Counts for Quick Filter Chips
-  const { countBeginners, countIntermediate, countAdvanced, countAdmins, countInactive } = useMemo(() => {
-    let beginners = 0;
-    let intermediate = 0;
-    let advanced = 0;
-    let admins = 0;
-    let inactive = 0;
-
-    for (const e of employees) {
-      if (!e.is_active) {
-        inactive++;
-      }
-      if (e.role === "admin" || e.email?.toLowerCase() === "admin@dctechmicro.com") {
-        admins++;
-      }
-      const s = getStarSkillInfo(e.skill_rating).stars;
-      if (s === 1 || s === 2) beginners++;
-      else if (s === 3 || s === 4) intermediate++;
-      else if (s >= 5) advanced++;
-    }
-
-    return {
-      countBeginners: beginners,
-      countIntermediate: intermediate,
-      countAdvanced: advanced,
-      countAdmins: admins,
-      countInactive: inactive,
-    };
-  }, [employees]);
-
-  function getPlayerTier(rating: number) {
-    const info = getStarSkillInfo(rating);
-    if (info.stars >= 4) return { label: info.label, badge: "border-purple-500/40 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40" };
-    if (info.stars === 3) return { label: info.label, badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40" };
-    if (info.stars === 2) return { label: info.label, badge: "border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40" };
-    return { label: info.label, badge: "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40" };
-  }
-
-  const filteredEmployees = useMemo(() => {
-    const query = playerSearch.trim().toLowerCase();
-
-    return employees.filter((emp) => {
-      if (query) {
-        const matchesSearch =
-          (emp.full_name || emp.display_name || "").toLowerCase().includes(query) ||
-          (emp.email || "").toLowerCase().includes(query);
-        if (!matchesSearch) return false;
-      }
-
-      if (playerTierFilter === "inactive") return !emp.is_active;
-      if (!emp.is_active && playerTierFilter !== "all") return false;
-
-      if (playerTierFilter === "all") return true;
-      if (playerTierFilter === "beginners") {
-        const s = getStarSkillInfo(emp.skill_rating).stars;
-        return s === 1 || s === 2;
-      }
-      if (playerTierFilter === "intermediate") {
-        const s = getStarSkillInfo(emp.skill_rating).stars;
-        return s === 3 || s === 4;
-      }
-      if (playerTierFilter === "advanced") {
-        const s = getStarSkillInfo(emp.skill_rating).stars;
-        return s >= 5;
-      }
-      if (playerTierFilter === "admins") {
-        return emp.role === "admin" || emp.email?.toLowerCase() === "admin@dctechmicro.com";
-      }
-
-      const starInfo = getStarSkillInfo(emp.skill_rating);
-      return starInfo.stars === parseInt(playerTierFilter, 10);
-    });
-  }, [employees, playerSearch, playerTierFilter]);
 
   useEffect(() => {
     setCourts(
@@ -310,47 +225,95 @@ export function AdminDashboard({
     router.refresh();
   }
 
-  async function handleRoleChange(userId: string, newRole: UserRole) {
+  const playerName = (p?: Profile) => p?.full_name || p?.display_name || "this player";
+
+  /** System Admin only. Asks first: making someone an admin gives them the whole admin panel. */
+  function handleRoleChange(userId: string, newRole: UserRole) {
     const emp = employees.find((e) => e.id === userId);
-    if (emp?.email?.toLowerCase() === "admin@dctechmicro.com") {
-      showNotice("System Admin role is permanent and cannot be modified.");
+    if (!emp || emp.role === newRole) return;
+    const name = playerName(emp);
+    const promoting = newRole === "admin";
+    setConfirmModal({
+      isOpen: true,
+      title: promoting ? `Make ${name} an admin?` : `Make ${name} a player?`,
+      message: promoting
+        ? `${name} will be able to run sessions, score games and manage the line. Only the System Admin can change ratings, names, photos and roles.`
+        : `${name} will lose access to the Admin panel and go back to being a player.`,
+      confirmLabel: promoting ? "Make admin" : "Make player",
+      isDestructive: !promoting,
+      action: async () => {
+        const res = await updatePlayerRole(userId, newRole);
+        if (res?.error) {
+          showNotice(`Error: ${res.error}`);
+          return;
+        }
+        setEmployees((prev) => prev.map((e) => (e.id === userId ? { ...e, role: newRole } : e)));
+        showNotice(`${name} is now ${promoting ? "an admin" : "a player"}.`);
+        router.refresh();
+      },
+    });
+  }
+
+  /** System Admin only. The dialog is the confirmation; the table changes once the server agrees. */
+  async function saveRating() {
+    if (!ratingTarget) return;
+    const value = Number(ratingDraft);
+    if (ratingDraft.trim() === "" || !Number.isFinite(value) || value < RATING_RULES.min || value > RATING_RULES.max) {
+      setRatingError(`Enter a rating from ${RATING_RULES.min.toFixed(2)} to ${RATING_RULES.max.toFixed(2)}.`);
       return;
     }
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === userId ? { ...e, role: newRole } : e))
-    );
-    showNotice(`Updated role to ${newRole.toUpperCase()}`);
-    await updatePlayerRole(userId, newRole);
+    const rounded = Math.round(value * 100) / 100;
+    const target = ratingTarget;
+    if (rounded === Number(target.skill_rating)) {
+      setRatingTarget(null);
+      return;
+    }
+    setIsSavingRating(true);
+    const res = await adjustPlayerRating(target.id, rounded);
+    setIsSavingRating(false);
+    if (res?.error) {
+      setRatingError(res.error);
+      return;
+    }
+    setEmployees((prev) => prev.map((e) => (e.id === target.id ? { ...e, skill_rating: rounded } : e)));
+    setRatingTarget(null);
+    showNotice(`${playerName(target)}'s rating is now ${formatRating(rounded)}.`);
     router.refresh();
   }
 
-  async function handleRatingChange(playerId: string, delta: number) {
-    const player = employees.find((e) => e.id === playerId);
-    if (!player || player.email?.toLowerCase() === "admin@dctechmicro.com") return;
-    const newRating = Math.max(RATING_RULES.min, Math.min(RATING_RULES.max, (player.skill_rating || RATING_RULES.start) + delta));
-    const rounded = Math.round(newRating * 100) / 100;
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
-    );
-    await adjustPlayerRating(playerId, rounded);
-    showNotice(`Updated skill rating for player.`);
-    router.refresh();
+  /** Any admin can switch an account on or off (it can be switched back any time). */
+  async function toggleActive(emp: Profile) {
+    const name = playerName(emp);
+    const nextState = !emp.is_active;
+    setEmployees((prev) => prev.map((e) => (e.id === emp.id ? { ...e, is_active: nextState } : e)));
+    const res = await togglePlayerActiveStatus(emp.id, nextState);
+    if (res?.error) {
+      setEmployees((prev) => prev.map((e) => (e.id === emp.id ? { ...e, is_active: !nextState } : e)));
+      showNotice(`Error: ${res.error}`);
+    } else {
+      showNotice(`${name}'s account is now ${nextState ? "on" : "off"}.`);
+      router.refresh();
+    }
   }
 
-  async function handleSetRating(playerId: string, newRating: number) {
-    const emp = employees.find((e) => e.id === playerId);
-    if (emp?.email?.toLowerCase() === "admin@dctechmicro.com") {
-      showNotice("System Admin does not participate in matches or ratings.");
-      return;
-    }
-    const rounded = Math.round(newRating * 100) / 100;
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === playerId ? { ...e, skill_rating: rounded } : e))
-    );
-    const starInfo = getStarSkillInfo(rounded);
-    showNotice(`Updated ${emp?.full_name || "player"} to ${starInfo.label}`);
-    await adjustPlayerRating(playerId, rounded);
-    router.refresh();
+  /** System Admin only. Puts the shared starting password back; they set a new one on next sign-in. */
+  function handleResetPassword(emp: Profile) {
+    const name = playerName(emp);
+    setConfirmModal({
+      isOpen: true,
+      title: `Reset ${name}'s password?`,
+      message: `Their password goes back to the starting password shown on the sign-in page. They'll have to choose a new password the next time they sign in. Tell ${name} directly; no email is sent.`,
+      confirmLabel: "Reset password",
+      isDestructive: true,
+      action: async () => {
+        const res = await resetPlayerPassword(emp.id);
+        if (res?.error) {
+          showNotice(`Error: ${res.error}`);
+          return;
+        }
+        showNotice(`${name}'s password was reset. They'll set a new one when they sign in.`);
+      },
+    });
   }
 
   async function handleCreateSessionSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -542,7 +505,8 @@ export function AdminDashboard({
 
   function showNotice(msg: string) {
     setActionMessage(msg);
-    setTimeout(() => setActionMessage(null), 3500);
+    // Errors stay up longer so they can be read.
+    setTimeout(() => setActionMessage(null), /^error/i.test(msg) ? 7000 : 3500);
   }
 
   return (
@@ -556,12 +520,18 @@ export function AdminDashboard({
       </header>
 
       {/* Action Notification */}
-      {actionMessage && (
-        <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-          <Check className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-          <span>{actionMessage}</span>
-        </div>
-      )}
+      {actionMessage &&
+        (/^(error|export failed)\b/i.test(actionMessage) ? (
+          <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-50 dark:bg-rose-950/40 px-3 py-2.5 text-sm text-rose-700 dark:text-rose-300 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500 dark:text-rose-400" aria-hidden />
+            <span>{actionMessage.replace(/^error:\s*/i, "")}</span>
+          </div>
+        ) : (
+          <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+            <Check className="h-4 w-4 shrink-0 text-emerald-500 dark:text-emerald-400" aria-hidden />
+            <span>{actionMessage}</span>
+          </div>
+        ))}
 
       {/* Tabs */}
       <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-800 text-sm overflow-x-auto scrollbar-none whitespace-nowrap">
@@ -1689,298 +1659,109 @@ export function AdminDashboard({
             )}
           </Modal>
 
-          <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                  Player & Staff Directory ({employees.length} Players)
-                </CardTitle>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Manage coworker ratings, roles, and open-play eligibility by skill categories.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
+          {/* Change rating (System Admin) */}
+          <Modal isOpen={Boolean(ratingTarget)} onClose={() => !isSavingRating && setRatingTarget(null)}>
+            {ratingTarget && (
+              <Card className="w-full max-w-sm border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl cursor-default p-5 space-y-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Change {ratingTarget.full_name || ratingTarget.display_name || "player"}&apos;s rating
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Now {formatRating(ratingTarget.skill_rating)} ({ratingLevel(ratingTarget.skill_rating)}). Saved to their history as an admin edit.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {RATING_PRESETS.map((preset) => {
+                    const on = Number(ratingDraft) === preset.rating;
+                    return (
+                      <button
+                        key={preset.rating}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => setRatingDraft(preset.rating.toFixed(2))}
+                        className={`flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs cursor-pointer ${
+                          on
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+                            : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <span>{preset.label}</span>
+                        <span className="font-mono font-semibold">{preset.rating.toFixed(1)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Exact rating ({RATING_RULES.min.toFixed(2)} to {RATING_RULES.max.toFixed(2)})
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.05"
+                    min={RATING_RULES.min}
+                    max={RATING_RULES.max}
+                    value={ratingDraft}
+                    onChange={(e) => setRatingDraft(e.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 font-mono text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </label>
+                {ratingError && (
+                  <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{ratingError}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button type="button" variant="ghost" size="sm" disabled={isSavingRating} onClick={() => setRatingTarget(null)} className="text-xs cursor-pointer">
+                    Cancel
+                  </Button>
+                  <Button type="button" variant="volt" size="sm" loading={isSavingRating} disabled={isSavingRating} onClick={saveRating} className="text-xs font-bold cursor-pointer">
+                    Save rating
+                  </Button>
+                </div>
+              </Card>
+            )}
+          </Modal>
+
+          <PlayerDirectory
+            players={employees}
+            viewerIsSystemAdmin={viewerIsSystemAdmin}
+            headerActions={
+              <>
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={isExportingRoster}
                   onClick={handleExportRoster}
-                  className="font-bold text-xs font-mono border-slate-300 dark:border-slate-700 hover:border-emerald-500 cursor-pointer"
+                  className="font-semibold text-xs cursor-pointer"
                 >
-                  <Download className="h-3.5 w-3.5 mr-1 text-emerald-500" />
-                  {isExportingRoster ? "Exporting..." : "Export Roster (.xlsx)"}
+                  <Download className="h-3.5 w-3.5 mr-1 text-emerald-500" aria-hidden />
+                  {isExportingRoster ? "Exporting…" : "Export to Excel"}
                 </Button>
-                <Button
-                  variant="volt"
-                  size="sm"
-                  onClick={() => setIsAddingPlayer(true)}
-                  className="font-bold text-xs cursor-pointer"
-                >
-                  <UserPlus className="h-3.5 w-3.5 mr-1" />
-                  + Add Walk-In Player
+                <Button variant="volt" size="sm" onClick={() => setIsAddingPlayer(true)} className="font-bold text-xs cursor-pointer">
+                  <UserPlus className="h-3.5 w-3.5 mr-1" aria-hidden />
+                  Add walk-in
                 </Button>
-              </div>
-            </CardHeader>
-
-            {/* 1. 📊 Stat Overview Bar: Clickable Quick-Filter Chips & Search */}
-            <div className="p-3.5 bg-slate-50/90 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              {/* Quick Filter Chips */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 md:pb-0">
-                {[
-                  { id: "all", label: "All Players", count: employees.length, icon: Users },
-                  { id: "beginners", label: "Beginners (1-2★)", count: countBeginners, icon: Sparkles },
-                  { id: "intermediate", label: "Intermediate (3-4★)", count: countIntermediate, icon: Flame },
-                  { id: "advanced", label: "Advanced / Expert (5-6★)", count: countAdvanced, icon: Trophy },
-                  { id: "admins", label: "Admins", count: countAdmins, icon: ShieldCheck },
-                  { id: "inactive", label: "Inactive", count: countInactive, icon: UserX },
-                ].map((chip) => {
-                  const isActive = playerTierFilter === chip.id;
-                  const Icon = chip.icon;
-                  return (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      onClick={() => setPlayerTierFilter(chip.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all shrink-0 border cursor-pointer ${
-                        isActive
-                          ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 border-slate-900 dark:border-emerald-500 shadow-2xs"
-                          : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                      }`}
-                    >
-                      <Icon className={`h-3.5 w-3.5 ${isActive ? "text-emerald-400 dark:text-slate-950" : "text-slate-400"}`} />
-                      <span>{chip.label}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                          isActive
-                            ? "bg-white/20 text-white dark:bg-slate-950/20 dark:text-slate-950"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        {chip.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Search Bar */}
-              <div className="relative w-full md:w-64 shrink-0">
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={playerSearch}
-                  onChange={(e) => setPlayerSearch(e.target.value)}
-                  placeholder="Search player or email..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-8.5 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-emerald-500 focus:outline-none shadow-2xs font-mono"
-                />
-              </div>
-            </div>
-
-            <CardContent className="p-0">
-              {filteredEmployees.length === 0 ? (
-                <div className="py-12 text-center font-mono text-xs text-slate-400 space-y-2">
-                  <Users className="h-7 w-7 text-slate-400 dark:text-slate-600 mx-auto" />
-                  <p className="text-slate-900 dark:text-slate-200 font-semibold">No Players Match this Category/Search</p>
-                  <p className="text-slate-500 text-[11px]">
-                    Try choosing a different skill tier or clearing the search bar.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                  {filteredEmployees.map((emp) => {
-                    const isSystemAdmin = emp.email?.toLowerCase() === "admin@dctechmicro.com";
-                    const tierInfo = getPlayerTier(emp.skill_rating);
-                    const starInfo = getStarSkillInfo(emp.skill_rating);
-
-                    return (
-                      <div
-                        key={emp.id}
-                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${
-                          !emp.is_active ? "opacity-65 bg-slate-50/40 dark:bg-slate-950/20" : ""
-                        }`}
-                      >
-                        {/* Player Profile Column */}
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          {emp.avatar_url ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPhotoTarget({
-                                  id: emp.id,
-                                  name: emp.full_name || emp.display_name || "Player",
-                                  avatarUrl: emp.avatar_url!,
-                                })
-                              }
-                              title="View photo"
-                              aria-label={`View ${emp.full_name || emp.display_name || "player"}'s photo`}
-                              className="h-11 w-11 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={emp.avatar_url}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            </button>
-                          ) : (
-                            <div className="h-11 w-11 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden shadow-2xs">
-                              {emp.full_name?.charAt(0) || emp.display_name?.charAt(0) || "P"}
-                            </div>
-                          )}
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                                {emp.full_name || emp.display_name}
-                              </h4>
-                              <Badge
-                                variant={emp.role === "admin" ? "volt" : "secondary"}
-                                className="text-[10px] uppercase font-mono px-2 py-0.5"
-                              >
-                                {isSystemAdmin ? "System Admin" : emp.role}
-                              </Badge>
-                              {!emp.is_active && (
-                                <Badge
-                                  variant="destructive"
-                                  className="text-[10px] uppercase font-mono px-2 py-0.5"
-                                >
-                                  Inactive
-                                </Badge>
-                              )}
-                              <span
-                                className={`text-[10px] font-mono px-2 py-0.5 rounded-full border font-bold ${
-                                  isSystemAdmin
-                                    ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40"
-                                    : tierInfo.badge
-                                }`}
-                              >
-                                {isSystemAdmin ? "🛡️ Root Admin" : tierInfo.label}
-                              </span>
-                            </div>
-
-                            {/* Email Subtitle & DUPR Rating */}
-                            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono flex flex-wrap items-center gap-2">
-                              {emp.email ? (
-                                <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium truncate max-w-[200px] sm:max-w-none">
-                                  <Mail className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
-                                  {emp.email}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic">No email linked</span>
-                              )}
-                              <span className="text-slate-300 dark:text-slate-700">•</span>
-                              {isSystemAdmin ? (
-                                <span className="text-amber-600 dark:text-amber-400 font-semibold">Non-Playing</span>
-                              ) : (
-                                <span>
-                                  Rating: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRating(emp.skill_rating)}</strong>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Compact Inline Controls Column */}
-                        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center pt-2 sm:pt-0">
-                          {isSystemAdmin ? (
-                            <div className="text-xs font-mono text-slate-400 dark:text-slate-500 italic bg-slate-100/70 dark:bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                              🔒 Role & Rating Locked
-                            </div>
-                          ) : (
-                            <>
-                              {/* Consolidated Skill Tier Dropdown */}
-                              <div className="relative">
-                                <select
-                                  value={starInfo.stars}
-                                  onChange={(e) => {
-                                    const starVal = parseInt(e.target.value, 10);
-                                    const targetTier = SKILL_STAR_TIERS.find((t) => t.stars === starVal);
-                                    if (targetTier) handleSetRating(emp.id, targetTier.dupr);
-                                  }}
-                                  className="appearance-none rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 pl-3 pr-7 py-1.5 text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none shadow-2xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                                >
-                                  {SKILL_STAR_TIERS.filter((t) => t.stars > 0).map((tier) => (
-                                    <option
-                                      key={tier.stars}
-                                      value={tier.stars}
-                                      className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                                    >
-                                      {"★".repeat(tier.stars)}{"☆".repeat(6 - tier.stars)} · {tier.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                              </div>
-
-                              {/* Role Selector */}
-                              <div className="relative">
-                                <select
-                                  defaultValue={emp.role}
-                                  onChange={(e) => handleRoleChange(emp.id, e.target.value as UserRole)}
-                                  className={`appearance-none rounded-xl border pl-3 pr-7 py-1.5 text-xs font-mono font-bold focus:outline-none shadow-2xs cursor-pointer transition-colors ${
-                                    emp.role === "admin"
-                                      ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-                                      : "border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-slate-800 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
-                                  }`}
-                                >
-                                  <option value="player" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                    Player
-                                  </option>
-                                  <option value="admin" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                                    Admin
-                                  </option>
-                                </select>
-                                <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                              </div>
-
-                              {/* Active / Inactive Status Toggle */}
-                              <button
-                                type="button"
-                                title={emp.is_active ? "Click to Deactivate Player" : "Click to Activate Player"}
-                                onClick={async () => {
-                                  const nextState = !emp.is_active;
-                                  setEmployees((prev) =>
-                                    prev.map((e) => (e.id === emp.id ? { ...e, is_active: nextState } : e))
-                                  );
-                                  const res = await togglePlayerActiveStatus(emp.id, nextState);
-                                  if (res?.error) {
-                                    showNotice(`Error: ${res.error}`);
-                                  } else {
-                                    showNotice(`${emp.full_name || "Player"} marked ${nextState ? "ACTIVE" : "INACTIVE"}`);
-                                    router.refresh();
-                                  }
-                                }}
-                                className={`p-1.5 rounded-xl border text-xs font-mono transition-colors cursor-pointer ${
-                                  emp.is_active
-                                    ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-500/40"
-                                    : "border-slate-300 dark:border-slate-700 text-slate-400 bg-slate-100 dark:bg-slate-900 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-500/40"
-                                }`}
-                              >
-                                <Power className="h-3.5 w-3.5" />
-                              </button>
-
-                              {/* Edit Player Details (Name & Email) */}
-                              <button
-                                type="button"
-                                title="Edit Player Name & Email"
-                                onClick={() => {
-                                  setEditingPlayer(emp);
-                                  setEditPlayerName(emp.full_name || emp.display_name || "");
-                                  setEditPlayerEmail(emp.email || "");
-                                }}
-                                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 hover:border-emerald-500/50 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </>
+            }
+            actions={{
+              onToggleActive: toggleActive,
+              onChangeRole: (p, role) => handleRoleChange(p.id, role),
+              onChangeRating: (p) => {
+                setRatingTarget(p);
+                setRatingDraft(Number(p.skill_rating ?? RATING_RULES.start).toFixed(2));
+                setRatingError(null);
+              },
+              onEdit: (p) => {
+                setEditingPlayer(p);
+                setEditPlayerName(p.full_name || p.display_name || "");
+                setEditPlayerEmail(p.email || "");
+              },
+              onResetPassword: handleResetPassword,
+              onViewPhoto: (p) =>
+                p.avatar_url &&
+                setPhotoTarget({ id: p.id, name: p.full_name || p.display_name || "Player", avatarUrl: p.avatar_url }),
+            }}
+          />
         </>
       )}
 
@@ -2324,10 +2105,10 @@ export function AdminDashboard({
         </div>
       )}
 
-      {/* Player photo: view full size, admins can remove it */}
+      {/* Player photo: view full size; only the System Admin can remove it */}
       <PlayerPhotoViewer
         target={photoTarget}
-        canRemove
+        canRemove={viewerIsSystemAdmin}
         onClose={() => setPhotoTarget(null)}
         onRemoved={(id) => {
           setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, avatar_url: null } : e)));

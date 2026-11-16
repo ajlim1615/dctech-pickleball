@@ -31,6 +31,7 @@ export default async function AdminPage() {
       initialSessions={sessions}
       initialCourts={courts}
       rsvpCounts={rsvpCounts}
+      isSystemAdmin={isSystemAdmin}
     />
   );
 }

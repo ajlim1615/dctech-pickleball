@@ -413,9 +413,13 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
         detail: "Quickly register walk-in players so they can check in and join the queue immediately.",
       },
       {
-        label: "Ratings, Photos, Roles & Status",
+        label: "Turning Accounts On or Off",
+        detail: "Any admin can turn a player's account on or off from the Players tab. It can be switched back at any time.",
+      },
+      {
+        label: "System Admin Only",
         detail:
-          "Edit player details, manually adjust skill ratings, remove profile photos from the full-size viewer, toggle active status, or promote/demote player, staff, and admin roles.",
+          "Only the System Admin account (admin@dctechmicro.com) can change a player's rating, name or email, remove a profile photo, make someone an admin or a player, and reset a password. A reset puts the password back to the starting one; the player sets a new password the next time they sign in.",
       },
     ],
   },

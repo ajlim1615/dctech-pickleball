@@ -14,11 +14,11 @@ import { PlayerStatsModal } from "./PlayerStatsModal";
 
 interface LeaderboardTableProps {
   initialRankings?: RankedPlayer[];
-  /** Admins can remove a player's photo from the photo viewer. */
-  isAdmin?: boolean;
+  /** Only the System Admin can remove a player's photo from the photo viewer. */
+  canRemovePhotos?: boolean;
 }
 
-export function LeaderboardTable({ initialRankings = [], isAdmin = false }: LeaderboardTableProps) {
+export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false }: LeaderboardTableProps) {
   const [search, setSearch] = useState("");
   const [rankings, setRankings] = useState<RankedPlayer[]>(initialRankings);
   const [photoTarget, setPhotoTarget] = useState<PhotoTarget | null>(null);
@@ -196,7 +196,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
       {/* Player photo: anyone can view it; admins can remove it */}
       <PlayerPhotoViewer
         target={photoTarget}
-        canRemove={isAdmin}
+        canRemove={canRemovePhotos}
         onClose={() => setPhotoTarget(null)}
         onRemoved={(id) => {
           setRankings((prev) => prev.map((p) => (p.id === id ? { ...p, avatar_url: null } : p)));
