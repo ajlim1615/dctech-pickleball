@@ -176,23 +176,23 @@ export function AdminDashboard({
   // 6-Star Skill Tiers (Exact Mapping)
   const SKILL_STAR_TIERS = [
     { stars: 0, label: "Set skill", dupr: 2.0 },
-    { stars: 1, label: "Beginner (~2.0 DUPR)", dupr: 2.0 },
-    { stars: 2, label: "Adv. Beginner (~2.5 DUPR)", dupr: 2.5 },
-    { stars: 3, label: "Intermediate (~3.0 DUPR)", dupr: 3.0 },
-    { stars: 4, label: "Adv. Intermediate (~3.5 DUPR)", dupr: 3.5 },
-    { stars: 5, label: "Advanced (~4.0 DUPR)", dupr: 4.0 },
-    { stars: 6, label: "Expert (~4.5+ DUPR)", dupr: 4.5 },
+    { stars: 1, label: "Beginner (2.0)", dupr: 2.0 },
+    { stars: 2, label: "Adv. Beginner (2.5)", dupr: 2.5 },
+    { stars: 3, label: "Intermediate (3.0)", dupr: 3.0 },
+    { stars: 4, label: "Adv. Intermediate (3.5)", dupr: 3.5 },
+    { stars: 5, label: "Advanced (4.0)", dupr: 4.0 },
+    { stars: 6, label: "Expert (4.5+)", dupr: 4.5 },
   ];
 
   function getStarSkillInfo(rating?: number | null) {
     const r = Number(rating || 0);
     if (r <= 0) return { stars: 0, label: "Set skill", dupr: 2.0 };
-    if (r < 2.25) return { stars: 1, label: "Beginner (~2.0 DUPR)", dupr: 2.0 };
-    if (r < 2.75) return { stars: 2, label: "Adv. Beginner (~2.5 DUPR)", dupr: 2.5 };
-    if (r < 3.25) return { stars: 3, label: "Intermediate (~3.0 DUPR)", dupr: 3.0 };
-    if (r < 3.75) return { stars: 4, label: "Adv. Intermediate (~3.5 DUPR)", dupr: 3.5 };
-    if (r < 4.25) return { stars: 5, label: "Advanced (~4.0 DUPR)", dupr: 4.0 };
-    return { stars: 6, label: "Expert (~4.5+ DUPR)", dupr: 4.5 };
+    if (r < 2.25) return { stars: 1, label: "Beginner (2.0)", dupr: 2.0 };
+    if (r < 2.75) return { stars: 2, label: "Adv. Beginner (2.5)", dupr: 2.5 };
+    if (r < 3.25) return { stars: 3, label: "Intermediate (3.0)", dupr: 3.0 };
+    if (r < 3.75) return { stars: 4, label: "Adv. Intermediate (3.5)", dupr: 3.5 };
+    if (r < 4.25) return { stars: 5, label: "Advanced (4.0)", dupr: 4.0 };
+    return { stars: 6, label: "Expert (4.5+)", dupr: 4.5 };
   }
 
   // Single-pass Skill Tier Counts for Quick Filter Chips
@@ -518,7 +518,7 @@ export function AdminDashboard({
           "Display Name": emp.display_name || "N/A",
           "Email": emp.email || "Unregistered",
           "Role": emp.role.toUpperCase(),
-          "DUPR Rating": Number(emp.skill_rating || 2.0).toFixed(2),
+          "Rating": Number(emp.skill_rating || 2.0).toFixed(2),
           "Skill Tier": starInfo.label,
           "Games Played": emp.games_played || 0,
           "Games Won": emp.games_won || 0,
@@ -1618,12 +1618,12 @@ export function AdminDashboard({
                           onChange={(e) => setWalkInRating(parseFloat(e.target.value))}
                           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-medium"
                         >
-                          <option value="2.0">★☆☆☆☆☆ Beginner (~2.0 DUPR)</option>
-                          <option value="2.5">★★☆☆☆☆ Adv. Beginner (~2.5 DUPR)</option>
-                          <option value="3.0">★★★☆☆☆ Intermediate (~3.0 DUPR)</option>
-                          <option value="3.5">★★★★☆☆ Adv. Intermediate (~3.5 DUPR)</option>
-                          <option value="4.0">★★★★★☆ Advanced (~4.0 DUPR)</option>
-                          <option value="4.5">★★★★★★ Expert (~4.5+ DUPR)</option>
+                          <option value="2.0">★☆☆☆☆☆ Beginner (2.0)</option>
+                          <option value="2.5">★★☆☆☆☆ Adv. Beginner (2.5)</option>
+                          <option value="3.0">★★★☆☆☆ Intermediate (3.0)</option>
+                          <option value="3.5">★★★★☆☆ Adv. Intermediate (3.5)</option>
+                          <option value="4.0">★★★★★☆ Advanced (4.0)</option>
+                          <option value="4.5">★★★★★★ Expert (4.5+)</option>
                         </select>
                       </div>
                     </div>
@@ -1646,7 +1646,7 @@ export function AdminDashboard({
                           className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
                         />
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Syncs match history and DUPR automatically when they log in with this email.
+                          Syncs match history and rating automatically when they log in with this email.
                         </p>
                       </div>
                     )}
@@ -1958,7 +1958,7 @@ export function AdminDashboard({
                                 <span className="text-amber-600 dark:text-amber-400 font-semibold">Non-Playing</span>
                               ) : (
                                 <span>
-                                  DUPR: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRating(emp.skill_rating)}</strong>
+                                  Rating: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRating(emp.skill_rating)}</strong>
                                 </span>
                               )}
                             </div>
@@ -2107,7 +2107,7 @@ export function AdminDashboard({
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 space-y-1">
                   <div className="font-bold text-emerald-600 dark:text-emerald-400">Step 4: Finish Session</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Click Finish Session to save game records, update DUPR ratings, and archive courts.</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Click Finish Session to save game records, update ratings, and archive courts.</div>
                 </div>
               </div>
             </CardContent>
@@ -2161,7 +2161,7 @@ export function AdminDashboard({
                   3. Button Safeguard & Score
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
-                  The <strong>Complete & Submit Match Score</strong> button remains strictly disabled on empty courts until players are called. Submitting updates player DUPR and frees the court.
+                  The <strong>Complete & Submit Match Score</strong> button remains strictly disabled on empty courts until players are called. Submitting updates player ratings and frees the court.
                 </p>
               </div>
             </div>
@@ -2329,7 +2329,7 @@ export function AdminDashboard({
                   + Walk-In Player
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Quick-adds an unregistered coworker or external guest with an initial estimated DUPR rating (2.5, 3.0, 3.5, 4.0).
+                  Quick-adds an unregistered coworker or external guest with a starting skill rating (2.5, 3.0, 3.5, 4.0).
                 </p>
               </Card>
 
@@ -2404,7 +2404,7 @@ export function AdminDashboard({
               Official Match Scoring Policy
             </div>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
-              To keep the company leaderboard and DUPR ratings 100% accurate and dispute-free, <strong>only Administrators and Official Staff Umpires have permission to record and finalize match scores</strong>.
+              To keep the company leaderboard and ratings 100% accurate and dispute-free, <strong>only Administrators and Official Staff Umpires have permission to record and finalize match scores</strong>.
             </p>
           </Card>
         </div>

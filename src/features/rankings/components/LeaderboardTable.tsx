@@ -183,7 +183,7 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
             </h1>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">
-            Official DUPR Dynamic Ratings & Performance Standings
+            Player ratings & standings
           </p>
         </div>
 
@@ -248,7 +248,7 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
 
                   <div className="flex items-center justify-center gap-2 pt-1">
                     <Badge variant="volt" className="text-xs font-mono font-bold">
-                      ★ DUPR {formatRating(topPlayer.skill_rating)}
+                      ★ Rating {formatRating(topPlayer.skill_rating)}
                     </Badge>
                   </div>
 
@@ -310,7 +310,7 @@ export function LeaderboardTable({ initialRankings = [] }: LeaderboardTableProps
                         onClick={() => toggleSort("rating")}
                         className="flex items-center justify-center gap-1.5 mx-auto hover:text-slate-900 dark:hover:text-slate-100 group transition-colors"
                       >
-                        <span>DUPR Rating</span>
+                        <span>Rating</span>
                         {renderSortIcon("rating")}
                       </button>
                     </th>

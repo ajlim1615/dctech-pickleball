@@ -80,7 +80,7 @@ export function LiveQueueRail({
                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     {item.name}
                     <Badge variant="secondary" className="text-[10px] py-0 px-1 font-mono">
-                      DUPR {item.rating}
+                      Rating {item.rating}
                     </Badge>
                   </div>
                   {item.partner && (

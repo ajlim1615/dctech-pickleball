@@ -493,7 +493,7 @@ export function StaffCourtMonitor({
                 {courtName} is Ready for Next Rotation
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-                Click below to automatically call the next 4 players from the active paddle queue, balance teams by DUPR rating, and start live referee scoring immediately.
+                Click below to automatically call the next 4 players from the active paddle queue, balance teams by skill rating, and start live referee scoring immediately.
               </p>
             </div>
 

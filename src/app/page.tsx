@@ -404,9 +404,9 @@ export default async function HomePage() {
                   </div>
                   <div>
                     <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                      DUPR Standings
+                      Top Players
                     </h3>
-                    <p className="text-xs text-slate-500 font-mono">Top Club Players</p>
+                    <p className="text-xs text-slate-500 font-mono">Highest ratings right now</p>
                   </div>
                 </div>
 

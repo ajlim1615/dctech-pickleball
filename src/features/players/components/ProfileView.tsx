@@ -430,7 +430,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                 ) : (
                   <>
                     <Badge variant="default" className="text-xs font-mono">
-                      ★ DUPR {formatRating(profile.skill_rating)}
+                      ★ Rating {formatRating(profile.skill_rating)}
                     </Badge>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
                       Verified Employee
@@ -854,7 +854,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
               <Trophy className="h-6 w-6 text-slate-400 dark:text-slate-600 mx-auto" />
               <p className="text-slate-700 dark:text-slate-300 font-semibold">No Matches Played Yet</p>
               <p className="text-slate-500 text-[11px]">
-                Check in to an open-play session and record your first match to start tracking your DUPR progress!
+                Check in to an open-play session and record your first match to start tracking your rating!
               </p>
             </div>
           ) : (

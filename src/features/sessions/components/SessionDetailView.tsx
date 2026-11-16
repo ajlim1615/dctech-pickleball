@@ -1025,7 +1025,7 @@ export function SessionDetailView({
                         className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
                       />
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                        Syncs match history and DUPR automatically when they log in with this email.
+                        Syncs match history and rating automatically when they log in with this email.
                       </p>
                     </div>
                   )}
@@ -1034,7 +1034,7 @@ export function SessionDetailView({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-mono">
                       <label className="font-bold text-slate-700 dark:text-slate-300">
-                        Estimated Skill Rating (DUPR)
+                        Starting skill rating
                       </label>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/30">
                         ★ {walkInRating.toFixed(2)}

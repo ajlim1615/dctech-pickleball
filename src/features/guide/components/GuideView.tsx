@@ -151,7 +151,7 @@ export function GuideView() {
                 <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Company Leaderboard & Ratings</h4>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
-                Official scores recorded by administrators automatically adjust your DUPR skill rating and update the Gold, Silver, and Bronze podium in the <strong>Rankings</strong> tab.
+                Official scores recorded by administrators automatically adjust your skill rating and update the Gold, Silver, and Bronze podium in the <strong>Rankings</strong> tab.
               </p>
             </Card>
           </div>
@@ -185,7 +185,7 @@ export function GuideView() {
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    1. Balanced DUPR Matching
+                    1. Balanced Matching
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     Picks four from the first six in line (the first person is always included) and splits them into the most even teams by rating, preferring people who haven&apos;t partnered or played each other this session.
@@ -566,10 +566,10 @@ export function GuideView() {
           <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 space-y-2 shadow-sm">
             <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <HelpCircle className="h-4 w-4 text-emerald-500" />
-              How are match scores recorded and how does DUPR adjust?
+              How are match scores recorded and how does my rating change?
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
-              To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your DUPR rating on the leaderboard.
+              To guarantee fairness and integrity across the company, all official match scores are recorded by tournament administrators or staff umpires. Winning against higher-rated opponents boosts your rating on the leaderboard.
             </p>
           </Card>
 

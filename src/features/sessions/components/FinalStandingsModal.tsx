@@ -106,7 +106,7 @@ export function FinalStandingsModal({
                           {player.full_name || player.display_name}
                         </div>
                         <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                          DUPR {formatRating(player.skill_rating)}
+                          Rating {formatRating(player.skill_rating)}
                         </div>
                       </div>
                       <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-around text-xs font-mono">

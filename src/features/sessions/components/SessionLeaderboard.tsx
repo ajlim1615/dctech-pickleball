@@ -181,7 +181,7 @@ export function SessionLeaderboard({
                         {medalIcons[idx]} {medalTitles[idx]}
                       </Badge>
                       <span className="text-xs font-mono font-bold">
-                        DUPR {formatRating(player.skill_rating)}
+                        Rating {formatRating(player.skill_rating)}
                       </span>
                     </div>
 
@@ -264,7 +264,7 @@ export function SessionLeaderboard({
                       onClick={() => toggleSort("rating")}
                     >
                       <div className="flex items-center justify-end gap-1">
-                        <span>DUPR</span>
+                        <span>Rating</span>
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </th>
