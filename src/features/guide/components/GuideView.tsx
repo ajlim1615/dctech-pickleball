@@ -549,7 +549,7 @@ export function GuideView() {
               What if I am called to a court but need a minute (tying shoes / arriving)?
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
-              Ask an organizer or click the <strong className="text-amber-500">⏩ Bump / Play Next</strong> button on your paddle card in the Queue screen. It shifts you down 1 game so ready players play immediately and you take the court in the very next match.
+              Ask an organizer or click the <strong className="text-amber-500">⏩ Bump / Play Next</strong> button on your paddle card in the queue on the session page. It shifts you down 1 game so ready players play immediately and you take the court in the very next match.
             </p>
           </Card>
 
@@ -559,7 +559,7 @@ export function GuideView() {
               Can I pair up with a specific colleague for Doubles?
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-mono">
-              Yes, if the admin turned on <strong>Allow partners</strong> for that session. Then, in the Queue screen, choose &quot;+ Coworker&quot; and pick their name from the employee list. You will be assigned to the same team when called. Otherwise everyone joins solo and the game mode makes the teams.
+              Yes, if the admin turned on <strong>Allow partners</strong> for that session. Then, in the queue on the session page, choose &quot;+ Coworker&quot; and pick their name from the employee list. You will be assigned to the same team when called. Otherwise everyone joins solo and the game mode makes the teams.
             </p>
           </Card>
 

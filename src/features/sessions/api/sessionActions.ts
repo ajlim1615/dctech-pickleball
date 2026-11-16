@@ -343,7 +343,6 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   revalidatePath("/sessions");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/admin");
-  revalidatePath("/queue");
   revalidatePath("/matches");
   revalidatePath("/");
   if (startingLineError) {
@@ -473,7 +472,6 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/sessions");
-  revalidatePath("/queue");
   revalidatePath("/");
   return { success: true };
 }
@@ -532,7 +530,6 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/sessions");
-  revalidatePath("/queue");
   revalidatePath("/");
   return { success: true };
 }

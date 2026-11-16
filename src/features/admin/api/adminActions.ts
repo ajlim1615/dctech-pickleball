@@ -84,7 +84,6 @@ export async function updatePlayerDetails(userId: string, fullName: string, emai
   }
 
   revalidatePath("/admin");
-  revalidatePath("/queue");
   revalidatePath("/sessions");
   revalidatePath("/rankings");
   revalidatePath("/profile");
@@ -148,7 +147,6 @@ export async function adjustPlayerRating(userId: string, newRating: number) {
   revalidatePath("/admin");
   revalidatePath("/rankings");
   revalidatePath("/profile");
-  revalidatePath("/queue");
   revalidatePath("/");
   return { success: true };
 }
@@ -203,7 +201,6 @@ export async function resetSessionQueue(sessionId: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   return { success: true };
 }
@@ -338,7 +335,6 @@ export async function togglePlayerActiveStatus(userId: string, isActive: boolean
 
   revalidatePath("/admin");
   revalidatePath("/rankings");
-  revalidatePath("/queue");
   revalidatePath("/profile");
   return { success: true };
 }
@@ -373,7 +369,6 @@ export async function cancelSession(sessionId: string) {
   revalidatePath("/sessions");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
-  revalidatePath("/queue");
   return { success: true };
 }
 
@@ -535,7 +530,6 @@ export async function createWalkInPlayer(params: {
   }
 
   revalidatePath("/admin");
-  revalidatePath("/queue");
   revalidatePath("/sessions");
   return { success: true, player: data };
 }

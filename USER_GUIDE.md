@@ -45,16 +45,15 @@ $$\text{Serving Score} - \text{Receiving Score} - \text{Server Number (1 or 2)}$
 
 ## 3. Player & Spectator Guide
 
-### Step 1: Check In to Today's Session
-1. Navigate to `/sessions`.
-2. Find the active event (e.g., *Wednesday Night Open Play*).
-3. Click **"Check In"** to add yourself to the venue attendance roster.
+### Step 1: Say You're Going
+1. Navigate to `/sessions` (or the home page).
+2. Find the upcoming session and tap **"I'm going"**.
+3. When an admin starts the session, everyone going is shuffled into the line. There is no joining before the start.
 
-### Step 2: Join the Virtual Queue
-1. Go to `/queue`.
-2. Choose:
-   - **Join Solo**: The algorithm will group you with other available players.
-   - **Join as Doubles Pair**: Enter your partner's name so you play on the same team.
+### Step 2: Join the Queue (after the session starts)
+1. Open the live session from `/sessions` or the home page.
+2. If you didn't tap "I'm going", tap **"Join queue"** on the session page to get in line (you go to the back).
+   - **Join with a partner** (coworker or guest) only appears if the admin turned on **Allow partners** for that session.
 3. Watch your position and live estimated wait time update automatically.
 
 ### Step 3: Match Call-Up

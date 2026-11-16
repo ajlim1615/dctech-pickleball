@@ -2308,7 +2308,7 @@ export function AdminDashboard({
           <div className="space-y-4">
             <h3 className="text-sm font-bold font-mono uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Zap className="h-4 w-4 text-emerald-500" />
-              Queue Operations & Rotation Lineup (/queue)
+              Queue Operations & Rotation Lineup
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">

@@ -175,7 +175,6 @@ export async function joinQueue(params: {
     details: { partnerId: params.partnerId ?? null, guestName: params.guestName ?? null },
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${params.sessionId}`);
   revalidatePath("/sessions");
   revalidatePath("/");
@@ -248,7 +247,6 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     details: { count: toAdd.length },
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true, count: toAdd.length };
@@ -281,7 +279,6 @@ export async function leaveQueue(sessionId: string) {
     subjectIds: [user.id],
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
@@ -346,7 +343,6 @@ export async function adminRemovePlayerFromQueue(
     });
   }
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/sessions");
   revalidatePath("/");
@@ -414,7 +410,6 @@ export async function bumpPlayerInQueue(sessionId: string, queueEntryId: string,
     details: { positions: -(targetIndex - currentIndex) },
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
@@ -462,7 +457,6 @@ export async function swapQueuePlayers(sessionId: string, entryId1: string, entr
     details: { kind: "places" },
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
@@ -521,7 +515,6 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
     details: { kind: "substitute", out: replaced?.player_id ?? null, in: newPlayerId },
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
@@ -710,7 +703,6 @@ export async function callNextUp(
     };
   });
 
-  revalidatePath("/queue");
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath(`/courts/${courtId}/monitor`);
   revalidatePath("/");
