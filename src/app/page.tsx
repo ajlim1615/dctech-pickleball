@@ -77,7 +77,7 @@ export default async function HomePage() {
   const heroDescription = cleanSessionDescription(heroSession?.description);
 
   // Top 3 players from leaderboard
-  const topPlayers = (leaderboard || []).slice(0, 3);
+  const topPlayers = (leaderboard || []).filter((p) => p.rank !== null).slice(0, 3);
 
   return (
     <div className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-8 pb-24 sm:pb-12">

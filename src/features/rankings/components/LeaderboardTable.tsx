@@ -68,7 +68,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
       let comparison = 0;
       switch (sortField) {
         case "rank":
-          comparison = (a.rank || 0) - (b.rank || 0);
+          comparison = (a.rank ?? 1e9) - (b.rank ?? 1e9);
           break;
         case "name":
           comparison = (a.full_name || a.display_name || "").localeCompare(
@@ -177,7 +177,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
 
   // The podium already shows the top three, so the list starts at #4 in the default view.
   const isDefaultView = sortField === "rank" && sortOrder === "asc" && !search.trim();
-  const listRows = isDefaultView ? sorted.filter((p) => (p.rank || 0) > 3) : sorted;
+  const listRows = isDefaultView ? sorted.filter((p) => p.rank === null || p.rank > 3) : sorted;
   const SORT_LABELS: Record<SortField, string> = {
     rank: "Rank",
     name: "Name",
@@ -221,7 +221,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
       ) : (
         <>
           <RankingsPodium
-            top={rankings.slice(0, 3)}
+            top={rankings.filter((p) => p.rank !== null).slice(0, 3)}
             totalPlayers={rankings.length}
             onView={handleViewPlayer}
             onPhoto={openPhoto}
@@ -300,7 +300,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
                         key={player.id}
                         className="grid grid-cols-[44px_minmax(0,1fr)_auto] sm:grid-cols-[64px_minmax(0,1fr)_88px_72px_72px_80px_88px] items-center gap-2 px-3 sm:px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                       >
-                        <span className={`font-mono text-sm font-black tabular-nums ${medal}`}>#{player.rank}</span>
+                        <span className={`font-mono text-sm font-black tabular-nums ${medal}`}>{player.rank === null ? "—" : `#${player.rank}`}</span>
 
                         <div className="flex items-center gap-3 min-w-0">
                           {player.avatar_url ? (
@@ -413,7 +413,7 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
                       {selectedPlayer.full_name || selectedPlayer.display_name}
                     </h2>
                     <Badge variant="volt" className="text-xs font-mono font-bold">
-                      #{selectedPlayer.rank} Rank
+                      {selectedPlayer.rank === null ? "—" : `#${selectedPlayer.rank}`} Rank
                     </Badge>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
