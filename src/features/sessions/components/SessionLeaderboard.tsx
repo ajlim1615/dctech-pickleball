@@ -14,7 +14,9 @@ import {
   CheckCircle2,
   Sparkles,
   Share2,
+  FileSpreadsheet,
 } from "lucide-react";
+import { getSessionExport } from "../api/sessionExportActions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,8 @@ interface SessionLeaderboardProps {
   /** Admins can correct finished games. */
   isAdmin?: boolean;
   rule?: ScoringRule;
+  /** Needed for the admin's Excel export. */
+  sessionId?: string;
 }
 
 type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff";
@@ -45,7 +49,34 @@ export function SessionLeaderboard({
   isSessionActive = false,
   isAdmin = false,
   rule = { targetPoints: 11, winByTwo: true },
+  sessionId,
 }: SessionLeaderboardProps) {
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    if (!sessionId || isExporting) return;
+    setIsExporting(true);
+    try {
+      const res = await getSessionExport(sessionId);
+      if (res.error || !res.data) {
+        alert(res.error || "The export couldn't be made. Please try again.");
+        return;
+      }
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      for (const sheet of res.data.sheets) {
+        const worksheet = sheet.rows.length
+          ? XLSX.utils.json_to_sheet(sheet.rows)
+          : XLSX.utils.aoa_to_sheet([["Nothing yet"]]);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name);
+      }
+      XLSX.writeFile(workbook, res.data.fileName);
+    } catch (err) {
+      alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsExporting(false);
+    }
+  }
   const [editing, setEditing] = useState<EditableMatch | null>(null);
   const [activeTab, setActiveTab] = useState<"standings" | "matches">("standings");
   const [search, setSearch] = useState("");
@@ -144,6 +175,20 @@ export function SessionLeaderboard({
         </div>
 
         <div className="flex items-center gap-3">
+          {isAdmin && sessionId && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting}
+              title="Download the leaderboard, attendance and every game as an Excel file"
+              className="font-bold text-xs font-mono shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>{isExporting ? "Exporting…" : "Export to Excel"}</span>
+            </Button>
+          )}
           <Button
             type="button"
             variant="volt"
