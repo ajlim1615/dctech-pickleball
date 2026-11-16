@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import type { MatchingStyle } from "@/features/queue/matchmaking";
+import { ALL_MATCHING_STYLES } from "@/features/queue/constants/matchingStyles";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -70,19 +71,7 @@ export function parseSessionMetadata(description?: string | null): {
   const partnersMatch = desc.match(/\[partners:(true|false)\]/i);
 
   const rawMode = matchingModeMatch ? matchingModeMatch[1].toLowerCase() : "balanced";
-  const validModes: MatchingStyle[] = [
-    "balanced",
-    "social_mixer",
-    "skill_separated",
-    "winners_losers",
-    "skill_courts",
-    "mixed_doubles",
-    "king_queen",
-    "club_wars",
-    "fifo",
-    "winners_stay",
-  ];
-  const matchingMode: MatchingStyle = validModes.includes(rawMode as MatchingStyle)
+  const matchingMode: MatchingStyle = ALL_MATCHING_STYLES.includes(rawMode as MatchingStyle)
     ? (rawMode as MatchingStyle)
     : "balanced";
   const targetPoints = targetPointsMatch && targetPointsMatch[1] === "6" ? 6 : 11;

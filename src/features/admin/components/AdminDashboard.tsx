@@ -44,6 +44,11 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  ADMIN_PRIMARY_MATCHING_STYLES,
+  ADMIN_MORE_MATCHING_STYLES,
+  ADMIN_SELECT_MATCHING_STYLES,
+} from "@/features/queue/constants/matchingStyles";
 import { Modal } from "@/components/ui/modal";
 import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
@@ -941,108 +946,56 @@ export function AdminDashboard({
                     <label className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       Matchmaking
                     </label>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      How the queue picks teams
-                    </span>
+                    <Link
+                      href="/guide?tab=matchstyles"
+                      className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    >
+                      Style guide
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
                   </div>
 
                   {/* Hidden form input to submit selected value */}
                   <input type="hidden" name="matchingStyle" value={selectedMatchingMode} />
 
                   <div className="space-y-2">
-                    {/* 1. Balanced (Recommended) */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchingMode("balanced")}
-                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
-                        selectedMatchingMode === "balanced"
-                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                          {selectedMatchingMode === "balanced" && (
-                            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          )}
-                          <span>Balanced</span>
-                          <span className="ml-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
-                            RECOMMENDED
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Balances teams by rating. Avoids repeat partners and opponents when possible.
-                      </p>
-                    </button>
-
-                    {/* 2. Social Mix (New) */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchingMode("social_mixer")}
-                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
-                        selectedMatchingMode === "social_mixer"
-                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                          {selectedMatchingMode === "social_mixer" && (
-                            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          )}
-                          <span>Social Mix</span>
-                          <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
-                            NEW
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Avoids repeat partners and opponents. Doesn&apos;t use ratings.
-                      </p>
-                    </button>
-
-                    {/* 3. Skill Separated */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchingMode("skill_separated")}
-                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
-                        selectedMatchingMode === "skill_separated"
-                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                        {selectedMatchingMode === "skill_separated" && (
-                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        )}
-                        <span>Skill Separated</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Keeps similar skill levels together. May leave a court waiting.
-                      </p>
-                    </button>
-
-                    {/* 4. Winners / Losers */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMatchingMode("winners_losers")}
-                      className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
-                        selectedMatchingMode === "winners_losers"
-                          ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                        {selectedMatchingMode === "winners_losers" && (
-                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        )}
-                        <span>Winners / Losers</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Winners play winners. Losers play losers.
-                      </p>
-                    </button>
+                    {ADMIN_PRIMARY_MATCHING_STYLES.map((style) => {
+                      const isSelected = selectedMatchingMode === style.id;
+                      return (
+                        <button
+                          key={style.id}
+                          type="button"
+                          onClick={() => setSelectedMatchingMode(style.id)}
+                          className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                              : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
+                              {isSelected && (
+                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              )}
+                              <span>{style.label}</span>
+                              {style.id === "balanced" && (
+                                <span className="ml-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
+                                  RECOMMENDED
+                                </span>
+                              )}
+                              {style.id === "social_mixer" && (
+                                <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
+                                  NEW
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {style.adminSummary}
+                          </p>
+                        </button>
+                      );
+                    })}
 
                     {/* More modes & formats (Collapsible) */}
                     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40 overflow-hidden">
@@ -1056,7 +1009,7 @@ export function AdminDashboard({
                             More modes & formats
                           </div>
                           <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Skill Courts · Mixed Doubles · King/Queen · Club Wars
+                            {ADMIN_MORE_MATCHING_STYLES.map((s) => s.label).join(" · ")}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -1071,92 +1024,36 @@ export function AdminDashboard({
 
                       {showMoreMatchingModes && (
                         <div className="p-3 pt-0 space-y-2 border-t border-slate-200 dark:border-slate-800/60 mt-1">
-                          {/* 5. Skill Courts */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMatchingMode("skill_courts")}
-                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
-                              selectedMatchingMode === "skill_courts"
-                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                              {selectedMatchingMode === "skill_courts" && (
-                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              )}
-                              <span>Skill Courts</span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Works like Skill Separated for now. Courts by skill level coming soon.
-                            </p>
-                          </button>
-
-                          {/* 6. Mixed Doubles */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMatchingMode("mixed_doubles")}
-                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
-                              selectedMatchingMode === "mixed_doubles"
-                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                              {selectedMatchingMode === "mixed_doubles" && (
-                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              )}
-                              <span>Mixed Doubles</span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Shuffled teams for now. One man and one woman per team coming soon.
-                            </p>
-                          </button>
-
-                          {/* 7. King/Queen of the Court */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMatchingMode("king_queen")}
-                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
-                              selectedMatchingMode === "king_queen"
-                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                              {selectedMatchingMode === "king_queen" && (
-                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              )}
-                              <span>King/Queen of the Court</span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Winners move up a court. Losers rejoin the line.
-                            </p>
-                          </button>
-
-                          {/* 8. Club Wars */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMatchingMode("club_wars")}
-                            className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
-                              selectedMatchingMode === "club_wars"
-                                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
-                                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
-                              {selectedMatchingMode === "club_wars" && (
-                                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              )}
-                              <span>Club Wars</span>
-                              <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
-                                BETA
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Shuffled teams for now. Group vs group coming soon.
-                            </p>
-                          </button>
+                          {ADMIN_MORE_MATCHING_STYLES.map((style) => {
+                            const isSelected = selectedMatchingMode === style.id;
+                            return (
+                              <button
+                                key={style.id}
+                                type="button"
+                                onClick={() => setSelectedMatchingMode(style.id)}
+                                className={`w-full p-2.5 rounded-lg border text-left transition-all flex flex-col gap-0.5 ${
+                                  isSelected
+                                    ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/50"
+                                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-slate-300 dark:hover:border-slate-700"
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
+                                  {isSelected && (
+                                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  )}
+                                  <span>{style.label}</span>
+                                  {style.badge === "BETA" && (
+                                    <span className="ml-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-bold px-2 py-0.2 uppercase tracking-wider">
+                                      BETA
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  {style.adminSummary}
+                                </p>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1444,14 +1341,11 @@ export function AdminDashboard({
                         onChange={(e) => setEditMatchingMode(e.target.value)}
                         className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                       >
-                        <option value="balanced">Balanced (Recommended)</option>
-                        <option value="social_mixer">Social Mix</option>
-                        <option value="skill_separated">Skill Separated</option>
-                        <option value="winners_losers">Winners / Losers</option>
-                        <option value="skill_courts">Skill Courts</option>
-                        <option value="mixed_doubles">Mixed Doubles</option>
-                        <option value="king_queen">King/Queen of the Court</option>
-                        <option value="club_wars">Club Wars</option>
+                        {ADMIN_SELECT_MATCHING_STYLES.map((style) => (
+                          <option key={style.id} value={style.id}>
+                            {style.id === "balanced" ? `${style.label} (Recommended)` : style.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1.5">
