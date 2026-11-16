@@ -1,3 +1,16 @@
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
+import { formatRating } from "@/lib/utils";
+
+const LAST_NEW_PLAYER_GAMES =
+  RATING_RULES.newPlayerSchedule[RATING_RULES.newPlayerSchedule.length - 1].beforeGames;
+
+export const RATING_GUIDE_COPY = {
+  change:
+    "Your rating changes after every ranked game. Beating a stronger team moves it more; losing to a weaker one costs more. Casual sessions don't count.",
+  start: `Everyone starts at ${formatRating(RATING_RULES.start)}. Your first ${LAST_NEW_PLAYER_GAMES} games move your rating faster so you reach your level quickly.`,
+  ranked: `You're ranked after ${RATING_RULES.qualifyGames} ranked games. Rankings are ordered by rating; wins and win rate are shown too.`,
+};
+
 export type GuideTabId = "rules" | "flow" | "matchstyles" | "faq" | "staff" | "admin";
 
 export interface GuideRoleAccess {
@@ -221,7 +234,7 @@ export const PLAYER_APP_FEATURES: AppFeatureCard[] = [
   {
     title: "Company Leaderboard & Ratings",
     description:
-      "Everyone starts at Beginner (2.00) and ratings never drop below 2.00. Official ranked scores update your rating and podium, and you can tap any player's avatar to view their photo full size.",
+      `${RATING_GUIDE_COPY.start} ${RATING_GUIDE_COPY.ranked} You can tap any player's avatar to view their photo full size.`,
     href: "/rankings",
     ctaLabel: "View Rankings",
     iconName: "trophy",
@@ -273,7 +286,7 @@ export const PLAYER_FAQS: FaqItem[] = [
   {
     question: "How are match scores recorded and how does my rating change?",
     answer:
-      "Everyone starts at Beginner (2.00) and ratings never drop below 2.00. To guarantee fairness and integrity, only administrators finalize official match scores (and can correct a saved result if needed). Winning against higher-rated opponents boosts your rating in Ranked sessions.",
+      `${RATING_GUIDE_COPY.change} ${RATING_GUIDE_COPY.start} ${RATING_GUIDE_COPY.ranked} Only administrators finalize official match scores, and they can correct a saved result if needed.`,
   },
   {
     question: "When can I join the queue for a session?",

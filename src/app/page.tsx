@@ -27,6 +27,7 @@ import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import { CourtsBadge, RankedBadge } from "@/features/sessions/components/RankedBadge";
 import { pastGamesFromMatches, type MatchRowForHistory } from "@/features/queue/api/matchmakingData";
 import { getCurrentUser } from "@/features/auth/api/authActions";
+import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
@@ -77,7 +78,7 @@ export default async function HomePage() {
   const heroDescription = cleanSessionDescription(heroSession?.description);
 
   // Top 3 players from leaderboard
-  const topPlayers = (leaderboard || []).filter((p) => p.rank !== null).slice(0, 3);
+  const topPlayers = (leaderboard || []).filter((p) => p.qualified).slice(0, 3);
 
   return (
     <div className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-8 pb-24 sm:pb-12">
@@ -441,6 +442,11 @@ export default async function HomePage() {
 
               {/* Top 3 Player List */}
               <div className="space-y-2.5 flex-1">
+                {topPlayers.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono py-6 text-center">
+                    {`No one is ranked yet. Players need ${RATING_RULES.qualifyGames} ranked games.`}
+                  </p>
+                )}
                 {topPlayers.map((player, idx) => (
                   <div
                     key={player.id}
