@@ -233,17 +233,28 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
                     {medals[idx]}
                   </div>
 
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 font-mono text-lg font-bold text-slate-800 dark:text-slate-100 shadow-xs overflow-hidden">
-                    {topPlayer.avatar_url ? (
-                      <img
-                        src={topPlayer.avatar_url}
-                        alt={topPlayer.full_name || "Avatar"}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      topPlayer.full_name?.slice(0, 2).toUpperCase() || "DC"
-                    )}
-                  </div>
+                  {topPlayer.avatar_url ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPhotoTarget({
+                          id: topPlayer.id,
+                          name: topPlayer.full_name || topPlayer.display_name || "Player",
+                          avatarUrl: topPlayer.avatar_url!,
+                        })
+                      }
+                      title="View photo"
+                      aria-label={`View ${topPlayer.full_name || topPlayer.display_name || "player"}'s photo`}
+                      className="mx-auto flex h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={topPlayer.avatar_url} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ) : (
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 font-mono text-lg font-bold text-slate-800 dark:text-slate-100 shadow-xs overflow-hidden">
+                      {topPlayer.full_name?.slice(0, 2).toUpperCase() || "DC"}
+                    </div>
+                  )}
 
                   <div className="font-bold text-base text-slate-900 dark:text-slate-100">
                     {topPlayer.full_name || topPlayer.display_name}
@@ -361,17 +372,30 @@ export function LeaderboardTable({ initialRankings = [], isAdmin = false }: Lead
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 overflow-hidden shrink-0">
-                            {player.avatar_url ? (
-                              <img
-                                src={player.avatar_url}
-                                alt={player.full_name || "Avatar"}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              player.full_name?.slice(0, 2).toUpperCase() || "DC"
-                            )}
-                          </div>
+                          {player.avatar_url ? (
+                            // Only players with a photo get a clickable avatar.
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPhotoTarget({
+                                  id: player.id,
+                                  name: player.full_name || player.display_name || "Player",
+                                  avatarUrl: player.avatar_url!,
+                                });
+                              }}
+                              title="View photo"
+                              aria-label={`View ${player.full_name || player.display_name || "player"}'s photo`}
+                              className="h-8 w-8 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={player.avatar_url} alt="" className="h-full w-full object-cover" />
+                            </button>
+                          ) : (
+                            <div className="h-8 w-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 overflow-hidden shrink-0">
+                              {player.full_name?.slice(0, 2).toUpperCase() || "DC"}
+                            </div>
+                          )}
                           <div>
                             <div className="font-sans font-bold text-slate-900 dark:text-slate-100 text-sm">
                               {player.full_name || player.display_name}
