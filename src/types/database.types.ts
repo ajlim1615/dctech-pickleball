@@ -425,15 +425,6 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
       };
-      complete_match: {
-        Args: {
-          p_match_id: string;
-          p_team_a_score: number;
-          p_team_b_score: number;
-          p_recorded_by?: string;
-        };
-        Returns: Json;
-      };
       get_admin_audit: {
         Args: {
           p_session_id?: string | null;
@@ -454,7 +445,7 @@ export interface Database {
           created_at: string;
         }[];
       };
-      /** The 11-argument overload (the old 8-argument one still exists for the previous app build). */
+      /** Fixes a saved result: score, winner, and relative rating/win moves in one locked transaction. */
       apply_result_correction: {
         Args: {
           p_match_id: string;

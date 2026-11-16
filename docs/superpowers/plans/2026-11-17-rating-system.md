@@ -154,5 +154,5 @@
 - **Session settings as real columns:** move `[ranked:…]`, courts, partners and mode out of `description`; `leaderboard_stats` and `parseSessionMetadata` switch to the columns.
 - **Seasons:** a "This month / All time" switch on Rankings calling `getLeaderboard({ since })`.
 - **Caching:** cache Rankings and home, refreshed when `record_match_result` succeeds.
-- **Cleanup:** drop the unused `complete_match` function and the old 8-argument `apply_result_correction` (it still floors at 2.0).
+- ~~**Cleanup:** drop the unused `complete_match` function and the old 8-argument `apply_result_correction` (it still floors at 2.0).~~ Done 2026-11-17 (migration `drop_old_rating_functions`).
 - **Ranked flag lock:** stop a session's ranked/casual setting (or a cancel) from changing once it has completed games, so counted games always match rated games.
