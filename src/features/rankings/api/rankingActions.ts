@@ -19,7 +19,15 @@ export async function getLeaderboard(options?: { since?: string }): Promise<Rank
     supabase.rpc("leaderboard_stats", { p_since: options?.since ?? null }),
   ]);
 
-  if (profilesRes.error || !profilesRes.data) return [];
+  if (profilesRes.error || !profilesRes.data) {
+    console.error("getLeaderboard: failed to load profiles", profilesRes.error);
+    return [];
+  }
+  if (totalsRes.error || !totalsRes.data) {
+    // Without totals every player would look brand new; fail loudly instead.
+    console.error("getLeaderboard: leaderboard_stats rpc failed", totalsRes.error);
+    return [];
+  }
 
-  return buildLeaderboard(profilesRes.data, totalsRes.data ?? []);
+  return buildLeaderboard(profilesRes.data, totalsRes.data);
 }

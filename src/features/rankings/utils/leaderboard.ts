@@ -23,6 +23,9 @@ export interface RankedPlayer extends Profile {
 
 const nameOf = (p: Profile) => (p.full_name || p.display_name || "").toLowerCase();
 
+const winRatio = (p: { games_won: number; games_played: number }) =>
+  p.games_played > 0 ? p.games_won / p.games_played : 0;
+
 export function buildLeaderboard(
   profiles: Profile[],
   totals: PlayerTotals[],
@@ -54,7 +57,7 @@ export function buildLeaderboard(
     .sort(
       (a, b) =>
         b.skill_rating - a.skill_rating ||
-        b.games_won / b.games_played - a.games_won / a.games_played ||
+        winRatio(b) - winRatio(a) ||
         b.games_won - a.games_won ||
         nameOf(a).localeCompare(nameOf(b)),
     )
