@@ -31,6 +31,7 @@ import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
 import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
+import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 
 export default async function HomePage() {
@@ -53,7 +54,12 @@ export default async function HomePage() {
   const nextSession = activeSession ? null : upcomingSessions[0] ?? null;
   const heroSession = activeSession ?? nextSession;
   const activeCourtsCount = courts.filter((c) => c.status === "occupied").length;
-  const totalCourtsCount = courts.length;
+  // Live: the courts in use. Not started: the courts the next session will run on.
+  const totalCourtsCount = activeSession
+    ? courts.length
+    : nextSession
+      ? parseSessionMetadata(nextSession.description).courtCount ?? DEFAULT_COURT_COUNT
+      : courts.length;
 
   // Only fetch full employee roster and live queue if an active session is in play
   const [employees, rawQueue, sessionMatches] = activeSession

@@ -34,6 +34,18 @@ describe("utils", () => {
     expect(clean).toBe("Fun friday open play");
   });
 
+  it("reads each session's own court count, and hides the tag from the description", () => {
+    const meta = parseSessionMetadata("Sports day [matching_mode:balanced] [courts:4]");
+    expect(meta.courtCount).toBe(4);
+    expect(meta.cleanDescription).toBe("Sports day");
+    expect(parseSessionMetadata("[courts:2]").courtCount).toBe(2);
+    // Older sessions never saved one
+    expect(parseSessionMetadata("[matching_mode:balanced]").courtCount).toBeNull();
+    // Clamped to a sane range
+    expect(parseSessionMetadata("[courts:40]").courtCount).toBe(12);
+    expect(parseSessionMetadata("[courts:0]").courtCount).toBe(1);
+  });
+
   it("parses the win-by rule, defaulting by target points for older sessions", () => {
     expect(parseSessionMetadata("[target_points:11]").winByTwo).toBe(true);
     expect(parseSessionMetadata("[target_points:6]").winByTwo).toBe(false);

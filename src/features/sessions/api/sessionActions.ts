@@ -170,7 +170,9 @@ export async function getSessionLeaderboard(sessionId: string): Promise<SessionR
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { sanitizeString } from "@/lib/security/validation";
-import { parseSkillSpread } from "@/lib/utils";
+import { parseCourtCount, parseSessionMetadata, parseSkillSpread } from "@/lib/utils";
+import { DEFAULT_COURT_COUNT } from "@/lib/constants";
+import { setRentedCourtCount } from "@/features/admin/api/adminActions";
 
 export async function createSession(formData: FormData) {
   // Server-side RBAC Guard
@@ -183,8 +185,8 @@ export async function createSession(formData: FormData) {
   const startTime = formData.get("startTime") as string;
   const endTime = formData.get("endTime") as string;
   const maxPlayersStr = formData.get("maxPlayers") as string;
-  const courtCountStr = formData.get("courtCount") as string;
-  const courtCount = courtCountStr ? parseInt(courtCountStr, 10) : 4;
+  // Courts belong to the session; the arena switches to this number when it starts.
+  const courtCount = parseCourtCount(formData.get("courtCount") as string | null) ?? DEFAULT_COURT_COUNT;
   const isRanked = formData.get("isRanked") !== "false";
   const targetPointsStr = (formData.get("targetPoints") as string) || "11";
   const targetPoints = parseInt(targetPointsStr, 10) === 6 ? 6 : 11;
@@ -206,7 +208,7 @@ export async function createSession(formData: FormData) {
   const skillSpreadTag = usesSkillSpread
     ? ` [skill_spread:${parseSkillSpread(formData.get("skillSpread") as string | null)}]`
     : "";
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}`;
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag} [courts:${courtCount}]`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();
@@ -244,35 +246,8 @@ export async function createSession(formData: FormData) {
     return { error: error.message };
   }
 
-  // Provision rented courts for this session
-  if (courtCount > 0) {
-    const { data: existingCourts } = await supabase.from("courts").select("id, name, sort_order");
-    const currentCount = existingCourts?.length || 0;
-
-    if (currentCount === 0) {
-      const courtsToInsert = Array.from({ length: courtCount }, (_, i) => ({
-        name: `Court ${i + 1}`,
-        surface_type: "Standard Court",
-        status: "available" as const,
-        sort_order: i + 1,
-      }));
-      const { error: courtInsertError } = await supabase.from("courts").insert(courtsToInsert);
-      if (courtInsertError) {
-        console.error("Failed to provision courts:", courtInsertError.message);
-      }
-    } else if (courtCount > currentCount) {
-      const courtsToInsert = Array.from({ length: courtCount - currentCount }, (_, i) => ({
-        name: `Court ${currentCount + i + 1}`,
-        surface_type: "Standard Court",
-        status: "available" as const,
-        sort_order: currentCount + i + 1,
-      }));
-      const { error: courtInsertError } = await supabase.from("courts").insert(courtsToInsert);
-      if (courtInsertError) {
-        console.error("Failed to add courts:", courtInsertError.message);
-      }
-    }
-  }
+  // No court changes here: creating a future session must not touch the courts
+  // another session is using. The arena switches to this count when it starts.
 
   revalidatePath("/sessions");
   revalidatePath("/admin");
@@ -288,7 +263,11 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   const supabase = await createClient();
 
   // Only a scheduled -> active start builds the shuffled starting line.
-  const { data: before } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const { data: before } = await supabase
+    .from("sessions")
+    .select("status, description")
+    .eq("id", sessionId)
+    .maybeSingle();
   const isFirstStart = status === "active" && before?.status === "scheduled";
 
   // If activating a session, deactivate any other active sessions to maintain single active session clarity
@@ -351,17 +330,13 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
       .neq("id", "00000000-0000-0000-0000-000000000000");
   }
 
-  // Ensure baseline courts exist
+  // The arena runs on this session's own court count (older sessions: the default).
+  // Courts were all freed above, so none is mid-game.
   if (status === "active") {
-    const { data: existingCourts } = await supabase.from("courts").select("id");
-    if (!existingCourts || existingCourts.length === 0) {
-      const courtsToInsert = Array.from({ length: 4 }, (_, i) => ({
-        name: `Court ${i + 1}`,
-        surface_type: "Standard Court",
-        status: "available" as const,
-        sort_order: i + 1,
-      }));
-      await supabase.from("courts").insert(courtsToInsert);
+    const wanted = parseSessionMetadata(before?.description).courtCount ?? DEFAULT_COURT_COUNT;
+    const courtRes = await setRentedCourtCount(wanted, "Standard Court");
+    if (courtRes?.error && !startingLineError) {
+      startingLineError = `the courts could not be set to ${wanted}: ${courtRes.error}`;
     }
   }
 
@@ -372,7 +347,7 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
   revalidatePath("/matches");
   revalidatePath("/");
   if (startingLineError) {
-    return { success: true, warning: `Session started, but the line could not be built: ${startingLineError}` };
+    return { success: true, warning: `Session started, but there was a problem: ${startingLineError}` };
   }
   return { success: true };
 }

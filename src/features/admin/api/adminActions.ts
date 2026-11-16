@@ -9,7 +9,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, sanitizeString } from "@/lib/security/validation";
 import { parsePHTToISO } from "@/lib/timezone";
-import { parseSkillSpread } from "@/lib/utils";
+import { parseCourtCount, parseSkillSpread } from "@/lib/utils";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
@@ -409,11 +409,14 @@ export async function editSession(sessionId: string, formData: FormData) {
   const skillSpreadTag = usesSkillSpread
     ? ` [skill_spread:${parseSkillSpread(formData.get("skillSpread") as string | null)}]`
     : "";
-  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}`;
+  // This session's own court count; only touches the real courts if it is the live session.
+  const courtCount = parseCourtCount(formData.get("courtCount") as string | null);
+  const courtsTag = courtCount ? ` [courts:${courtCount}]` : "";
+  const tags = `[matching_mode:${matchingStyle}] [ranked:${isRanked}] [target_points:${targetPoints}] [win_by:${winByTwo ? 2 : 1}] [scoring:${trackScores ? "points" : "result"}]${skillSpreadTag}${courtsTag}`;
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("sessions")
     .update({
       title,
@@ -424,9 +427,18 @@ export async function editSession(sessionId: string, formData: FormData) {
       max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .select("status")
+    .maybeSingle();
 
   if (error) return { error: error.message };
+
+  if (courtCount && updated?.status === "active") {
+    const courtRes = await setRentedCourtCount(courtCount, "Standard Court");
+    if (courtRes?.error) {
+      return { success: true, warning: `Saved, but the courts weren't changed: ${courtRes.error}` };
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath(`/sessions/${sessionId}`);

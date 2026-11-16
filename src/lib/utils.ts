@@ -26,7 +26,15 @@ export function cleanSessionDescription(description?: string | null): string {
     .replace(/\s*\[win_by:[^\]]+\]/gi, "")
     .replace(/\s*\[scoring:[^\]]+\]/gi, "")
     .replace(/\s*\[skill_spread:[^\]]+\]/gi, "")
+    .replace(/\s*\[courts:[^\]]+\]/gi, "")
     .trim();
+}
+
+/** Courts a session uses: 1–12, or null when the session never set one (older sessions). */
+export function parseCourtCount(raw: string | null | undefined): number | null {
+  const n = parseInt(raw ?? "", 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(12, Math.max(1, n));
 }
 
 /** Max rating gap allowed on one court, clamped to [0.25, 2] and rounded to 2 decimals. */
@@ -44,6 +52,8 @@ export function parseSessionMetadata(description?: string | null): {
   /** false = win/loss only: admins just pick the winning team. */
   trackScores: boolean;
   skillSpread: number;
+  /** Courts this session runs on; null for older sessions that never set one. */
+  courtCount: number | null;
   cleanDescription: string;
 } {
   const desc = description || "";
@@ -53,6 +63,7 @@ export function parseSessionMetadata(description?: string | null): {
   const winByMatch = desc.match(/\[win_by:([12])\]/i);
   const scoringMatch = desc.match(/\[scoring:(points|result)\]/i);
   const skillSpreadMatch = desc.match(/\[skill_spread:([^\]]+)\]/i);
+  const courtsMatch = desc.match(/\[courts:(\d+)\]/i);
 
   const rawMode = matchingModeMatch ? matchingModeMatch[1].toLowerCase() : "balanced";
   const validModes: MatchingStyle[] = [
@@ -80,6 +91,7 @@ export function parseSessionMetadata(description?: string | null): {
     winByTwo: winByMatch ? winByMatch[1] === "2" : targetPoints !== 6,
     trackScores: scoringMatch ? scoringMatch[1].toLowerCase() !== "result" : true,
     skillSpread: parseSkillSpread(skillSpreadMatch ? skillSpreadMatch[1] : null),
+    courtCount: parseCourtCount(courtsMatch ? courtsMatch[1] : null),
     cleanDescription: cleanSessionDescription(desc),
   };
 }

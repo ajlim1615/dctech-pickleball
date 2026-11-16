@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { PlayerPhotoViewer, type PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
+import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { CourtStatusIndicator } from "@/components/layout/CourtStatusIndicator";
 import {
   toggleCourtStatus,
@@ -378,34 +379,11 @@ export function AdminDashboard({
         return;
       }
 
-      // Court count lives on the arena, not the session row, so apply it separately.
-      const requestedCourts = parseInt((formData.get("courtCount") as string) || "", 10);
-      if (requestedCourts && requestedCourts !== courts.length) {
-        const courtRes = await setRentedCourtCount(requestedCourts, "Standard Court");
-        if (courtRes?.error) {
-          setIsEditingSession(null);
-          showNotice(`Session saved, but courts weren't changed: ${courtRes.error}`);
-          router.refresh();
-          return;
-        }
-        if (courtRes?.courts) {
-          setCourts(
-            courtRes.courts.map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              status: c.status,
-              surface: c.surface_type || "Standard Court",
-              assignedStaffId: c.assigned_staff_id || null,
-            }))
-          );
-        }
-      }
-
+      // The court count is saved on this session; the server only changes the real
+      // courts if this is the live session (otherwise they switch when it starts).
       setIsEditingSession(null);
       showNotice(
-        requestedCourts && requestedCourts !== courts.length
-          ? `Session updated and set to ${requestedCourts} courts!`
-          : "Session settings updated successfully!"
+        "warning" in res && res.warning ? res.warning : "Session settings updated successfully!"
       );
       router.refresh();
     } finally {
@@ -825,6 +803,9 @@ export function AdminDashboard({
                       <option value="5">5 courts (20 players at once)</option>
                       <option value="6">6 courts (24 players at once)</option>
                     </select>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Only for this session. The courts switch to this number when it starts.
+                    </p>
                   </div>
                 </div>
 
@@ -1469,27 +1450,29 @@ export function AdminDashboard({
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Courts</label>
                       {(() => {
-                        // Courts are shared by the whole arena, so another live session would lose or gain them too.
-                        const otherLive = activeSession && activeSession.id !== isEditingSession.id ? activeSession : null;
-                        const options = Array.from(new Set([2, 3, 4, 5, 6, courts.length])).sort((a, b) => a - b);
+                        // Each session keeps its own court count. Older sessions without one
+                        // fall back to the courts the live session has, else the default.
+                        const own = parseSessionMetadata(isEditingSession.description).courtCount;
+                        const isLive = isEditingSession.status === "active";
+                        const current = own ?? (isLive ? courts.length : DEFAULT_COURT_COUNT);
+                        const options = Array.from(new Set([1, 2, 3, 4, 5, 6, current])).sort((a, b) => a - b);
                         return (
                           <>
                             <select
                               name="courtCount"
-                              defaultValue={String(courts.length)}
-                              disabled={!!otherLive}
-                              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-bold disabled:opacity-60"
+                              defaultValue={String(current)}
+                              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-bold"
                             >
                               {options.map((n) => (
                                 <option key={n} value={n}>
-                                  {n} courts ({n * 4} players at once)
+                                  {n} {n === 1 ? "court" : "courts"} ({n * 4} players at once)
                                 </option>
                               ))}
                             </select>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              {otherLive
-                                ? `Locked while "${otherLive.title}" is live, since courts are shared.`
-                                : "Adds or removes arena courts. Past games are kept; a court with a game in progress can't be removed."}
+                              {isLive
+                                ? "This session is live, so courts change right away. A court with a game in progress can't be removed."
+                                : "Only for this session. The courts switch to this number when it starts."}
                             </p>
                           </>
                         );
