@@ -50,6 +50,7 @@ import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
+import { previewCourts } from "@/features/sessions/utils/previewCourts";
 
 interface SessionDetailViewProps {
   session: Session & { checkins?: any[] };
@@ -152,6 +153,15 @@ export function SessionDetailView({
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
 
   const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
+  // Live: the arena's real courts. Otherwise: this session's own court count, since the
+  // shared arena only switches to it when the session starts.
+  const shownCourts = useMemo(
+    () =>
+      currentStatus === "active"
+        ? courts || []
+        : previewCourts(courts || [], sessionMeta.courtCount ?? DEFAULT_COURT_COUNT),
+    [currentStatus, courts, sessionMeta.courtCount]
+  );
   const [autoFill, setAutoFill] = useAutoFillPreference();
 
   function openAddPlayers() {
@@ -1189,7 +1199,7 @@ export function SessionDetailView({
         <SessionConsoleBar
           session={session}
           status={currentStatus}
-          courts={courts || []}
+          courts={shownCourts}
           waitingCount={initialQueue.filter((q) => q.status === "waiting").length}
           checkedInCount={checkins.length}
           autoFill={autoFill}
@@ -1205,7 +1215,7 @@ export function SessionDetailView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <CourtMatrix
-            initialCourts={courts}
+            initialCourts={shownCourts}
             userRole={userRole}
             isAdmin={isAdmin && currentStatus === "active"}
             sessionId={session.id}
@@ -1231,7 +1241,7 @@ export function SessionDetailView({
             isSessionActive={currentStatus === "active"}
             isSessionScheduled={currentStatus === "scheduled"}
             matchingMode={sessionMeta.matchingMode}
-            courts={courts || []}
+            courts={shownCourts}
             history={history}
             skillSpread={sessionMeta.skillSpread}
             allowPartners={sessionMeta.allowPartners}
