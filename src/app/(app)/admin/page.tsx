@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/features/auth/api/authActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getSessions } from "@/features/sessions/api/sessionActions";
 import { getCourts } from "@/features/courts/api/courtActions";
+import { getVenues } from "@/features/venues/api/venueActions";
 import { AdminDashboard } from "@/features/admin/components/AdminDashboard";
 import { getRsvpCounts } from "@/features/sessions/api/rsvpActions";
 
@@ -17,10 +18,11 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const [employees, sessions, courts] = await Promise.all([
+  const [employees, sessions, courts, venues] = await Promise.all([
     getAllEmployees(),
     getSessions(),
     getCourts(),
+    getVenues(),
   ]);
   const rsvpCounts = await getRsvpCounts(sessions.filter((s) => s.status === "scheduled").map((s) => s.id));
 
@@ -30,6 +32,7 @@ export default async function AdminPage() {
       initialEmployees={employees}
       initialSessions={sessions}
       initialCourts={courts}
+      initialVenues={venues}
       rsvpCounts={rsvpCounts}
       isSystemAdmin={isSystemAdmin}
     />

@@ -58,14 +58,17 @@ import {
   toPHTDateTimeLocal,
   getPHTTodayString,
 } from "@/lib/timezone";
-import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView } from "@/types";
+import type { CourtStatus, UserRole, Profile, Session, ActiveCourtView, Venue } from "@/types";
 import { SessionRow, SessionRuleChips } from "@/features/sessions/components/SessionRow";
 import { AdminAuditView } from "@/features/activity/components/AdminAuditView";
+import { AdminVenuesSection } from "@/features/venues/components/AdminVenuesSection";
+import { VenuePicker } from "@/features/venues/components/VenuePicker";
 
 interface AdminDashboardProps {
   initialEmployees?: Profile[];
   initialSessions?: Session[];
   initialCourts?: ActiveCourtView[];
+  initialVenues?: Venue[];
   /** RSVP head count per upcoming session. */
   rsvpCounts?: Record<string, number>;
   /** Signed in as admin@dctechmicro.com: the only account that can change a player's rating, name, photo or role, or reset a password. */
@@ -76,10 +79,12 @@ export function AdminDashboard({
   initialEmployees = [],
   initialSessions = [],
   initialCourts = [],
+  initialVenues = [],
   rsvpCounts = {},
   isSystemAdmin: viewerIsSystemAdmin = false,
 }: AdminDashboardProps) {
   const router = useRouter();
+  const [venues, setVenues] = useState<Venue[]>(initialVenues);
   const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide" | "activity">("sessions");
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -683,6 +688,8 @@ export function AdminDashboard({
             </Card>
           ) : null}
 
+          <AdminVenuesSection venues={venues} onVenuesChange={setVenues} />
+
           {/* Upcoming sessions header + new session form */}
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Upcoming</h2>
@@ -719,11 +726,10 @@ export function AdminDashboard({
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Location</label>
-                    <input
-                      type="text"
+                    <VenuePicker
+                      venues={venues}
                       name="location"
                       defaultValue="DCTECH Sports Arena"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1174,11 +1180,13 @@ export function AdminDashboard({
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Location</label>
-                        <input
-                          type="text"
+                        <VenuePicker
+                          key={isEditingSession.id}
+                          venues={venues}
                           name="location"
                           defaultValue={isEditingSession.location || "DCTECH Sports Arena"}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none"
+                          defaultVenueId={isEditingSession.venue_id}
+                          className="dark:bg-slate-950 text-xs"
                         />
                       </div>
                     </div>
