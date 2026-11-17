@@ -30,7 +30,8 @@ export default async function CourtMonitorPage({
     courts.find((c) => c.name.toLowerCase().includes(id.toLowerCase())) ||
     null;
 
-  const activeSession = sessions.find((s) => s.status === "active") || sessions[0];
+  // Only the live session: an old or future one must never receive games.
+  const activeSession = sessions.find((s) => s.status === "active");
   const meta = parseSessionMetadata(activeSession?.description);
 
   return (

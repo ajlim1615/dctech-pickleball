@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/security/authGuard";
+import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import type { Court, CourtStatus, ActiveCourtView } from "@/types";
 
 export async function getCourts(): Promise<ActiveCourtView[]> {
@@ -76,8 +78,30 @@ export async function getCourts(): Promise<ActiveCourtView[]> {
   })) as unknown as ActiveCourtView[];
 }
 
+/** Statuses an admin sets by hand. "occupied" is owned by the game procedures. */
+const ADMIN_COURT_STATUSES: CourtStatus[] = ["available", "maintenance", "reserved"];
+
 export async function updateCourtStatus(courtId: string, status: CourtStatus) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  if (!ADMIN_COURT_STATUSES.includes(status)) {
+    return { error: "Courts can only be opened, closed or reserved here." };
+  }
+
   const supabase = await createClient();
+
+  // A court with a game in progress keeps it: save or end that game first.
+  const { data: live } = await supabase
+    .from("matches")
+    .select("id")
+    .eq("court_id", courtId)
+    .eq("status", "in_progress")
+    .limit(1);
+  if (live && live.length > 0) {
+    return { error: gameStateErrorMessage("court_busy") };
+  }
+
   const { error } = await supabase
     .from("courts")
     .update({ status, updated_at: new Date().toISOString() })
