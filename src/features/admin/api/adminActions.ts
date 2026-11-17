@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
 import { createClient } from "@/lib/supabase/server";
 import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
+import { closeSession } from "@/features/sessions/server/closeSession";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole, CourtStatus, Profile } from "@/types";
 
@@ -530,25 +531,9 @@ export async function cancelSession(sessionId: string) {
 
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("sessions")
-    .update({ status: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", sessionId);
-
-  if (error) return { error: error.message };
-
-  // Clear waiting/called queue entries
-  await supabase
-    .from("queue_entries")
-    .update({ status: "left" })
-    .eq("session_id", sessionId)
-    .in("status", LINE_STATUSES); // waiting, called or on_break
-
-  // Free courts if this was the active session
-  await supabase
-    .from("courts")
-    .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
-    .neq("id", "00000000-0000-0000-0000-000000000000");
+  // Only this session's games, courts and line; a session live elsewhere is untouched.
+  const closeError = await closeSession(supabase, sessionId, "cancelled");
+  if (closeError) return { error: closeError };
 
   revalidatePath("/admin");
   revalidatePath("/sessions");

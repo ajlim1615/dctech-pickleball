@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
+import { closeSession } from "@/features/sessions/server/closeSession";
 import { insertQueueEntries } from "@/features/queue/server/insertQueueEntries";
 import { parsePHTToISO } from "@/lib/timezone";
 import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -279,28 +280,39 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
     .maybeSingle();
   const isFirstStart = status === "active" && before?.status === "scheduled";
 
-  // If activating a session, deactivate any other active sessions to maintain single active session clarity
-  if (status === "active") {
-    await supabase
+  if (status === "completed" || status === "cancelled") {
+    // One transaction: this session's unfinished games are abandoned (not scored),
+    // only their courts are freed, and its line is emptied.
+    const closeError = await closeSession(supabase, sessionId, status);
+    if (closeError) return { error: closeError };
+  } else {
+    if (status === "active") {
+      // One live session at a time: close any other live one properly, so its games,
+      // courts and line don't linger.
+      const { data: others } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("status", "active")
+        .neq("id", sessionId);
+      for (const other of others || []) {
+        const closeError = await closeSession(supabase, other.id, "completed");
+        if (closeError) return { error: closeError };
+        recordSessionEvent({
+          sessionId: other.id,
+          type: "session_ended",
+          actorId: auth.context!.userId,
+          actorRole: "admin",
+        });
+      }
+    }
+
+    const { error } = await supabase
       .from("sessions")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
-      .eq("status", "active")
-      .neq("id", sessionId);
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", sessionId);
 
-    // Free all courts for the incoming session
-    await supabase
-      .from("courts")
-      .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
-      .neq("id", "00000000-0000-0000-0000-000000000000");
+    if (error) return { error: error.message };
   }
-
-  // Update target session
-  const { error } = await supabase
-    .from("sessions")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", sessionId);
-
-  if (error) return { error: error.message };
 
   let startingLineError: string | null = null;
   if (isFirstStart) {
@@ -316,31 +328,8 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
     });
   }
 
-  // If completing or cancelling a session, clear its active queue and free courts
-  if (status === "completed" || status === "cancelled") {
-    // Clear lingering queue entries, including players still on court
-    await supabase
-      .from("queue_entries")
-      .update({ status: "left" })
-      .eq("session_id", sessionId)
-      .neq("status", "left"); // waiting, called, playing or on_break
-
-    // Unfinished games are not scored
-    await supabase
-      .from("matches")
-      .update({ status: "abandoned", ended_at: new Date().toISOString() })
-      .eq("session_id", sessionId)
-      .eq("status", "in_progress");
-
-    // Free courts
-    await supabase
-      .from("courts")
-      .update({ status: "available", current_match_id: null, updated_at: new Date().toISOString() })
-      .neq("id", "00000000-0000-0000-0000-000000000000");
-  }
-
   // The arena runs on this session's own court count (older sessions: the default).
-  // Courts were all freed above, so none is mid-game.
+  // Any other live session was closed above, so no court is mid-game.
   if (status === "active") {
     const wanted = parseSessionMetadata(before?.description).courtCount ?? DEFAULT_COURT_COUNT;
     const courtRes = await setRentedCourtCount(wanted, "Standard Court");
