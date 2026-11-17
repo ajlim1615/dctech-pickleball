@@ -516,6 +516,11 @@ export interface Database {
         };
         Returns: Json;
       };
+      /** Swaps a no-show for the next waiting player. Returns { replacement_id } or { error: code }. */
+      swap_match_player: {
+        Args: { p_match_id: string; p_out: string; p_window_minutes: number };
+        Returns: Json;
+      };
       /** Saves a finished game (score, court, totals, ratings, history) in one transaction. */
       record_match_result: {
         Args: {
