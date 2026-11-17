@@ -501,6 +501,21 @@ export interface Database {
         };
         Returns: Json;
       };
+      /**
+       * Starts a game: locks the session, checks the court and players, claims queue
+       * entries, creates the match and its players, mirrors the court. Returns
+       * { match_id } or { error: code } (see GAME_STATE_ERRORS). Signed-in admin client only.
+       */
+      start_match: {
+        Args: {
+          p_session_id: string;
+          p_court_id: string;
+          p_team_a: string[];
+          p_team_b: string[];
+          p_from_queue: boolean;
+        };
+        Returns: Json;
+      };
       /** Saves a finished game (score, court, totals, ratings, history) in one transaction. */
       record_match_result: {
         Args: {
