@@ -540,6 +540,11 @@ export interface Database {
         };
         Returns: Json;
       };
+      /** Ends or cancels one session: abandons its live games, frees their courts, empties its line. */
+      close_session: {
+        Args: { p_session_id: string; p_status: SessionStatus };
+        Returns: Json;
+      };
       /** Internal since finish_match: not callable by signed-in users. Kept for finish_match. */
       record_match_result: {
         Args: {

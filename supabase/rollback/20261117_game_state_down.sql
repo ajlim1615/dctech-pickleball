@@ -4,6 +4,7 @@
 
 drop function if exists public.start_match(uuid, uuid, uuid[], uuid[], boolean);
 drop function if exists public.swap_match_player(uuid, uuid, integer);
+drop function if exists public.close_session(uuid, public.session_status);
 drop function if exists public.finish_match(uuid, integer, integer, public.winning_team, boolean, jsonb, integer, numeric, numeric);
 grant execute on function public.record_match_result(uuid, integer, integer, public.winning_team, boolean, jsonb, integer, numeric, numeric) to authenticated;
 
