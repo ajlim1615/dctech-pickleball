@@ -2,7 +2,8 @@ import { formatPHTTime } from "@/lib/timezone";
 import { parseSessionMetadata } from "@/lib/utils";
 import { describeRule } from "@/features/matches/utils/scoring";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
-import type { Session } from "@/types";
+import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
+import type { Session, Venue } from "@/types";
 
 /** Ranked/Casual and scoring rule, as quiet chips. */
 export function SessionRuleChips({ description }: { description?: string | null }) {
@@ -29,11 +30,13 @@ function phtDateParts(iso: string) {
 /** One session in a list: date block, title, rules, time, and its actions. */
 export function SessionRow({
   session,
+  venues = [],
   muted,
   rsvpCount,
   children,
 }: {
   session: Session;
+  venues?: Venue[];
   muted?: boolean;
   /** People who said they're going; shown when above zero. */
   rsvpCount?: number;
@@ -59,7 +62,12 @@ export function SessionRow({
             {session.title}
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {formatPHTTime(session.start_time)} – {formatPHTTime(session.end_time)}, {session.location || "DCTECH Sports Arena"}
+            {formatPHTTime(session.start_time)} – {formatPHTTime(session.end_time)},{" "}
+            <VenueLocationLink
+              location={session.location || "DCTECH Sports Arena"}
+              venueId={session.venue_id}
+              venues={venues}
+            />
           </p>
           {rsvpCount ? (
             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">

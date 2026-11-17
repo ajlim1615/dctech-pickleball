@@ -8,10 +8,12 @@ import { cleanSessionDescription } from "@/lib/utils";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import { CourtsBadge, RankedBadge } from "@/features/sessions/components/RankedBadge";
-import type { Session } from "@/types";
+import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
+import type { Session, Venue } from "@/types";
 
 interface SessionListProps {
   initialSessions: Session[];
+  venues?: Venue[];
   userRole?: string;
   /** RSVP head count per upcoming session, and the ones the viewer is going to. */
   rsvpCounts?: Record<string, number>;
@@ -22,6 +24,7 @@ interface SessionListProps {
 
 export function SessionList({
   initialSessions,
+  venues = [],
   userRole = "player",
   rsvpCounts = {},
   myRsvps = [],
@@ -136,7 +139,7 @@ export function SessionList({
                     <div className="flex items-center gap-4 text-xs font-mono text-slate-500 dark:text-slate-400 pt-1">
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-                        {s.location}
+                        <VenueLocationLink location={s.location} venueId={s.venue_id} venues={venues} />
                       </span>
                       {s.max_players && (
                         <span className="flex items-center gap-1">

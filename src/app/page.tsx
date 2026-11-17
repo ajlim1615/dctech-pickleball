@@ -31,16 +31,19 @@ import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { getLeaderboard } from "@/features/rankings/api/rankingActions";
 import { getAllEmployees } from "@/features/admin/api/adminActions";
 import { getQueueForSession } from "@/features/queue/api/queueActions";
+import { getVenues } from "@/features/venues/api/venueActions";
+import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
 import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 
 export default async function HomePage() {
-  const [courts, sessions, authData, leaderboard] = await Promise.all([
+  const [courts, sessions, authData, leaderboard, venues] = await Promise.all([
     getCourts(),
     getSessions(),
     getCurrentUser(),
     getLeaderboard(),
+    getVenues(),
   ]);
 
   const userEmail = authData?.user?.email || authData?.profile?.email;
@@ -124,7 +127,12 @@ export default async function HomePage() {
 
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span>{heroSession?.location || "DCTECH Sports Arena"}</span>
+                <VenueLocationLink
+                  location={heroSession?.location || "DCTECH Sports Arena"}
+                  venueId={heroSession?.venue_id}
+                  venues={venues}
+                  className="hover:text-emerald-300"
+                />
               </span>
             </div>
 

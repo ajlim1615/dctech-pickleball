@@ -48,7 +48,8 @@ import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { NO_LIMITS_USED, leaveIsFinal, type QueueLimits } from "@/features/queue/utils/queueLimits";
 import { createWalkInPlayer, updateSessionCourtCount, updateSessionDetails } from "@/features/admin/api/adminActions";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
-import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
+import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent, Venue } from "@/types";
+import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
 import type { PastGame } from "@/features/queue/matchmaking";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
@@ -77,10 +78,12 @@ interface SessionDetailViewProps {
   history?: PastGame[];
   /** Breaks and leaves the signed-in player used this session (one break, one rejoin). */
   queueLimits?: QueueLimits;
+  venues?: Venue[];
 }
 
 const NO_RSVPS: GoingPlayer[] = [];
 const NO_EVENTS: SessionEvent[] = [];
+const NO_VENUES: Venue[] = [];
 
 // Stable default: it is passed down to useLiveQueue, whose sync effect would
 // loop on a fresh [] every render.
@@ -101,6 +104,7 @@ export function SessionDetailView({
   avgGameMinutes = null,
   history,
   queueLimits = NO_LIMITS_USED,
+  venues = NO_VENUES,
 }: SessionDetailViewProps) {
   const events = useLiveFeed(session.id, initialEvents);
   // Names for the activity feed: everyone the page knows about.
@@ -530,7 +534,11 @@ export function SessionDetailView({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>{session.location}</span>
+                <VenueLocationLink
+                  location={session.location}
+                  venueId={session.venue_id}
+                  venues={venues}
+                />
               </span>
             </div>
 
