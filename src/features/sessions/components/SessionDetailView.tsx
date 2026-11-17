@@ -657,6 +657,7 @@ export function SessionDetailView({
           currentUserId={currentUserId}
           sessionId={session.id}
           isAdmin={isAdmin}
+          isRanked={sessionMeta.isRanked}
           availablePlayers={
             isAdmin
               ? eligibleEmployees

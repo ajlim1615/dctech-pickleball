@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
+import { parseSessionMetadata } from "@/lib/utils";
+import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 
 function revalidateRsvpPaths(sessionId: string) {
   revalidatePath(`/sessions/${sessionId}`);
@@ -65,12 +67,26 @@ export async function addRsvps(sessionId: string, playerIds: string[]) {
   if (uniqueIds.length === 0) return { error: "Select at least one player." };
 
   const supabase = await createClient();
-  const { data: session } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("status, description")
+    .eq("id", sessionId)
+    .maybeSingle();
   if (!session) return { error: "Session not found." };
   if (!canRsvp(session.status)) return { error: "RSVPs close when the session starts." };
 
-  // INSERT RLS only permits auth.uid() = player_id, so admin adds use the service client after requireAdminUser().
   const adminClient = createAdminClient();
+  if (parseSessionMetadata(session.description).isRanked) {
+    const { data: targetProfiles } = await adminClient
+      .from("profiles")
+      .select("id, email, is_guest")
+      .in("id", uniqueIds);
+    if (targetProfiles?.some((p) => isGuestProfile(p))) {
+      return { error: "Guest / non-employee players can only be added to Casual sessions." };
+    }
+  }
+
+  // INSERT RLS only permits auth.uid() = player_id, so admin adds use the service client after requireAdminUser().
   const { error } = await adminClient
     .from("session_rsvps")
     .upsert(
