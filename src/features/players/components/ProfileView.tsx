@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import Link from "next/link";
 import {
   User,
   Trophy,
@@ -10,6 +11,7 @@ import {
   Award,
   Calendar,
   Activity,
+  PlayCircle,
   Camera,
   Trash2,
   Loader2,
@@ -37,6 +39,30 @@ import type { PlayerRatingHistory, Profile } from "@/types";
 import { RatingTrend } from "@/features/players/components/RatingTrend";
 
 const NO_HISTORY: PlayerRatingHistory[] = [];
+const CROP_CONTAINER_SIZE = 240;
+
+function getCoverBaseSize(width: number, height: number, containerSize = CROP_CONTAINER_SIZE) {
+  if (!width || !height) return { baseW: containerSize, baseH: containerSize };
+  const aspect = width / height;
+  return aspect < 1
+    ? { baseW: containerSize, baseH: containerSize / aspect }
+    : { baseW: containerSize * aspect, baseH: containerSize };
+}
+
+function clampCropPan(
+  nextPan: { x: number; y: number },
+  zoomLevel: number,
+  dimensions: { width: number; height: number },
+  containerSize = CROP_CONTAINER_SIZE
+) {
+  const { baseW, baseH } = getCoverBaseSize(dimensions.width, dimensions.height, containerSize);
+  const maxPanX = Math.max(0, (baseW * zoomLevel - containerSize) / 2);
+  const maxPanY = Math.max(0, (baseH * zoomLevel - containerSize) / 2);
+  return {
+    x: Math.min(maxPanX, Math.max(-maxPanX, nextPan.x)),
+    y: Math.min(maxPanY, Math.max(-maxPanY, nextPan.y)),
+  };
+}
 import { formatMatchScore } from "@/features/matches/utils/scoring";
 
 interface ProfileViewProps {
@@ -147,15 +173,15 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
       const src = event.target?.result as string;
       const tempImg = new Image();
       tempImg.onload = () => {
+        const dims = { width: tempImg.naturalWidth, height: tempImg.naturalHeight };
         setCropImageSrc(src);
-        setImageDimensions({ width: tempImg.naturalWidth, height: tempImg.naturalHeight });
+        setImageDimensions(dims);
         setZoom(1);
-        // If portrait photo, calculate base height and position head in frame
-        if (tempImg.naturalHeight > tempImg.naturalWidth) {
-          const aspect = tempImg.naturalWidth / tempImg.naturalHeight;
-          const baseH = 240 / aspect;
-          const initialPanY = Math.min((baseH - 240) / 3, 40);
-          setPan({ x: 0, y: initialPanY });
+        // If portrait photo, start slightly biased toward the head while staying clamped inside the frame
+        if (dims.height > dims.width) {
+          const { baseH } = getCoverBaseSize(dims.width, dims.height);
+          const initialPanY = Math.min((baseH - CROP_CONTAINER_SIZE) / 3, 40);
+          setPan(clampCropPan({ x: 0, y: initialPanY }, 1, dims));
         } else {
           setPan({ x: 0, y: 0 });
         }
@@ -185,10 +211,13 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
     if (!isDragging) return;
     const deltaX = e.clientX - dragStart.mouseX;
     const deltaY = e.clientY - dragStart.mouseY;
-    setPan({
-      x: dragStart.panX + deltaX,
-      y: dragStart.panY + deltaY,
-    });
+    setPan(
+      clampCropPan(
+        { x: dragStart.panX + deltaX, y: dragStart.panY + deltaY },
+        zoom,
+        imageDimensions
+      )
+    );
   }
 
   function handleMouseUp() {
@@ -216,10 +245,13 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
     if (!touch) return;
     const deltaX = touch.clientX - dragStart.mouseX;
     const deltaY = touch.clientY - dragStart.mouseY;
-    setPan({
-      x: dragStart.panX + deltaX,
-      y: dragStart.panY + deltaY,
-    });
+    setPan(
+      clampCropPan(
+        { x: dragStart.panX + deltaX, y: dragStart.panY + deltaY },
+        zoom,
+        imageDimensions
+      )
+    );
   }
 
   async function handleApplyCrop() {
@@ -234,24 +266,13 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
     const ctx = canvas.getContext("2d");
 
     if (ctx) {
-      const containerSize = 240;
+      const containerSize = CROP_CONTAINER_SIZE;
       const scaleRatio = OUTPUT_SIZE / containerSize;
-      const aspect = img.naturalWidth / img.naturalHeight;
+      const { baseW, baseH } = getCoverBaseSize(img.naturalWidth, img.naturalHeight, containerSize);
 
-      // Fill clean white background
+      // Fill clean white background (fallback only; cover-fit + clamped pan prevents exposed edges)
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-
-      // Full Aspect Ratio Base Dimensions without clipping
-      let baseW = containerSize;
-      let baseH = containerSize;
-      if (aspect < 1) {
-        baseW = containerSize;
-        baseH = containerSize / aspect;
-      } else {
-        baseH = containerSize;
-        baseW = containerSize * aspect;
-      }
 
       const drawW = baseW * zoom * scaleRatio;
       const drawH = baseH * zoom * scaleRatio;
@@ -388,21 +409,6 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                   )}
                 </div>
               </div>
-
-              {/* Remove Avatar Button */}
-              {avatarUrl && !isUploading && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveAvatar();
-                  }}
-                  className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-md hover:bg-rose-600 transition-colors"
-                  title="Remove photo"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
             </div>
 
             <div className="space-y-1">
@@ -414,7 +420,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                   {profile.email?.toLowerCase() === "admin@dctechmicro.com" ? "System Admin" : profile.role}
                 </Badge>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{profile.email}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{profile.email}</p>
               
               {avatarNotice && (
                 <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold animate-pulse">
@@ -429,7 +435,10 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                   </Badge>
                 ) : (
                   <>
-                    <Badge variant="default" className="text-xs font-mono">
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-mono border-sky-500/30 bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300"
+                    >
                       ★ Rating {formatRating(profile.skill_rating)}
                     </Badge>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -442,16 +451,32 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="text-xs text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <Camera className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
-              Change Photo
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="flex-1 sm:flex-initial text-xs text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Camera className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
+                Change Photo
+              </Button>
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRemoveAvatar}
+                  disabled={isUploading}
+                  title="Remove profile photo"
+                  aria-label="Remove profile photo"
+                  className="px-2.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
 
             <Button
               variant="outline"
@@ -518,16 +543,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
 
             {/* Interactive Crop Viewport */}
             {(() => {
-              const aspect = imageDimensions.width / imageDimensions.height;
-              let baseW = 240;
-              let baseH = 240;
-              if (aspect < 1) {
-                baseW = 240;
-                baseH = 240 / aspect;
-              } else {
-                baseH = 240;
-                baseW = 240 * aspect;
-              }
+              const { baseW, baseH } = getCoverBaseSize(imageDimensions.width, imageDimensions.height);
 
               return (
                 <div className="flex flex-col items-center justify-center">
@@ -541,9 +557,9 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                     onTouchEnd={handleMouseUp}
                     className="relative h-60 w-60 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-950 border-2 border-emerald-500 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
                   >
-                    {/* Visual guideline circle overlay */}
+                    {/* Visual guideline circle overlay (dimmed outside circle like Facebook) */}
                     <div className="pointer-events-none absolute inset-0 rounded-2xl border border-slate-300 dark:border-white/20 z-10" />
-                    <div className="pointer-events-none absolute inset-2 rounded-full border-2 border-dashed border-emerald-500/80 z-10 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                    <div className="pointer-events-none absolute inset-0 rounded-full border-2 border-dashed border-emerald-500/80 z-10 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -580,7 +596,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                   type="button"
                   onClick={() => {
                     setZoom(1);
-                    setPan({ x: 0, y: 15 });
+                    setPan({ x: 0, y: 0 });
                   }}
                   className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 font-mono"
                 >
@@ -592,11 +608,15 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                 <ZoomOut className="h-4 w-4 text-slate-400 shrink-0" />
                 <input
                   type="range"
-                  min="0.5"
+                  min="1"
                   max="3"
                   step="0.05"
                   value={zoom}
-                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const nextZoom = parseFloat(e.target.value);
+                    setZoom(nextZoom);
+                    setPan((prev) => clampCropPan(prev, nextZoom, imageDimensions));
+                  }}
                   className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
                 <ZoomIn className="h-4 w-4 text-slate-400 shrink-0" />
@@ -823,11 +843,16 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
           <div className="text-3xl font-extrabold text-sky-600 dark:text-sky-400 mt-1 font-mono">
             {formatRating(profile.skill_rating)}
           </div>
+          {ratingHistory.length === 0 && profile.email?.toLowerCase() !== "admin@dctechmicro.com" && (
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+              Play ranked games to track trend
+            </p>
+          )}
         </Card>
       </div>
 
-      {/* Rating Trend */}
-      {profile.email?.toLowerCase() !== "admin@dctechmicro.com" && (
+      {/* Rating Trend (shown once ranked games are recorded) */}
+      {profile.email?.toLowerCase() !== "admin@dctechmicro.com" && ratingHistory.length > 0 && (
         <RatingTrend history={ratingHistory} currentRating={Number(profile.skill_rating || 2)} />
       )}
 
@@ -850,12 +875,30 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
 
         <CardContent className="pt-3 divide-y divide-slate-200 dark:divide-slate-800/60">
           {displayMatches.length === 0 ? (
-            <div className="py-8 text-center font-mono text-xs text-slate-400 space-y-2">
+            <div className="py-8 text-center text-xs text-slate-400 space-y-3">
               <Trophy className="h-6 w-6 text-slate-400 dark:text-slate-600 mx-auto" />
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">No Matches Played Yet</p>
-              <p className="text-slate-500 text-[11px]">
-                Check in to an open-play session and record your first match to start tracking your rating!
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-slate-700 dark:text-slate-300 font-semibold">No Matches Played Yet</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs max-w-md mx-auto">
+                  Check in to an open-play session and record your first match to start tracking your rating!
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2.5 pt-1">
+                <Link
+                  href="/sessions"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition-colors"
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  Browse Sessions
+                </Link>
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  <Activity className="h-3.5 w-3.5 text-emerald-500" />
+                  Live Courts
+                </Link>
+              </div>
             </div>
           ) : (
             displayMatches.map((m, idx) => (
