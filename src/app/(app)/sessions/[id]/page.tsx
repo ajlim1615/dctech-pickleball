@@ -16,10 +16,14 @@ import type { Session } from "@/types";
 
 export default async function SessionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ start?: string | string[] }>;
 }) {
   const { id } = await params;
+  // The admin dashboard's Start sends ?start=1 to open "Who's here?" right away.
+  const openStart = (await searchParams).start === "1";
   const [sessionData, authData, courts, matches, queue, employees, rsvps, initialEvents, avgGameMinutes, queueLimits, venues] = await Promise.all([
     getSessionById(id),
     getCurrentUser(),
@@ -72,6 +76,7 @@ export default async function SessionDetailPage({
       avgGameMinutes={avgGameMinutes}
       queueLimits={queueLimits}
       venues={venues}
+      openStart={openStart}
     />
   );
 }

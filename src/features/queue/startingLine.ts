@@ -33,6 +33,17 @@ export function shuffle<T>(items: T[], random: () => number = Math.random): T[] 
   return out;
 }
 
+/**
+ * Who from "I'm going" actually starts in line. With no `hereIds` (the admin didn't
+ * pick), everyone going does. Otherwise only the going players the admin ticked as
+ * here; ids that aren't going are ignored.
+ */
+export function pickArrived(goingPlayerIds: string[], hereIds?: string[] | null): string[] {
+  if (!hereIds) return goingPlayerIds;
+  const here = new Set(hereIds);
+  return goingPlayerIds.filter((id) => here.has(id));
+}
+
 export function planStartingLine(params: {
   goingPlayerIds: string[];
   existing: ExistingEntry[];

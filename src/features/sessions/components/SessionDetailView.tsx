@@ -70,6 +70,8 @@ interface SessionDetailViewProps {
   initialMatches?: any[];
   initialQueue?: QueueEntryWithPlayer[];
   employees?: Profile[];
+  /** Open the start dialog ("Who's here?") on load. */
+  openStart?: boolean;
   /** People who said they're going (upcoming sessions). */
   rsvps?: GoingPlayer[];
   /** Session activity, newest first, and the average game length so far. */
@@ -106,6 +108,7 @@ export function SessionDetailView({
   history,
   queueLimits = NO_LIMITS_USED,
   venues = NO_VENUES,
+  openStart = false,
 }: SessionDetailViewProps) {
   const events = useLiveFeed(session.id, initialEvents);
   // Names for the activity feed: everyone the page knows about.
@@ -147,7 +150,10 @@ export function SessionDetailView({
   const [showCheckedInList, setShowCheckedInList] = useState(false);
   const [searchCheckin, setSearchCheckin] = useState("");
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
-  const [showStartConfirm, setShowStartConfirm] = useState(false);
+  // The admin dashboard's Start lands here with ?start=1 to pick who's here.
+  const [showStartConfirm, setShowStartConfirm] = useState(
+    Boolean(openStart && isAdmin && session.status === "scheduled")
+  );
   const [showFinalStandings, setShowFinalStandings] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
@@ -347,11 +353,41 @@ export function SessionDetailView({
     setIsCreatingWalkIn(false);
   }
 
+  // "Who's here?" at the start: only ticked players go into the line. Nobody is
+  // ticked to begin with; people who arrive later check in or get added.
+  const [hereIds, setHereIds] = useState<string[]>([]);
+  const [hereSearch, setHereSearch] = useState("");
+  const isFirstStart = currentStatus === "scheduled";
+  const hereChoices = useMemo(() => {
+    const q = hereSearch.trim().toLowerCase();
+    const sorted = rsvps.slice().sort((a, b) => a.name.localeCompare(b.name));
+    return q ? sorted.filter((r) => r.name.toLowerCase().includes(q)) : sorted;
+  }, [rsvps, hereSearch]);
+
+  function openStartConfirm() {
+    setHereIds([]);
+    setHereSearch("");
+    setShowStartConfirm(true);
+  }
+
+  // Drop ?start=1 once used, so a refresh doesn't reopen the picker.
+  useEffect(() => {
+    if (!openStart) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("start");
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  }, [openStart]);
+
+  function toggleHere(playerId: string) {
+    setHereIds((prev) => (prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]));
+  }
+
   async function handleStartSession() {
     if (statusLoading) return;
     setStatusLoading(true);
     try {
-      const res = await updateSessionStatus(session.id, "active");
+      const res = await updateSessionStatus(session.id, "active", isFirstStart ? { hereIds } : {});
       if (res?.error) {
         alert(`Error starting session: ${res.error}`);
       } else {
@@ -686,7 +722,9 @@ export function SessionDetailView({
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {currentStatus === "completed"
                     ? "The session goes live again, so players can rejoin the line and games can be recorded."
-                    : `The ${rsvps.length} ${rsvps.length === 1 ? "player" : "players"} going will be shuffled into the line, courts open for games, and "I'm going" closes. Any other live session is ended.`}
+                    : rsvps.length > 0
+                      ? "Tick who's at the courts. Only they are shuffled into the line; the rest join when they arrive. \"I'm going\" closes and any other live session is ended."
+                      : "Courts open for games and \"I'm going\" closes. Add players once it's live. Any other live session is ended."}
                 </p>
               </div>
             </div>
@@ -700,6 +738,85 @@ export function SessionDetailView({
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {isFirstStart && rsvps.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                  Who&apos;s here?{" "}
+                  <span className="font-mono text-slate-500 dark:text-slate-400">
+                    {hereIds.length}/{rsvps.length}
+                  </span>
+                </p>
+                <div className="flex items-center gap-1 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setHereIds(rsvps.map((r) => r.playerId))}
+                    disabled={statusLoading}
+                    className="rounded-lg px-2 py-1 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+                  >
+                    All here
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHereIds([])}
+                    disabled={statusLoading || hereIds.length === 0}
+                    className="rounded-lg px-2 py-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              {rsvps.length > 8 && (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={hereSearch}
+                    onChange={(e) => setHereSearch(e.target.value)}
+                    placeholder="Find a player…"
+                    aria-label="Find a player"
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 pl-8 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  />
+                </div>
+              )}
+              <ul className="max-h-72 overflow-y-auto grid grid-cols-1 min-[420px]:grid-cols-2 gap-1.5 pr-1">
+                {hereChoices.map((r) => {
+                  const here = hereIds.includes(r.playerId);
+                  return (
+                    <li key={r.playerId}>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={here}
+                        onClick={() => toggleHere(r.playerId)}
+                        disabled={statusLoading}
+                        className={`w-full flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-sm transition-colors cursor-pointer ${
+                          here
+                            ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-semibold"
+                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/60"
+                        }`}
+                      >
+                        <span
+                          className={`h-4 w-4 shrink-0 rounded flex items-center justify-center border ${
+                            here ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 dark:border-slate-600"
+                          }`}
+                        >
+                          {here && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="truncate">{r.name}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+                {hereChoices.length === 0 && (
+                  <li className="col-span-full py-2 text-center text-xs text-slate-500 dark:text-slate-400">
+                    No one going matches that name.
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
             <Button
@@ -720,7 +837,13 @@ export function SessionDetailView({
             >
               {statusLoading
                 ? currentStatus === "completed" ? "Reopening…" : "Starting…"
-                : currentStatus === "completed" ? "Yes, reopen" : "Yes, start session"}
+                : currentStatus === "completed"
+                  ? "Yes, reopen"
+                  : isFirstStart && rsvps.length > 0
+                    ? hereIds.length > 0
+                      ? `Start with ${hereIds.length} ${hereIds.length === 1 ? "player" : "players"}`
+                      : "Start with empty line"
+                    : "Yes, start session"}
             </Button>
           </div>
         </div>
@@ -1367,7 +1490,7 @@ export function SessionDetailView({
           checkedInCount={checkins.length}
           autoFill={autoFill}
           onAutoFillChange={setAutoFill}
-          onStart={() => setShowStartConfirm(true)}
+          onStart={openStartConfirm}
           isStarting={statusLoading}
           onAddPlayers={openAddPlayers}
           onEnd={() => setShowFinishConfirm(true)}

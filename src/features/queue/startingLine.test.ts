@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planStartingLine, shuffle } from "./startingLine";
+import { pickArrived, planStartingLine, shuffle } from "./startingLine";
 
 const NOW = new Date("2026-11-17T09:00:00.000Z");
 
@@ -25,6 +25,22 @@ describe("shuffle", () => {
   it("keeps every item exactly once", () => {
     const out = shuffle([1, 2, 3, 4, 5, 6], seeded(7));
     expect(out.slice().sort()).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});
+
+describe("pickArrived", () => {
+  it("keeps everyone going when the admin didn't pick", () => {
+    expect(pickArrived(["a", "b"])).toEqual(["a", "b"]);
+    expect(pickArrived(["a", "b"], null)).toEqual(["a", "b"]);
+  });
+
+  it("keeps only the going players ticked as here", () => {
+    expect(pickArrived(["a", "b", "c"], ["c", "a"])).toEqual(["a", "c"]);
+  });
+
+  it("ignores ticked ids that aren't going, and an empty pick starts nobody", () => {
+    expect(pickArrived(["a"], ["a", "stranger"])).toEqual(["a"]);
+    expect(pickArrived(["a", "b"], [])).toEqual([]);
   });
 });
 

@@ -50,7 +50,7 @@ import {
   cancelSession,
   editSession,
 } from "../api/adminActions";
-import { createSession, updateSessionStatus } from "@/features/sessions/api/sessionActions";
+import { createSession } from "@/features/sessions/api/sessionActions";
 import { cleanSessionDescription, formatRating, parseSessionMetadata } from "@/lib/utils";
 import { DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import {
@@ -112,7 +112,6 @@ export function AdminDashboard({
   const [isSubmittingSession, setIsSubmittingSession] = useState(false);
   const [isEditingSession, setIsEditingSession] = useState<Session | null>(null);
   const [isSubmittingEditSession, setIsSubmittingEditSession] = useState(false);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [isConfirmModalSubmitting, setIsConfirmModalSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isScalingCourts, setIsScalingCourts] = useState(false);
@@ -371,45 +370,22 @@ export function AdminDashboard({
     });
   }
 
-  async function startSessionAndOpenConsole(session: Session) {
-    if (actionLoadingId === session.id) return;
-    setActionLoadingId(session.id);
-    try {
-      const res = await updateSessionStatus(session.id, "active");
-      if (res?.error) {
-        showNotice(`Error: ${res.error}`);
-        return;
-      }
-      if ("warning" in res && res.warning) alert(res.warning);
-      // Go straight to the console: that's where players are queued and courts are run.
-      router.push(`/sessions/${session.id}`);
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
-
   function handleStartSession(session: Session) {
+    // Starting happens on the session page, where you tick who's at the courts.
+    const pickWhosHere = async () => router.push(`/sessions/${session.id}?start=1`);
     // Only one session can be live; starting another ends the current one.
     if (activeSession && activeSession.id !== session.id) {
       setConfirmModal({
         isOpen: true,
         title: `Start "${session.title}"?`,
-        message: `"${activeSession.title}" is still live. Starting this session will end it, free its courts and clear its queue.`,
-        confirmLabel: "End it & start this one",
+        message: `"${activeSession.title}" is still live. Starting this session will end it, free its courts and clear its queue. Next you'll pick who's here.`,
+        confirmLabel: "Continue",
         isDestructive: true,
-        action: () => startSessionAndOpenConsole(session),
+        action: pickWhosHere,
       });
       return;
     }
-    setConfirmModal({
-      isOpen: true,
-      title: `Start "${session.title}"?`,
-      message:
-        "Everyone going will be shuffled into the line, courts open for games, and \"I'm going\" closes. Start only when you're at the courts.",
-      confirmLabel: "Yes, start session",
-      isDestructive: false,
-      action: () => startSessionAndOpenConsole(session),
-    });
+    pickWhosHere();
   }
 
   function handleCancelSession(session: Session) {
@@ -1089,12 +1065,10 @@ export function AdminDashboard({
                         <Button
                           variant="volt"
                           size="sm"
-                          loading={actionLoadingId === s.id}
-                          disabled={actionLoadingId === s.id}
                           onClick={() => handleStartSession(s)}
                           className="h-10 px-4 font-bold cursor-pointer"
                         >
-                          {actionLoadingId === s.id ? "Starting…" : "Start"}
+                          Start
                         </Button>
                         <Button
                           variant="outline"

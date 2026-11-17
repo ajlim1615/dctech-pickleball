@@ -10,7 +10,7 @@ import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
 import { REJOIN_USED_MESSAGE, canRejoin } from "@/features/queue/utils/queueLimits";
-import { planStartingLine } from "@/features/queue/startingLine";
+import { pickArrived, planStartingLine } from "@/features/queue/startingLine";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
@@ -265,7 +265,16 @@ export async function createSession(formData: FormData) {
   return { success: true };
 }
 
-export async function updateSessionStatus(sessionId: string, status: SessionStatus) {
+/**
+ * `hereIds`: on a first start, the going players the admin ticked as at the courts.
+ * Only they are shuffled into the line; the rest stay "going" and join when they
+ * arrive. Left out, everyone going starts in line.
+ */
+export async function updateSessionStatus(
+  sessionId: string,
+  status: SessionStatus,
+  options: { hereIds?: string[] } = {}
+) {
   // Server-side RBAC Guard
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
@@ -316,7 +325,7 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 
   let startingLineError: string | null = null;
   if (isFirstStart) {
-    startingLineError = await buildStartingLine(supabase, sessionId);
+    startingLineError = await buildStartingLine(supabase, sessionId, options.hereIds);
   }
 
   if (status === "active" || status === "completed") {
@@ -350,12 +359,14 @@ export async function updateSessionStatus(sessionId: string, status: SessionStat
 }
 
 /**
- * Shuffle everyone who said "I'm going" (and anyone already pre-queued) into the
- * starting line, so tapping first is no head start. Returns an error message, or null.
+ * Shuffle everyone who said "I'm going" (or, when the admin picked, only those
+ * ticked as here) and anyone already pre-queued into the starting line, so tapping
+ * first is no head start. Returns an error message, or null.
  */
 async function buildStartingLine(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  sessionId: string
+  sessionId: string,
+  hereIds?: string[]
 ): Promise<string | null> {
   const [rsvpRes, queueRes, sessionRes] = await Promise.all([
     supabase.from("session_rsvps").select("player_id").eq("session_id", sessionId),
@@ -372,7 +383,10 @@ async function buildStartingLine(
 
   // Only active player accounts are added; the system admin never plays, and
   // guests only play casual sessions.
-  const rsvpIds = (rsvpRes.data || []).map((r) => r.player_id);
+  const rsvpIds = pickArrived(
+    (rsvpRes.data || []).map((r) => r.player_id),
+    Array.isArray(hereIds) ? hereIds.filter((id): id is string => typeof id === "string") : undefined
+  );
   let goingPlayerIds: string[] = [];
   if (rsvpIds.length > 0) {
     const { data: players, error: playersError } = await supabase
