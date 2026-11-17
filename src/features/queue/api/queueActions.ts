@@ -6,6 +6,7 @@ import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
 import { parseSessionMetadata } from "@/lib/utils";
 import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
+import { GUEST_RANKED_MESSAGE, canEnterSession } from "@/features/sessions/utils/guestRules";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
@@ -83,6 +84,25 @@ export async function joinQueue(params: {
   // Partners (a coworker or guest on your team) only when the admin allowed it for this session.
   if ((params.partnerId || params.guestName) && !parseSessionMetadata(sessionRow?.description).allowPartners) {
     return { error: "This session is solo only: join on your own and the game mode makes the teams." };
+  }
+
+  // Guests (non-employees) play casual sessions only, including as someone's partner.
+  const isRankedSession = parseSessionMetadata(sessionRow?.description).isRanked;
+  if (params.guestName && isRankedSession) {
+    return { error: GUEST_RANKED_MESSAGE };
+  }
+  if (params.partnerId) {
+    const { data: partner } = await supabase
+      .from("profiles")
+      .select("id, email, is_guest, is_active")
+      .eq("id", params.partnerId)
+      .maybeSingle();
+    if (!partner || !partner.is_active || isRootSystemAdmin(partner.email)) {
+      return { error: "That partner can't play right now. Pick someone else." };
+    }
+    if (!canEnterSession(partner, isRankedSession)) {
+      return { error: GUEST_RANKED_MESSAGE };
+    }
   }
 
   // One rejoin per session: after leaving twice, only an admin can add the player back.
@@ -170,6 +190,7 @@ export async function joinQueue(params: {
       fullName: guestName.includes("(Guest)") ? guestName : `${guestName} (Guest)`,
       displayName: guestName,
       rating: RATING_RULES.start,
+      isGuest: true,
     });
     if (guest.error || !guest.id) {
       return { error: `You joined, but your guest couldn't be added: ${guest.error ?? "unknown error"}` };
@@ -241,7 +262,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
   );
   const validPlayerIds = playerIds.filter((id) => !blockedIds.has(id));
   if (validPlayerIds.length === 0) {
-    return { error: isRankedSession ? "Guest / non-employee players cannot be added to Ranked sessions." : "No eligible players selected." };
+    return { error: isRankedSession ? GUEST_RANKED_MESSAGE : "No eligible players selected." };
   }
 
   // Get currently active queue entries to avoid duplicates

@@ -1,5 +1,6 @@
 "use server";
 
+import { GUEST_RANKED_MESSAGE } from "@/features/sessions/utils/guestRules";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -82,7 +83,7 @@ export async function addRsvps(sessionId: string, playerIds: string[]) {
       .select("id, email, is_guest")
       .in("id", uniqueIds);
     if (targetProfiles?.some((p) => isGuestProfile(p))) {
-      return { error: "Guest / non-employee players can only be added to Casual sessions." };
+      return { error: GUEST_RANKED_MESSAGE };
     }
   }
 

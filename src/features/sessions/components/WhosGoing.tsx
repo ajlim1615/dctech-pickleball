@@ -95,14 +95,10 @@ export function WhosGoing({
         isGuest: isGuestWalkIn,
         skillRating: walkInRating,
         sessionId,
+        addToGoing: true,
       });
       if (created?.error || !created?.player) {
-        setError(created?.error || "Could not create walk-in player.");
-        return;
-      }
-      const rsvpRes = await addRsvps(sessionId, [created.player.id]);
-      if (rsvpRes?.error) {
-        setError(rsvpRes.error);
+        setError(created?.error || "The walk-in couldn't be added.");
         return;
       }
       setWalkInName("");

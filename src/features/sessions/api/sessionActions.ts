@@ -175,6 +175,7 @@ import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { sanitizeString } from "@/lib/security/validation";
 import { parseCourtCount, parseSessionMetadata, parseSkillSpread } from "@/lib/utils";
 import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
+import { GUEST_RANKED_MESSAGE, canEnterSession } from "@/features/sessions/utils/guestRules";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { setRentedCourtCount } from "@/features/admin/api/adminActions";
 
@@ -365,28 +366,31 @@ async function buildStartingLine(
   supabase: Awaited<ReturnType<typeof createClient>>,
   sessionId: string
 ): Promise<string | null> {
-  const [rsvpRes, queueRes] = await Promise.all([
+  const [rsvpRes, queueRes, sessionRes] = await Promise.all([
     supabase.from("session_rsvps").select("player_id").eq("session_id", sessionId),
     supabase
       .from("queue_entries")
       .select("id, player_id, group_id")
       .eq("session_id", sessionId)
       .not("status", "in", "(left,playing)"),
+    supabase.from("sessions").select("description").eq("id", sessionId).maybeSingle(),
   ]);
   if (rsvpRes.error) return rsvpRes.error.message;
+  const isRanked = parseSessionMetadata(sessionRes.data?.description).isRanked;
   if (queueRes.error) return queueRes.error.message;
 
-  // Only active player accounts are added; the system admin never plays.
+  // Only active player accounts are added; the system admin never plays, and
+  // guests only play casual sessions.
   const rsvpIds = (rsvpRes.data || []).map((r) => r.player_id);
   let goingPlayerIds: string[] = [];
   if (rsvpIds.length > 0) {
     const { data: players, error: playersError } = await supabase
       .from("profiles")
-      .select("id, email, is_active")
+      .select("id, email, is_active, is_guest")
       .in("id", rsvpIds);
     if (playersError) return playersError.message;
     goingPlayerIds = (players || [])
-      .filter((p) => p.is_active && p.email?.toLowerCase() !== "admin@dctechmicro.com")
+      .filter((p) => p.is_active && p.email?.toLowerCase() !== "admin@dctechmicro.com" && canEnterSession(p, isRanked))
       .map((p) => p.id);
   }
 
@@ -456,7 +460,7 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     return { error: "The System Admin account (admin@dctechmicro.com) is a non-playing administrator and cannot check in to play." };
   }
   if (profile && isGuestProfile(profile) && parseSessionMetadata(sessionRow?.description).isRanked) {
-    return { error: "Guest / non-employee players can only be checked in to Casual sessions." };
+    return { error: GUEST_RANKED_MESSAGE };
   }
 
   const { error } = await supabase.from("session_checkins").upsert(

@@ -1,6 +1,8 @@
 "use server";
 
+import { GUEST_RANKED_MESSAGE, blockedFromSession } from "@/features/sessions/utils/guestRules";
 import { revalidatePath } from "next/cache";
+import { canRsvp } from "@/features/sessions/utils/rsvp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole, CourtStatus, Profile } from "@/types";
@@ -582,6 +584,31 @@ export async function editSession(sessionId: string, formData: FormData) {
   const location = sanitizeString(rawLocation);
   const userDesc = sanitizeString(rawDescription || "");
 
+  // A ranked session is employees only: refuse the switch while guests are going or in line.
+  if (isRanked) {
+    const supabase = await createClient();
+    const [rsvpRes, queueRes] = await Promise.all([
+      supabase.from("session_rsvps").select("player_id").eq("session_id", sessionId),
+      supabase.from("queue_entries").select("player_id").eq("session_id", sessionId).neq("status", "left"),
+    ]);
+    const ids = Array.from(
+      new Set([...(rsvpRes.data ?? []), ...(queueRes.data ?? [])].map((r) => r.player_id))
+    );
+    if (ids.length > 0) {
+      const { data: people } = await supabase
+        .from("profiles")
+        .select("full_name, display_name, email, is_guest")
+        .in("id", ids);
+      const guests = blockedFromSession(people ?? [], true);
+      if (guests.length > 0) {
+        const names = guests.map((g) => g.display_name || g.full_name || "a guest").join(", ");
+        return {
+          error: `Guests can only play casual sessions. Remove ${names} from this session before making it ranked.`,
+        };
+      }
+    }
+  }
+
   // Metadata tags
   const usesSkillSpread = matchingStyle === "skill_separated" || matchingStyle === "skill_courts";
   const skillSpreadTag = usesSkillSpread
@@ -686,6 +713,8 @@ export async function createWalkInPlayer(params: {
   isGuest?: boolean;
   skillRating?: number;
   sessionId?: string;
+  /** Also put them on this session's Who's going list, in the same step. */
+  addToGoing?: boolean;
 }) {
   // Server-side RBAC Guard
   const auth = await requireAdminUser();
@@ -706,17 +735,22 @@ export async function createWalkInPlayer(params: {
   const providedEmail = validation.data.email;
   const supabase = await createClient();
 
-  if (params.isGuest) {
-    if (!params.sessionId) {
-      return { error: "Guest / non-employee players can only be added inside a Casual session." };
-    }
+  if (params.isGuest && !params.sessionId) {
+    return { error: "Add a guest from inside a casual session." };
+  }
+  if (params.sessionId && (params.isGuest || params.addToGoing)) {
     const { data: targetSession } = await supabase
       .from("sessions")
-      .select("description")
+      .select("description, status")
       .eq("id", params.sessionId)
       .maybeSingle();
-    if (!targetSession || parseSessionMetadata(targetSession.description).isRanked) {
-      return { error: "Guest / non-employee players can only be added to Casual sessions." };
+    if (!targetSession) return { error: "Session not found." };
+    if (params.isGuest && parseSessionMetadata(targetSession.description).isRanked) {
+      return { error: GUEST_RANKED_MESSAGE };
+    }
+    // Check before creating anyone, so a closed session doesn't leave a stray account.
+    if (params.addToGoing && !canRsvp(targetSession.status)) {
+      return { error: "RSVPs close when the session starts." };
     }
   }
 
@@ -752,6 +786,21 @@ export async function createWalkInPlayer(params: {
     console.error("createWalkInPlayer error:", created.error);
     return { error: created.error || "The player couldn't be added." };
   }
+  // Who's going, in the same step: if that fails, remove the new account so a retry
+  // doesn't leave a duplicate behind (guests are hidden from the directory).
+  if (params.addToGoing && params.sessionId) {
+    const service = createAdminClient();
+    const { error: rsvpError } = await service
+      .from("session_rsvps")
+      .upsert({ session_id: params.sessionId, player_id: created.id }, { onConflict: "session_id,player_id" });
+    if (rsvpError) {
+      await service.auth.admin.deleteUser(created.id);
+      return { error: `The player couldn't be added to Who's going: ${rsvpError.message}` };
+    }
+    revalidatePath(`/sessions/${params.sessionId}`);
+    revalidatePath("/");
+  }
+
   const { data } = await supabase.from("profiles").select("*").eq("id", created.id).maybeSingle();
 
   revalidatePath("/admin");

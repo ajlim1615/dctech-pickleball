@@ -202,7 +202,6 @@ export function SessionDetailView({
     }
     setDisplayCourtCount(res?.courtCount ?? pendingCourtCount);
     setPendingCourtCount(null);
-    router.refresh();
   }
 
   function openEditDetails() {
@@ -231,7 +230,6 @@ export function SessionDetailView({
     setDisplayTitle(res?.title ?? trimmedTitle);
     setDisplayDescription(res?.description ?? draftDescription.trim());
     setIsEditingDetails(false);
-    router.refresh();
   }
   // Live: the arena's real courts. Otherwise: this session's own court count, since the
   // shared arena only switches to it when the session starts.
@@ -1519,7 +1517,7 @@ export function SessionDetailView({
             currentUserId={currentUserId}
             userRole={userRole}
             userEmail={userEmail}
-            employees={employees}
+            employees={eligibleEmployees}
             isSessionActive={currentStatus === "active"}
             isSessionScheduled={currentStatus === "scheduled"}
             matchingMode={sessionMeta.matchingMode}
