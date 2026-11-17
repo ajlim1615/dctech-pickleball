@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Match, MatchFormat, WinningTeam } from "@/types";
 import { callNextUp } from "@/features/queue/api/queueActions";
-import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
 import { describeRule, getWinner } from "@/features/matches/utils/scoring";
 import { parseSessionMetadata } from "@/lib/utils";
 import {
@@ -89,7 +88,7 @@ export async function finalizeMatch(
     return { error: validation.error.issues[0]?.message || "Invalid match score parameters." };
   }
 
-  // Only admins score games; record_match_result enforces the same in the database.
+  // Only admins score games; finish_match enforces the same in the database.
   const auth = await requireAdminUser();
   if (auth.error || !auth.context) return { error: auth.error || "Authentication required to finalize match." };
   const user = { id: auth.context.userId };
@@ -128,7 +127,7 @@ export async function finalizeMatch(
   const winningTeam: WinningTeam = winnerSide === "A" ? "team_a" : "team_b";
 
   // Ranked games: rate from each player's rating and game count before this game
-  // (record_match_result bumps games_played), then save everything at once.
+  // (finish_match bumps games_played), then save everything at once.
   let ratingChanges: ReturnType<typeof calculateRatingChanges> = [];
   if (meta.isRanked) {
     const rated = await loadRatedTeams(supabase, matchId);
@@ -140,9 +139,10 @@ export async function finalizeMatch(
     ratingChanges = calculateRatingChanges(rated.teamA, rated.teamB, teamAScore, teamBScore, meta.targetPoints);
   }
 
-  // One transaction: score, winner, court, totals, ratings and history. It only
-  // saves a game that is still in progress, so a double tap can't record it twice.
-  const { data: saved, error: saveError } = await supabase.rpc("record_match_result", {
+  // One transaction: score, winner, court, totals, ratings, history, and the players
+  // back in line. It only saves a game that is still in progress, so a double tap
+  // can't record it twice.
+  const { data: saved, error: saveError } = await supabase.rpc("finish_match", {
     p_match_id: matchId,
     p_team_a_score: teamAScore,
     p_team_b_score: teamBScore,
@@ -159,11 +159,11 @@ export async function finalizeMatch(
     p_max_rating: RATING_RULES.max,
   });
   if (saveError) {
-    console.error("record_match_result failed:", saveError.message);
+    console.error("finish_match failed:", saveError.message);
     return { error: "The game couldn't be saved. Nothing was changed; please try again." };
   }
   const savedOutcome = saved as { error?: string } | null;
-  if (savedOutcome?.error) return { error: savedOutcome.error };
+  if (savedOutcome?.error) return { error: gameStateErrorMessage(savedOutcome.error) };
 
   recordSessionEvent(async () => ({
     sessionId: matchRecord?.session_id ?? null,
@@ -181,8 +181,8 @@ export async function finalizeMatch(
     },
   }));
 
-  // Everyone who just played rejoins the back of the line, then the freed court
-  // pulls the next group so the admin doesn't have to.
+  // finish_match already put everyone who just played at the back of the line; the
+  // freed court now pulls the next group so the admin doesn't have to.
   const sessionId = matchRecord?.session_id;
   const courtId = matchRecord?.court_id;
   const sessionInfo = (matchRecord as { sessions?: { status?: string } | null } | null)?.sessions;
@@ -190,14 +190,10 @@ export async function finalizeMatch(
   let autoFilled = false;
   let autoFillMessage: string | undefined;
 
-  if (sessionId && isSessionActive) {
-    await requeueMatchPlayers(supabase, matchId, sessionId);
-
-    if (autoFill && courtId) {
-      const next = await callNextUp(sessionId, courtId, 4);
-      autoFilled = Boolean(next?.success);
-      autoFillMessage = next?.error;
-    }
+  if (sessionId && isSessionActive && autoFill && courtId) {
+    const next = await callNextUp(sessionId, courtId, 4);
+    autoFilled = Boolean(next?.success);
+    autoFillMessage = next?.error;
   }
 
   revalidatePath("/");
@@ -211,68 +207,6 @@ export async function finalizeMatch(
     autoFilled?: boolean;
     autoFillMessage?: string;
   };
-}
-
-async function requeueMatchPlayers(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  matchId: string,
-  sessionId: string
-) {
-  const { data: matchPlayers } = await supabase
-    .from("match_players")
-    .select("player_id")
-    .eq("match_id", matchId);
-  const playerIds = (matchPlayers || []).map((p) => p.player_id);
-  if (playerIds.length === 0) return;
-
-  // Release entries still marked "playing" (the casual path never cleared them).
-  await supabase
-    .from("queue_entries")
-    .update({ status: "left" })
-    .eq("session_id", sessionId)
-    .eq("status", "playing")
-    .in("player_id", playerIds);
-
-  const [{ data: checkins }, { data: entries }] = await Promise.all([
-    supabase
-      .from("session_checkins")
-      .select("player_id")
-      .eq("session_id", sessionId)
-      .eq("status", "checked_in")
-      .in("player_id", playerIds),
-    supabase
-      .from("queue_entries")
-      .select("player_id, group_id, status")
-      .eq("session_id", sessionId)
-      .in("player_id", playerIds)
-      .order("joined_at", { ascending: false }),
-  ]);
-
-  // Entries come newest first, so the first group_id seen per player is the latest.
-  const previousGroupIds: Record<string, string | null> = {};
-  for (const e of entries || []) {
-    if (!(e.player_id in previousGroupIds)) previousGroupIds[e.player_id] = e.group_id;
-  }
-
-  const toRequeue = selectPlayersToRequeue({
-    matchPlayerIds: playerIds,
-    checkedInIds: (checkins || []).map((c) => c.player_id),
-    activeQueueIds: (entries || [])
-      .filter((e) => e.status === "waiting" || e.status === "called" || e.status === "playing" || e.status === "on_break")
-      .map((e) => e.player_id),
-    previousGroupIds,
-  });
-
-  if (toRequeue.length > 0) {
-    await supabase.from("queue_entries").insert(
-      toRequeue.map((e) => ({
-        session_id: sessionId,
-        player_id: e.player_id,
-        group_id: e.group_id,
-        status: "waiting" as const,
-      }))
-    );
-  }
 }
 
 export async function getMatchesList(limit = 20) {
