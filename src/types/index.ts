@@ -5,6 +5,7 @@ export * from "./database.types";
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Court = Database["public"]["Tables"]["courts"]["Row"];
 export type Session = Database["public"]["Tables"]["sessions"]["Row"];
+export type Venue = Database["public"]["Tables"]["venues"]["Row"];
 export type SessionCheckin = Database["public"]["Tables"]["session_checkins"]["Row"];
 export type SessionRsvp = Database["public"]["Tables"]["session_rsvps"]["Row"];
 export type QueueEntry = Database["public"]["Tables"]["queue_entries"]["Row"];

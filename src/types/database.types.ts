@@ -132,6 +132,7 @@ export interface Database {
           title: string;
           description: string | null;
           location: string;
+          venue_id?: string | null;
           status: SessionStatus;
           start_time: string;
           end_time: string;
@@ -145,6 +146,7 @@ export interface Database {
           title: string;
           description?: string | null;
           location?: string;
+          venue_id?: string | null;
           status?: SessionStatus;
           start_time: string;
           end_time: string;
@@ -158,11 +160,45 @@ export interface Database {
           title?: string;
           description?: string | null;
           location?: string;
+          venue_id?: string | null;
           status?: SessionStatus;
           start_time?: string;
           end_time?: string;
           max_players?: number | null;
           created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      venues: {
+        Row: {
+          id: string;
+          name: string;
+          maps_url: string;
+          address: string | null;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          maps_url: string;
+          address?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          maps_url?: string;
+          address?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
