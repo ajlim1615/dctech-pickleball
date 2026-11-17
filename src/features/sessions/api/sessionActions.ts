@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
+import { insertQueueEntries } from "@/features/queue/server/insertQueueEntries";
 import { parsePHTToISO } from "@/lib/timezone";
 import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -372,7 +374,7 @@ async function buildStartingLine(
       .from("queue_entries")
       .select("id, player_id, group_id")
       .eq("session_id", sessionId)
-      .not("status", "in", "(left,playing)"),
+      .in("status", LINE_STATUSES),
     supabase.from("sessions").select("description").eq("id", sessionId).maybeSingle(),
   ]);
   if (rsvpRes.error) return rsvpRes.error.message;
@@ -398,10 +400,11 @@ async function buildStartingLine(
   const plan = planStartingLine({ goingPlayerIds, existing: queueRes.data || [], now });
 
   if (plan.add.length > 0) {
-    const { error: insertError } = await supabase.from("queue_entries").insert(
+    const added = await insertQueueEntries(
+      supabase,
       plan.add.map((a) => ({ session_id: sessionId, player_id: a.playerId, status: "waiting" as const, joined_at: a.joinedAt }))
     );
-    if (insertError) return insertError.message;
+    if (added.error) return added.error;
 
     // Being in line counts as checked in, same as joining the queue yourself.
     await supabase.from("session_checkins").upsert(
@@ -488,22 +491,10 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     };
   });
 
-  // Also auto-enter the waiting queue if not already queued
-  const { data: existingQueue } = await supabase
-    .from("queue_entries")
-    .select("id")
-    .eq("session_id", sessionId)
-    .eq("player_id", targetPlayerId)
-    .neq("status", "left") // waiting, called, playing or on_break
-    .maybeSingle();
-
-  if (!existingQueue) {
-    await createAdminClient().from("queue_entries").insert({
-      session_id: sessionId,
-      player_id: targetPlayerId,
-      status: "waiting",
-    });
-  }
+  // Also enter the line; already in it (waiting, on court or on a break) is skipped.
+  await insertQueueEntries(createAdminClient(), [
+    { session_id: sessionId, player_id: targetPlayerId, status: "waiting" },
+  ]);
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/sessions");
@@ -549,7 +540,7 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .not("status", "in", "(playing,left)") // waiting, called or on_break
+    .in("status", LINE_STATUSES)
     .select("id");
 
   if (queueError) {

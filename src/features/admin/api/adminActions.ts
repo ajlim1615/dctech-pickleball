@@ -4,6 +4,7 @@ import { GUEST_RANKED_MESSAGE, blockedFromSession } from "@/features/sessions/ut
 import { revalidatePath } from "next/cache";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
 import { createClient } from "@/lib/supabase/server";
+import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole, CourtStatus, Profile } from "@/types";
 
@@ -285,7 +286,7 @@ export async function resetSessionQueue(sessionId: string) {
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
-    .not("status", "in", "(playing,left)"); // waiting, called or on_break
+    .in("status", LINE_STATUSES); // waiting, called or on_break
 
   if (error) return { error: error.message };
 
@@ -541,7 +542,7 @@ export async function cancelSession(sessionId: string) {
     .from("queue_entries")
     .update({ status: "left" })
     .eq("session_id", sessionId)
-    .not("status", "in", "(playing,left)"); // waiting, called or on_break
+    .in("status", LINE_STATUSES); // waiting, called or on_break
 
   // Free courts if this was the active session
   await supabase

@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { QueueEntryWithPlayer } from "@/types";
-
-/** Entries that belong in the line (on a court or gone means out of it). */
-const inLine = (status: string) => status !== "left" && status !== "playing";
+import { isInLine as inLine } from "@/features/queue/constants/queueStatuses";
 
 const byJoinTime = (a: QueueEntryWithPlayer, b: QueueEntryWithPlayer) =>
   a.joined_at < b.joined_at ? -1 : a.joined_at > b.joined_at ? 1 : 0;

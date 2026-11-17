@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
+import { insertQueueEntries, staggeredJoinTimes } from "@/features/queue/server/insertQueueEntries";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
 import { parseSessionMetadata } from "@/lib/utils";
@@ -44,7 +46,7 @@ export async function getQueueForSession(sessionId?: string): Promise<QueueEntry
         skill_rating
       )
     `)
-    .not("status", "in", "(playing,left)") // waiting, called or on_break
+    .in("status", LINE_STATUSES)
     .order("joined_at", { ascending: true });
 
   if (sessionId) {
@@ -135,28 +137,19 @@ export async function joinQueue(params: {
     console.error("Auto session checkin failed:", e);
   }
 
-  // Check if player is already waiting/called
-  const { data: existingQueue } = await supabase
-    .from("queue_entries")
-    .select("id")
-    .eq("session_id", params.sessionId)
-    .eq("player_id", user.id)
-    .not("status", "in", "(playing,left)") // waiting, called or on_break
-    .maybeSingle();
-
-  if (!existingQueue) {
-    // Insert current player
-    const { error: userError } = await admin.from("queue_entries").insert({
+  // Join the line. Already in it (a double tap, or checked in a moment ago) is fine:
+  // the database keeps one active entry per player, and that row is skipped.
+  const joined = await insertQueueEntries(admin, [
+    {
       session_id: params.sessionId,
       player_id: user.id,
       group_id: groupId,
       status: "waiting",
       target_court_id: params.preferredCourtId || null,
-    });
-
-    if (userError) {
-      return { error: userError.message };
-    }
+    },
+  ]);
+  if (joined.error) {
+    return { error: joined.error };
   }
 
   // If doubles pair with a registered coworker
@@ -171,23 +164,15 @@ export async function joinQueue(params: {
       { onConflict: "session_id,player_id" }
     );
 
-    const { data: existingPartnerQueue } = await supabase
-      .from("queue_entries")
-      .select("id")
-      .eq("session_id", params.sessionId)
-      .eq("player_id", params.partnerId)
-      .not("status", "in", "(playing,left)") // waiting, called or on_break
-      .maybeSingle();
-
-    if (!existingPartnerQueue) {
-      await admin.from("queue_entries").insert({
+    await insertQueueEntries(admin, [
+      {
         session_id: params.sessionId,
         player_id: params.partnerId,
         group_id: groupId,
         status: "waiting",
         target_court_id: params.preferredCourtId || null,
-      });
-    }
+      },
+    ]);
   } else if (params.guestName) {
     // A guest needs a player record (and so an account that can't sign in).
     const guestName = params.guestName.trim().slice(0, 60);
@@ -201,13 +186,15 @@ export async function joinQueue(params: {
       return { error: `You joined, but your guest couldn't be added: ${guest.error ?? "unknown error"}` };
     }
 
-    await admin.from("queue_entries").insert({
-      session_id: params.sessionId,
-      player_id: guest.id,
-      group_id: groupId,
-      status: "waiting",
-      target_court_id: params.preferredCourtId || null,
-    });
+    await insertQueueEntries(admin, [
+      {
+        session_id: params.sessionId,
+        player_id: guest.id,
+        group_id: groupId,
+        status: "waiting",
+        target_court_id: params.preferredCourtId || null,
+      },
+    ]);
   }
 
   recordSessionEvent({
@@ -293,17 +280,20 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
   }));
   await supabase.from("session_checkins").upsert(checkinRecords, { onConflict: "session_id,player_id" });
 
-  // Insert queue entries
-  const queueRecords = toAdd.map((playerId) => ({
-    session_id: sessionId,
-    player_id: playerId,
-    status: "waiting" as const,
-  }));
+  // Into the line in the order picked (1 ms apart), skipping anyone who joined meanwhile.
+  const joinTimes = staggeredJoinTimes(toAdd.length, new Date());
+  const added = await insertQueueEntries(
+    supabase,
+    toAdd.map((playerId, i) => ({
+      session_id: sessionId,
+      player_id: playerId,
+      status: "waiting" as const,
+      joined_at: joinTimes[i],
+    }))
+  );
 
-  const { error: queueError } = await supabase.from("queue_entries").insert(queueRecords);
-
-  if (queueError) {
-    return { error: queueError.message };
+  if (added.error) {
+    return { error: added.error };
   }
 
   recordSessionEvent({
@@ -317,7 +307,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
 
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
-  return { success: true, count: toAdd.length };
+  return { success: true, count: added.inserted };
 }
 
 export async function leaveQueue(sessionId: string) {
@@ -334,7 +324,7 @@ export async function leaveQueue(sessionId: string) {
     .update({ status: "left" })
     .eq("session_id", sessionId)
     .eq("player_id", user.id)
-    .not("status", "in", "(playing,left)") // waiting, called or on_break
+    .in("status", LINE_STATUSES)
     .select("id");
 
   if (error) {
@@ -796,7 +786,7 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
     .select("id, status")
     .eq("session_id", sessionId)
     .eq("player_id", targetPlayerId)
-    .not("status", "in", "(playing,left)")
+    .in("status", LINE_STATUSES)
     .order("joined_at", { ascending: false })
     .limit(1)
     .maybeSingle();
