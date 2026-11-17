@@ -19,16 +19,20 @@ export async function createPlayerAccount(params: {
   displayName: string;
   email?: string;
   rating: number;
+  isGuest?: boolean;
 }): Promise<{ id?: string; error?: string }> {
   const admin = createAdminClient();
-  const canSignIn = Boolean(params.email);
-  const email = params.email ?? `guest_${randomUUID()}@dctechmicro.local`;
+  const isGuest = Boolean(params.isGuest);
+  const canSignIn = Boolean(params.email) && !isGuest;
+  const email = canSignIn
+    ? params.email!
+    : `guest_${randomUUID()}@dctechmicro.local`;
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password: canSignIn ? DEFAULT_PASSWORD : randomBytes(24).toString("base64url"),
     email_confirm: true,
-    app_metadata: canSignIn ? { must_change_password: true } : { guest: true },
+    app_metadata: canSignIn ? { must_change_password: true } : { guest: isGuest },
     user_metadata: { full_name: params.fullName },
   });
   if (error || !data.user) {
@@ -36,13 +40,14 @@ export async function createPlayerAccount(params: {
     return { error: taken ? `"${email}" already has an account.` : `The player couldn't be added: ${error?.message}` };
   }
 
-  // The trigger made the profile with defaults; set the real name and starting rating.
+  // The trigger made the profile with defaults; set the real name, guest flag, and starting rating.
   const { error: profileError } = await admin
     .from("profiles")
     .update({
       full_name: params.fullName,
       display_name: params.displayName,
       skill_rating: params.rating,
+      is_guest: isGuest,
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.user.id);

@@ -3,6 +3,18 @@ export function isRootSystemAdminEmail(email?: string | null): boolean {
   return email?.toLowerCase() === "admin@dctechmicro.com";
 }
 
+/** True for non-employee casual guests (no login), false for employees. */
+export function isGuestProfile(profile: {
+  is_guest?: boolean | null;
+  email?: string | null;
+}): boolean {
+  if (typeof profile.is_guest === "boolean") {
+    return profile.is_guest;
+  }
+  const email = profile.email?.toLowerCase() || "";
+  return email.startsWith("guest_") && email.endsWith("@dctechmicro.local");
+}
+
 /** Plain-words level for a rating (same bands as the rest of the app). */
 export function ratingLevel(rating?: number | null): string {
   const r = Number(rating || 0);

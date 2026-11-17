@@ -54,6 +54,7 @@ export interface Database {
           games_played: number;
           games_won: number;
           is_active: boolean;
+          is_guest?: boolean;
           employee_no: number | null;
           created_at: string;
           updated_at: string;
@@ -69,6 +70,7 @@ export interface Database {
           games_played?: number;
           games_won?: number;
           is_active?: boolean;
+          is_guest?: boolean;
           employee_no?: number | null;
           created_at?: string;
           updated_at?: string;
@@ -84,6 +86,7 @@ export interface Database {
           games_played?: number;
           games_won?: number;
           is_active?: boolean;
+          is_guest?: boolean;
           employee_no?: number | null;
           created_at?: string;
           updated_at?: string;
