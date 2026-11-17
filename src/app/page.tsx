@@ -290,6 +290,8 @@ export default async function HomePage() {
               targetPoints={activeSessionMeta?.targetPoints}
               winByTwo={activeSessionMeta?.winByTwo}
               trackScores={activeSessionMeta?.trackScores}
+              courtNames={activeSessionMeta?.courtNames}
+              syncArenaList={true}
             />
           </div>
 

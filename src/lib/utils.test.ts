@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { formatRating, formatScore, cn, parseSessionMetadata, cleanSessionDescription, parseSkillSpread } from "./utils";
+import {
+  formatRating,
+  formatScore,
+  cn,
+  parseSessionMetadata,
+  cleanSessionDescription,
+  parseSkillSpread,
+  setSessionCourtNames,
+  setSessionCourtCount,
+  applySessionCourtNames,
+  mergeSessionDescription,
+} from "./utils";
 
 describe("utils", () => {
   it("formats rating properly", () => {
@@ -71,4 +82,38 @@ describe("utils", () => {
 
   it("strips the skill spread tag", () =>
     expect(cleanSessionDescription("Fun night [skill_spread:0.5]")).toBe("Fun night"));
+
+  it("stores, parses, and applies per-session court names without leaking into description", () => {
+    const base = "DC TECH Sports Day [matching_mode:balanced] [courts:2]";
+    const updated = setSessionCourtNames(base, { "1": "Alpha Court", "2": "Beta [VIP]" });
+    const meta = parseSessionMetadata(updated);
+
+    expect(meta.cleanDescription).toBe("DC TECH Sports Day");
+    expect(meta.courtCount).toBe(2);
+    expect(meta.courtNames).toEqual({ "1": "Alpha Court", "2": "Beta [VIP]" });
+
+    const merged = mergeSessionDescription(updated, "Updated notes");
+    expect(parseSessionMetadata(merged).courtNames).toEqual({ "1": "Alpha Court", "2": "Beta [VIP]" });
+    expect(parseSessionMetadata(merged).cleanDescription).toBe("Updated notes");
+
+    const renamed = applySessionCourtNames(
+      [
+        { id: "c1", name: "Court 1", sort_order: 1 },
+        { id: "c2", name: "Court 2", sort_order: 2 },
+      ],
+      meta.courtNames
+    );
+    expect(renamed.map((c) => c.name)).toEqual(["Alpha Court", "Beta [VIP]"]);
+  });
+
+  it("updates [courts:N] while preserving other metadata and description", () => {
+    const base = "Friday Play [matching_mode:balanced] [courts:4] [ranked:true]";
+    const updated = setSessionCourtCount(base, 6);
+    const meta = parseSessionMetadata(updated);
+    expect(meta.courtCount).toBe(6);
+    expect(meta.cleanDescription).toBe("Friday Play");
+    expect(meta.isRanked).toBe(true);
+    expect(parseSessionMetadata(setSessionCourtCount(base, 99)).courtCount).toBe(12);
+    expect(parseSessionMetadata(setSessionCourtCount(base, 0)).courtCount).toBe(1);
+  });
 });

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Activity, Sparkles, Filter } from "lucide-react";
 import { CourtCard } from "./CourtCard";
 import { useLiveCourts } from "../hooks/useLiveCourts";
-import type { ActiveCourtView, QueueEntryWithPlayer } from "@/types";
+import { applySessionCourtNames } from "@/lib/utils";
+import type { ActiveCourtView, CourtStatus, QueueEntryWithPlayer } from "@/types";
 
 // Stable default: a fresh [] each render would re-sync the live hook forever.
 const NO_COURTS: ActiveCourtView[] = [];
@@ -68,6 +69,9 @@ interface CourtMatrixProps {
   autoFill?: boolean;
   winByTwo?: boolean;
   trackScores?: boolean;
+  allowCourtRename?: boolean;
+  courtNames?: Record<string, string>;
+  syncArenaList?: boolean;
 }
 
 export function CourtMatrix({
@@ -82,8 +86,16 @@ export function CourtMatrix({
   autoFill = true,
   winByTwo,
   trackScores,
+  allowCourtRename,
+  courtNames,
+  syncArenaList = false,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
+  const [localCourtNames, setLocalCourtNames] = useState<Record<string, string>>(courtNames ?? {});
+
+  useEffect(() => {
+    setLocalCourtNames(courtNames ?? {});
+  }, [courtNames]);
 
   const isAdministrator = !readOnly && (isAdmin ?? (userRole === "admin"));
 
@@ -95,14 +107,25 @@ export function CourtMatrix({
       : 0;
 
   // Cards update live when a court or its game changes, without reloading the page.
-  const { courts: liveCourts } = useLiveCourts(initialCourts ?? NO_COURTS);
+  const { courts: liveCourts, setCourts } = useLiveCourts(
+    initialCourts ?? NO_COURTS,
+    syncArenaList
+  );
+
+  function handleCourtStatusChange(courtId: string, status: CourtStatus) {
+    setCourts((prev) =>
+      prev.map((c) => (c.id === courtId ? { ...c, status } : c))
+    );
+  }
+
+  function handleCourtNameChange(courtSlot: number, name: string) {
+    setLocalCourtNames((prev) => ({ ...prev, [String(courtSlot)]: name }));
+  }
 
   const courtsToDisplay: ActiveCourtView[] = useMemo(() => {
-    if (liveCourts.length > 0) {
-      return liveCourts;
-    }
-    return defaultFreshCourts;
-  }, [liveCourts]);
+    const base = liveCourts.length > 0 ? liveCourts : defaultFreshCourts;
+    return applySessionCourtNames(base, localCourtNames);
+  }, [liveCourts, localCourtNames]);
 
   const filteredCourts = useMemo(() => {
     return courtsToDisplay.filter((c) => {
@@ -127,7 +150,7 @@ export function CourtMatrix({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredCourts.map((court) => (
+          {filteredCourts.map((court, index) => (
             <CourtCard
               key={court.id}
               court={court}
@@ -140,6 +163,10 @@ export function CourtMatrix({
               autoFill={autoFill}
               winByTwo={winByTwo}
               trackScores={trackScores}
+              allowCourtRename={allowCourtRename}
+              courtSlot={court.sort_order ?? index + 1}
+              onStatusChange={handleCourtStatusChange}
+              onNameChange={handleCourtNameChange}
             />
           ))}
         </div>

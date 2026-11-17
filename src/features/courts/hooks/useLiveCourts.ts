@@ -14,7 +14,8 @@ async function fetchCourtViews(supabase: ReturnType<typeof createClient>): Promi
       .from("courts")
       .select(
         "id, name, surface_type, status, current_match_id, sort_order, assigned_staff_id, assigned_staff:profiles!assigned_staff_id (id, full_name, display_name, skill_rating)"
-      ),
+      )
+      .order("sort_order", { ascending: true }),
     supabase
       .from("matches")
       .select(
@@ -35,9 +36,17 @@ async function fetchCourtViews(supabase: ReturnType<typeof createClient>): Promi
  * half a second later so a burst of changes becomes one small read. Keeps the
  * same courts it was given (a session shows only its own courts).
  */
-export function useLiveCourts(initialCourts: ActiveCourtView[] = EMPTY_COURTS) {
+export function useLiveCourts(
+  initialCourts: ActiveCourtView[] = EMPTY_COURTS,
+  syncArenaList: boolean = false
+) {
   const [courts, setCourts] = useState<ActiveCourtView[]>(initialCourts);
   const idsRef = useRef<string[]>(initialCourts.map((c) => c.id));
+  const syncArenaListRef = useRef(syncArenaList);
+
+  useEffect(() => {
+    syncArenaListRef.current = syncArenaList;
+  }, [syncArenaList]);
 
   useEffect(() => {
     setCourts(initialCourts);
@@ -55,6 +64,11 @@ export function useLiveCourts(initialCourts: ActiveCourtView[] = EMPTY_COURTS) {
         const fresh = await fetchCourtViews(supabase);
         if (cancelled || !fresh) return;
         setCourts((prev) => {
+          if (syncArenaListRef.current) {
+            return Array.from(fresh.values()).sort(
+              (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+            );
+          }
           const ids = idsRef.current.length ? idsRef.current : prev.map((c) => c.id);
           return ids.map((id) => fresh.get(id) ?? prev.find((c) => c.id === id)).filter(Boolean) as ActiveCourtView[];
         });
@@ -65,7 +79,7 @@ export function useLiveCourts(initialCourts: ActiveCourtView[] = EMPTY_COURTS) {
     // name collides when the effect re-runs or two consumers mount at once.
     const channel = supabase
       .channel(`courts:${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "courts" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "courts" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, scheduleRefresh)
       .subscribe();
 

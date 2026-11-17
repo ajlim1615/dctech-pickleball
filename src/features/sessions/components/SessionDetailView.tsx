@@ -22,6 +22,9 @@ import {
   Check,
   UserPlus,
   UserMinus,
+  Pencil,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -43,8 +46,8 @@ import {
 } from "../api/sessionActions";
 import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { NO_LIMITS_USED, leaveIsFinal, type QueueLimits } from "@/features/queue/utils/queueLimits";
-import { createWalkInPlayer } from "@/features/admin/api/adminActions";
-import { formatRating, cleanSessionDescription, parseSessionMetadata } from "@/lib/utils";
+import { createWalkInPlayer, updateSessionCourtCount, updateSessionDetails } from "@/features/admin/api/adminActions";
+import { formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
 import type { PastGame } from "@/features/queue/matchmaking";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
@@ -159,14 +162,81 @@ export function SessionDetailView({
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
 
   const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
+  const [displayTitle, setDisplayTitle] = useState(session.title);
+  const [displayDescription, setDisplayDescription] = useState(sessionMeta.cleanDescription);
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(session.title);
+  const [draftDescription, setDraftDescription] = useState(sessionMeta.cleanDescription);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [displayCourtCount, setDisplayCourtCount] = useState<number>(
+    currentStatus === "active"
+      ? courts?.length || (sessionMeta.courtCount ?? DEFAULT_COURT_COUNT)
+      : (sessionMeta.courtCount ?? DEFAULT_COURT_COUNT)
+  );
+  const [pendingCourtCount, setPendingCourtCount] = useState<number | null>(null);
+  const [savingCourtCount, setSavingCourtCount] = useState(false);
+  const [courtCountError, setCourtCountError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDisplayCourtCount(
+      currentStatus === "active"
+        ? courts?.length || (sessionMeta.courtCount ?? DEFAULT_COURT_COUNT)
+        : (sessionMeta.courtCount ?? DEFAULT_COURT_COUNT)
+    );
+  }, [currentStatus, courts?.length, sessionMeta.courtCount]);
+
+  async function handleConfirmCourtCount() {
+    if (!isAdmin || pendingCourtCount === null || savingCourtCount) return;
+    setSavingCourtCount(true);
+    setCourtCountError(null);
+    const res = await updateSessionCourtCount(session.id, pendingCourtCount);
+    setSavingCourtCount(false);
+    if (res?.error) {
+      setCourtCountError(res.error);
+      return;
+    }
+    setDisplayCourtCount(res?.courtCount ?? pendingCourtCount);
+    setPendingCourtCount(null);
+    router.refresh();
+  }
+
+  function openEditDetails() {
+    setDraftTitle(displayTitle);
+    setDraftDescription(displayDescription);
+    setDetailsError(null);
+    setIsEditingDetails(true);
+  }
+
+  async function handleSaveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin || savingDetails) return;
+    const trimmedTitle = draftTitle.trim();
+    if (!trimmedTitle) {
+      setDetailsError("Session name is required.");
+      return;
+    }
+    setSavingDetails(true);
+    setDetailsError(null);
+    const res = await updateSessionDetails(session.id, trimmedTitle, draftDescription);
+    setSavingDetails(false);
+    if (res?.error) {
+      setDetailsError(res.error);
+      return;
+    }
+    setDisplayTitle(res?.title ?? trimmedTitle);
+    setDisplayDescription(res?.description ?? draftDescription.trim());
+    setIsEditingDetails(false);
+    router.refresh();
+  }
   // Live: the arena's real courts. Otherwise: this session's own court count, since the
   // shared arena only switches to it when the session starts.
   const shownCourts = useMemo(
     () =>
       currentStatus === "active"
         ? courts || []
-        : previewCourts(courts || [], sessionMeta.courtCount ?? DEFAULT_COURT_COUNT),
-    [currentStatus, courts, sessionMeta.courtCount]
+        : previewCourts(courts || [], displayCourtCount),
+    [currentStatus, courts, displayCourtCount]
   );
   const [autoFill, setAutoFill] = useAutoFillPreference();
 
@@ -332,7 +402,6 @@ export function SessionDetailView({
     }
   }
 
-  const cleanedDescription = cleanSessionDescription(session.description);
 
   return (
     <div className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8 pb-28 sm:pb-12">
@@ -375,9 +444,80 @@ export function SessionDetailView({
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              {session.title}
-            </h1>
+            {isEditingDetails ? (
+              <form onSubmit={handleSaveDetails} className="space-y-3 max-w-xl">
+                <div>
+                  <label htmlFor="session-title-input" className="sr-only">
+                    Session name
+                  </label>
+                  <input
+                    id="session-title-input"
+                    type="text"
+                    value={draftTitle}
+                    onChange={(e) => setDraftTitle(e.target.value)}
+                    disabled={savingDetails}
+                    autoFocus
+                    maxLength={120}
+                    placeholder="Session name"
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2 text-lg sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="session-description-input" className="sr-only">
+                    Session description
+                  </label>
+                  <textarea
+                    id="session-description-input"
+                    value={draftDescription}
+                    onChange={(e) => setDraftDescription(e.target.value)}
+                    disabled={savingDetails}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Session description or notes (optional)"
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y"
+                  />
+                </div>
+                {detailsError && (
+                  <p role="alert" className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                    {detailsError}
+                  </p>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button type="submit" size="sm" disabled={savingDetails} className="cursor-pointer">
+                    <Check className="h-3.5 w-3.5" />
+                    {savingDetails ? "Saving…" : "Save"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsEditingDetails(false)}
+                    disabled={savingDetails}
+                    className="cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex items-start gap-2.5">
+                <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                  {displayTitle}
+                </h1>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={openEditDetails}
+                    title="Edit session name and description"
+                    aria-label="Edit session name and description"
+                    className="mt-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 px-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition-colors cursor-pointer"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* When and where: what people check first */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-700 dark:text-slate-300">
@@ -394,8 +534,8 @@ export function SessionDetailView({
               </span>
             </div>
 
-            {cleanedDescription && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">{cleanedDescription}</p>
+            {!isEditingDetails && displayDescription && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">{displayDescription}</p>
             )}
 
             {/* Check-ins only exist once the session is live */}
@@ -1217,11 +1357,62 @@ export function SessionDetailView({
 
       {/* Main Grid: Court Matrix + Unified Live Queue Link Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          {isAdmin && (currentStatus === "active" || currentStatus === "scheduled") && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 px-4 py-2.5 shadow-2xs">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  Courts
+                </span>
+                <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
+                  {displayCourtCount}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">
+                  {currentStatus === "scheduled"
+                    ? "Applies when session starts"
+                    : "Live arena courts"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={displayCourtCount <= 1 || savingCourtCount}
+                  onClick={() => {
+                    setCourtCountError(null);
+                    setPendingCourtCount(displayCourtCount - 1);
+                  }}
+                  aria-label="Remove a court"
+                  className="h-8 px-2.5 cursor-pointer"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                  <span className="text-xs">Remove</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={displayCourtCount >= 12 || savingCourtCount}
+                  onClick={() => {
+                    setCourtCountError(null);
+                    setPendingCourtCount(displayCourtCount + 1);
+                  }}
+                  aria-label="Add a court"
+                  className="h-8 px-2.5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="text-xs">Add court</span>
+                </Button>
+              </div>
+            </div>
+          )}
           <CourtMatrix
             initialCourts={shownCourts}
             userRole={userRole}
             isAdmin={isAdmin && currentStatus === "active"}
+            allowCourtRename={isAdmin && (currentStatus === "active" || currentStatus === "scheduled")}
+            syncArenaList={currentStatus === "active"}
             sessionId={session.id}
             queue={initialQueue}
             waitingQueueCount={initialQueue.filter((q) => q.status === "waiting").length}
@@ -1229,8 +1420,74 @@ export function SessionDetailView({
             autoFill={autoFill}
             winByTwo={sessionMeta.winByTwo}
             trackScores={sessionMeta.trackScores}
+            courtNames={sessionMeta.courtNames}
           />
         </div>
+
+        <Modal
+          isOpen={pendingCourtCount !== null}
+          onClose={() => {
+            if (!savingCourtCount) {
+              setPendingCourtCount(null);
+              setCourtCountError(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-2xl cursor-default">
+            <div className="space-y-1.5">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                {pendingCourtCount !== null && pendingCourtCount > displayCourtCount
+                  ? `Add Court ${pendingCourtCount}?`
+                  : `Remove Court ${displayCourtCount}?`}
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {pendingCourtCount !== null && pendingCourtCount > displayCourtCount
+                  ? currentStatus === "active"
+                    ? `This will add Court ${pendingCourtCount} to the live arena right away (total: ${pendingCourtCount} courts).`
+                    : `This will add Court ${pendingCourtCount} to this scheduled session (total: ${pendingCourtCount} courts).`
+                  : currentStatus === "active"
+                    ? `This will remove Court ${displayCourtCount} from the live arena (total: ${pendingCourtCount ?? displayCourtCount - 1} courts). If a game is in progress on that court, it cannot be removed.`
+                    : `This will remove Court ${displayCourtCount} from this scheduled session (total: ${pendingCourtCount ?? displayCourtCount - 1} courts).`}
+              </p>
+            </div>
+            {courtCountError && (
+              <p role="alert" className="rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+                {courtCountError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPendingCourtCount(null);
+                  setCourtCountError(null);
+                }}
+                disabled={savingCourtCount}
+                className="cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant={
+                  pendingCourtCount !== null && pendingCourtCount < displayCourtCount
+                    ? "destructive"
+                    : "default"
+                }
+                onClick={handleConfirmCourtCount}
+                disabled={savingCourtCount}
+                className="cursor-pointer"
+              >
+                {savingCourtCount
+                  ? "Updating…"
+                  : pendingCourtCount !== null && pendingCourtCount > displayCourtCount
+                    ? "Add court"
+                    : "Remove court"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Live Queue Station Card */}
         {/* Players care most about their place in line, so on phones it comes before the courts. */}

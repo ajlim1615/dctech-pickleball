@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck } from "lucide-react";
+import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
 import { callNextUp, swapNoShow } from "@/features/queue/api/queueActions";
+import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
 import { canSwapNoShow } from "@/features/queue/utils/noShow";
 import {
   describeRule,
@@ -15,7 +16,7 @@ import {
   type ScoringRule,
   type ScoringTeam,
 } from "@/features/matches/utils/scoring";
-import type { ActiveCourtView, Profile } from "@/types";
+import type { ActiveCourtView, CourtStatus, Profile } from "@/types";
 
 export function CourtDurationClock({ startedAt }: { startedAt?: string | null }) {
   const [elapsed, setElapsed] = useState<string>("00:00");
@@ -50,6 +51,10 @@ export interface CourtCardProps {
   winByTwo?: boolean;
   /** false: win/loss-only session, the admin just picks the winning team. */
   trackScores?: boolean;
+  allowCourtRename?: boolean;
+  courtSlot?: number;
+  onStatusChange?: (courtId: string, status: CourtStatus) => void;
+  onNameChange?: (courtSlot: number, name: string) => void;
 }
 
 export function CourtCard({
@@ -63,6 +68,10 @@ export function CourtCard({
   autoFill = true,
   winByTwo,
   trackScores = true,
+  allowCourtRename,
+  courtSlot,
+  onStatusChange,
+  onNameChange,
 }: CourtCardProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -91,6 +100,8 @@ export function CourtCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hold, setHold] = useState<"not_enough_players" | "no_skill_match" | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState("");
 
   // Follow the game's saved score. The admin scoring this court keeps their own
   // count until the game changes, so a live refresh can't knock a tap back.
@@ -264,8 +275,55 @@ export function CourtCard({
   const cleanCourtName = court.name.replace(/\s*\(Rented Court\)/i, "");
 
   const isClosed = court.status === "maintenance" || court.status === "reserved";
+  const slot = courtSlot ?? court.sort_order ?? 1;
+  const canRenameCourt = !readOnly && Boolean(sessionId) && (allowCourtRename ?? isAdministrator);
+  const canChangeStatus = isAdministrator && court.status !== "occupied" && !hasPlayersOnCourt;
   const canScore = isAdministrator && hasPlayersOnCourt && trackScores;
   const canPickWinner = isAdministrator && hasPlayersOnCourt && !trackScores;
+
+  function handleStatusChange(nextStatus: CourtStatus) {
+    if (!canChangeStatus || isPending || nextStatus === court.status) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    startTransition(async () => {
+      const res = await toggleCourtStatus(court.id, nextStatus, sessionId);
+      if (res?.error) {
+        setErrorMessage(res.error);
+      } else {
+        onStatusChange?.(court.id, nextStatus);
+      }
+    });
+  }
+
+  function startEditingName() {
+    setDraftName(cleanCourtName);
+    setIsEditingName(true);
+    setErrorMessage(null);
+  }
+
+  function handleSaveName() {
+    if (!canRenameCourt || !sessionId || isPending) return;
+    const trimmed = draftName.trim();
+    if (!trimmed) {
+      setErrorMessage("Court name is required.");
+      return;
+    }
+    if (trimmed === cleanCourtName) {
+      setIsEditingName(false);
+      return;
+    }
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    startTransition(async () => {
+      const res = await updateSessionCourtName(sessionId, slot, trimmed);
+      if (res?.error) {
+        setErrorMessage(res.error);
+      } else {
+        onNameChange?.(slot, res?.name || trimmed);
+        setIsEditingName(false);
+      }
+    });
+  }
 
   return (
     <article
@@ -275,14 +333,68 @@ export function CourtCard({
     >
       {/* Header: court name, state, umpire shortcut */}
       <header className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
-            {cleanCourtName}
-          </h3>
-          <CourtStateLabel
-            state={isClosed ? court.status : hasPlayersOnCourt ? "in_play" : "open"}
-            startedAt={activeMatch?.started_at}
-          />
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {isEditingName ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveName();
+              }}
+              className="flex items-center gap-1 min-w-0 flex-1"
+            >
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setIsEditingName(false);
+                }}
+                disabled={isPending}
+                autoFocus
+                maxLength={50}
+                aria-label="Court name"
+                className="h-8 w-full min-w-0 max-w-[160px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={isPending}
+                aria-label="Save court name"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingName(false)}
+                disabled={isPending}
+                aria-label="Cancel renaming court"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </form>
+          ) : (
+            <>
+              <h3 className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
+                {cleanCourtName}
+              </h3>
+              {canRenameCourt && (
+                <button
+                  type="button"
+                  onClick={startEditingName}
+                  title={`Rename ${cleanCourtName}`}
+                  aria-label={`Rename ${cleanCourtName}`}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <CourtStateLabel
+                state={isClosed ? court.status : hasPlayersOnCourt ? "in_play" : "open"}
+                startedAt={activeMatch?.started_at}
+              />
+            </>
+          )}
         </div>
         {isAdministrator && !isClosed && (
           <div className="flex items-center">
@@ -420,9 +532,28 @@ export function CourtCard({
       {/* Footer: the one thing to do next on this court */}
       <footer className="mt-auto px-4 pt-3 pb-4 space-y-2.5">
         {isClosed ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {isAdministrator ? "Reopen it from Court setup on the Admin page." : "Not in use right now."}
-          </p>
+          canChangeStatus ? (
+            <div className="space-y-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleStatusChange("available")}
+                disabled={isPending}
+                className="w-full h-11 text-sm font-semibold rounded-xl cursor-pointer"
+              >
+                {isPending ? "Updating…" : "Reopen court"}
+              </Button>
+              <CourtStatusControl
+                status={court.status}
+                disabled={isPending}
+                onSelect={handleStatusChange}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Not in use right now.
+            </p>
+          )
         ) : !isAdministrator ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {hasPlayersOnCourt
@@ -448,6 +579,15 @@ export function CourtCard({
                 ? `${waitingQueueCount} waiting in the queue`
                 : `Needs 4 waiting players · ${waitingQueueCount} in the queue`}
             </p>
+            {canChangeStatus && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                <CourtStatusControl
+                  status={court.status}
+                  disabled={isPending}
+                  onSelect={handleStatusChange}
+                />
+              </div>
+            )}
           </>
         ) : !trackScores ? (
           pendingWinner ? (
@@ -668,6 +808,55 @@ function CourtHalf({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const COURT_STATUS_OPTIONS: { value: CourtStatus; label: string }[] = [
+  { value: "available", label: "Open" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "reserved", label: "Reserved" },
+];
+
+function CourtStatusControl({
+  status,
+  disabled,
+  onSelect,
+}: {
+  status: CourtStatus;
+  disabled: boolean;
+  onSelect: (next: CourtStatus) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0">
+        Court status
+      </span>
+      <div
+        role="group"
+        aria-label="Court status"
+        className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 dark:bg-slate-800/70 p-0.5 flex-1 max-w-[236px]"
+      >
+        {COURT_STATUS_OPTIONS.map((option) => {
+          const active = status === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => onSelect(option.value)}
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                active
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

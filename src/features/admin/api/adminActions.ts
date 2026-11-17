@@ -13,7 +13,15 @@ import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { WalkInPlayerSchema, UpdatePlayerDetailsSchema, AdjustRatingSchema, sanitizeString } from "@/lib/security/validation";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { parsePHTToISO } from "@/lib/timezone";
-import { parseCourtCount, parseSkillSpread } from "@/lib/utils";
+import {
+  extractCourtNamesTag,
+  mergeSessionDescription,
+  parseCourtCount,
+  parseSessionMetadata,
+  parseSkillSpread,
+  setSessionCourtCount,
+  setSessionCourtNames,
+} from "@/lib/utils";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
@@ -167,12 +175,26 @@ export async function adjustPlayerRating(userId: string, newRating: number) {
   return { success: true };
 }
 
-export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
+export async function toggleCourtStatus(
+  courtId: string,
+  status: CourtStatus,
+  sessionId?: string
+) {
   // Server-side RBAC Guard
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("courts")
+    .select("status")
+    .eq("id", courtId)
+    .maybeSingle();
+
+  if (existing?.status === "occupied" && status !== "occupied") {
+    return { error: "Finish or clear the active game before changing court status." };
+  }
+
   const { error } = await supabase
     .from("courts")
     .update({ status, updated_at: new Date().toISOString() })
@@ -183,12 +205,14 @@ export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
   if (status !== "occupied") {
     const actorId = auth.context!.userId;
     recordSessionEvent(async () => {
-      const [{ data: court }, { data: live }] = await Promise.all([
+      const [{ data: court }, liveRes] = await Promise.all([
         supabase.from("courts").select("name").eq("id", courtId).maybeSingle(),
-      supabase.from("sessions").select("id").eq("status", "active").maybeSingle(),
+        sessionId
+          ? Promise.resolve({ data: { id: sessionId } })
+          : supabase.from("sessions").select("id").eq("status", "active").maybeSingle(),
       ]);
       return {
-        sessionId: live?.id ?? null,
+        sessionId: liveRes.data?.id ?? null,
         type: status === "available" ? "court_reopened" : "court_closed",
         actorId,
         actorRole: "admin",
@@ -199,8 +223,54 @@ export async function toggleCourtStatus(courtId: string, status: CourtStatus) {
   }
 
   revalidatePath("/admin");
+  revalidatePath("/sessions");
+  if (sessionId) revalidatePath(`/sessions/${sessionId}`);
   revalidatePath("/");
   return { success: true };
+}
+
+export async function updateSessionCourtName(
+  sessionId: string,
+  courtSlot: number,
+  name: string
+) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const cleanName = sanitizeString(name);
+  if (!cleanName) {
+    return { error: "Court name is required." };
+  }
+  if (!Number.isInteger(courtSlot) || courtSlot < 1 || courtSlot > 12) {
+    return { error: "Invalid court slot." };
+  }
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("sessions")
+    .select("description")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Session not found." };
+
+  const currentNames = parseSessionMetadata(existing.description).courtNames;
+  const nextNames = { ...currentNames, [String(courtSlot)]: cleanName };
+  const finalDescription = setSessionCourtNames(existing.description, nextNames);
+
+  const { error } = await supabase
+    .from("sessions")
+    .update({ description: finalDescription, updated_at: new Date().toISOString() })
+    .eq("id", sessionId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/sessions");
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/");
+  return { success: true, name: cleanName };
 }
 
 export async function resetSessionQueue(sessionId: string) {
@@ -302,10 +372,64 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
     .select("id, name, status, surface_type, assigned_staff_id, sort_order")
     .order("sort_order", { ascending: true });
 
+  // Keep the active session's [courts:N] metadata in sync with the live arena count.
+  const { data: activeSession } = await supabase
+    .from("sessions")
+    .select("id, description")
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (activeSession) {
+    const syncedDesc = setSessionCourtCount(activeSession.description, count);
+    await supabase
+      .from("sessions")
+      .update({ description: syncedDesc, updated_at: new Date().toISOString() })
+      .eq("id", activeSession.id);
+    revalidatePath(`/sessions/${activeSession.id}`);
+  }
+
   revalidatePath("/admin");
   revalidatePath("/sessions");
   revalidatePath("/");
   return { success: true, courts: updatedCourts || [] };
+}
+
+export async function updateSessionCourtCount(sessionId: string, count: number) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const clamped = Math.min(12, Math.max(1, Math.round(count)));
+  const supabase = await createClient();
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("sessions")
+    .select("status, description")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Session not found." };
+
+  if (existing.status === "active") {
+    const courtRes = await setRentedCourtCount(clamped, "Standard Court");
+    if (courtRes?.error) {
+      return { error: courtRes.error };
+    }
+  }
+
+  const nextDescription = setSessionCourtCount(existing.description, clamped);
+  const { error } = await supabase
+    .from("sessions")
+    .update({ description: nextDescription, updated_at: new Date().toISOString() })
+    .eq("id", sessionId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/sessions");
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/");
+  return { success: true, courtCount: clamped };
 }
 
 /** The System Admin removes a player's profile photo (e.g. an inappropriate picture). Only the photo is cleared. */
@@ -469,11 +593,21 @@ export async function editSession(sessionId: string, formData: FormData) {
   const finalDescription = userDesc ? `${userDesc} ${tags}` : tags;
 
   const supabase = await createClient();
+  const { data: currentSession } = await supabase
+    .from("sessions")
+    .select("description")
+    .eq("id", sessionId)
+    .maybeSingle();
+  const existingCourtNamesTag = extractCourtNamesTag(currentSession?.description);
+  const fullDescription = existingCourtNamesTag
+    ? `${finalDescription} ${existingCourtNamesTag}`
+    : finalDescription;
+
   const { data: updated, error } = await supabase
     .from("sessions")
     .update({
       title,
-      description: finalDescription,
+      description: fullDescription,
       location,
       start_time: parsePHTToISO(startTime),
       end_time: parsePHTToISO(endTime),
@@ -498,6 +632,50 @@ export async function editSession(sessionId: string, formData: FormData) {
   revalidatePath("/sessions");
   revalidatePath("/");
   return { success: true };
+}
+
+export async function updateSessionDetails(
+  sessionId: string,
+  title: string,
+  description: string
+) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+
+  const cleanTitle = sanitizeString(title);
+  if (!cleanTitle) {
+    return { error: "Session name is required." };
+  }
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("sessions")
+    .select("description")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (fetchError) return { error: fetchError.message };
+  if (!existing) return { error: "Session not found." };
+
+  const cleanDesc = sanitizeString(description || "");
+  const finalDescription = mergeSessionDescription(existing.description, cleanDesc);
+
+  const { error } = await supabase
+    .from("sessions")
+    .update({
+      title: cleanTitle,
+      description: finalDescription,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/sessions");
+  revalidatePath("/");
+  return { success: true, title: cleanTitle, description: cleanDesc };
 }
 
 export async function createWalkInPlayer(params: {
