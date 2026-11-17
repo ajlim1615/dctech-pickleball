@@ -5,7 +5,9 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    exclude: ["**/node_modules/**", "**/dist/**", "tablet/android/**"],
+    // .claude/** holds other sessions' git worktrees (whole copies of the repo);
+    // their tests resolve "@/" to this checkout and must not run here.
+    exclude: ["**/node_modules/**", "**/dist/**", "tablet/android/**", ".claude/**"],
   },
   resolve: {
     alias: {

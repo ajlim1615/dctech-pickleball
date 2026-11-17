@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { Match, MatchFormat, MatchTeam, WinningTeam } from "@/types";
+import type { Match, MatchFormat, WinningTeam } from "@/types";
 import { callNextUp } from "@/features/queue/api/queueActions";
 import { selectPlayersToRequeue } from "@/features/queue/utils/requeue";
 import { describeRule, getWinner } from "@/features/matches/utils/scoring";
@@ -14,6 +14,7 @@ import {
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { gamesPlayedBefore, planResultCorrection } from "@/features/matches/utils/resultCorrection";
 import { requireAdminUser } from "@/lib/security/authGuard";
+import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 
 export async function createMatch(params: {
   sessionId: string;
@@ -26,64 +27,28 @@ export async function createMatch(params: {
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
-  const format = params.format || (params.teamAPlayerIds.length === 1 ? "singles" : "doubles");
 
-  // 0. Cancel previous orphaned in-progress matches on this court if any
-  await supabase
-    .from("matches")
-    .update({ status: "abandoned", ended_at: new Date().toISOString() })
-    .eq("court_id", params.courtId)
-    .eq("status", "in_progress");
-
-  // 1. Insert Match
-  const { data: match, error: matchError } = await supabase
-    .from("matches")
-    .insert({
-      session_id: params.sessionId,
-      court_id: params.courtId,
-      format,
-      status: "in_progress",
-      team_a_score: 0,
-      team_b_score: 0,
-      started_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (matchError || !match) {
-    return { error: matchError?.message || "Failed to create match." };
+  // One transaction: checks the court is open and free and that nobody picked is
+  // already playing, takes the picked players out of the line, creates the game.
+  // The format follows the team size (params.format is no longer needed).
+  const { data, error } = await supabase.rpc("start_match", {
+    p_session_id: params.sessionId,
+    p_court_id: params.courtId,
+    p_team_a: params.teamAPlayerIds,
+    p_team_b: params.teamBPlayerIds,
+    p_from_queue: false,
+  });
+  if (error) {
+    console.error("start_match failed:", error.message);
+    return { error: gameStateErrorMessage(undefined) };
   }
-
-  // 2. Link Court to Match & set occupied
-  await supabase
-    .from("courts")
-    .update({
-      status: "occupied",
-      current_match_id: match.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", params.courtId);
-
-  // 3. Insert Match Players
-  const playersToInsert = [
-    ...params.teamAPlayerIds.map((id) => ({
-      match_id: match.id,
-      player_id: id,
-      team: "team_a" as MatchTeam,
-    })),
-    ...params.teamBPlayerIds.map((id) => ({
-      match_id: match.id,
-      player_id: id,
-      team: "team_b" as MatchTeam,
-    })),
-  ];
-
-  await supabase.from("match_players").insert(playersToInsert);
+  const out = data as { match_id?: string; error?: string } | null;
+  if (!out?.match_id) return { error: gameStateErrorMessage(out?.error) };
 
   revalidatePath("/");
   revalidatePath(`/sessions/${params.sessionId}`);
   revalidatePath("/matches");
-  return { success: true, matchId: match.id };
+  return { success: true, matchId: out.match_id };
 }
 
 export async function updateMatchScore(matchId: string, teamAScore: number, teamBScore: number) {

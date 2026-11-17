@@ -9,7 +9,10 @@ import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { GUEST_RANKED_MESSAGE, canEnterSession } from "@/features/sessions/utils/guestRules";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
-import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
+import { NO_SHOW_WINDOW_MINUTES } from "@/features/queue/utils/noShow";
+import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
+import { withLineRetry } from "@/features/queue/utils/lineRetry";
+import type { Decision } from "@/features/queue/matchmaking";
 import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
@@ -24,6 +27,8 @@ import {
   type QueueLimits,
 } from "@/features/queue/utils/queueLimits";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
+
+type HoldKind = Extract<Decision, { hold: unknown }>["hold"];
 
 export async function getQueueForSession(sessionId?: string): Promise<QueueEntryWithPlayer[]> {
   const supabase = await createClient();
@@ -596,26 +601,13 @@ export async function callNextUp(
   _count: number = 4,
   options: { force?: boolean } = {}
 ) {
-  // Only admins put games on court; RLS limits match inserts to admins too.
+  // Only admins put games on court; start_match checks the same in the database.
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
 
-  // 0. Guard: Verify court is available and not currently in-play with an active match
-  const { data: court } = await supabase
-    .from("courts")
-    .select("id, name, status, current_match_id")
-    .eq("id", courtId)
-    .single();
-
-  if (court && court.status === "occupied" && court.current_match_id) {
-    return {
-      error: `${court.name || "This court"} is currently IN PLAY with an active match. Please finalize the score first before calling next up.`,
-    };
-  }
-
-  // 1. Determine matching style from session configuration
+  // 1. Matching style from the session configuration
   const { data: sessionData } = await supabase
     .from("sessions")
     .select("description, status")
@@ -623,7 +615,7 @@ export async function callNextUp(
     .maybeSingle();
 
   if (sessionData && sessionData.status !== "active") {
-    return { error: "Start the session before calling players onto courts." };
+    return { error: gameStateErrorMessage("session_not_active") };
   }
 
   const { matchingMode: matchingStyle, skillSpread } = parseSessionMetadata(sessionData?.description);
@@ -634,136 +626,87 @@ export async function callNextUp(
     loadOpenCourtIds(supabase),
   ]);
 
-  // 3. Fetch waiting entries with player ratings and pair info
-  const { data: allWaitingEntries, error: qErr } = await supabase
-    .from("queue_entries")
-    .select(`
-      id,
-      player_id,
-      group_id,
-      joined_at,
-      player:profiles (
-        id,
-        skill_rating
-      )
-    `)
-    .eq("session_id", sessionId)
-    .eq("status", "waiting")
-    .order("joined_at", { ascending: true });
+  type CallAttempt =
+    | { ok: false; error: string; hold?: HoldKind; code?: string }
+    | { ok: true; matchId: string; teamA: string[]; teamB: string[] };
 
-  if (qErr || !allWaitingEntries || allWaitingEntries.length === 0) {
-    return { error: "No waiting players currently in queue." };
-  }
-
-  // 4. Decide who plays and how they split
-  const line: LineEntry[] = allWaitingEntries.map((e) => ({
-    playerId: e.player_id,
-    rating: (e.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,
-    pairId: e.group_id,
-  }));
-  const decision = decide({
-    style: matchingStyle,
-    line,
-    history,
-    court: courtId,
-    courts,
-    settings: { skillSpread },
-    random: Math.random,
-    force: options.force,
-  });
-  if ("hold" in decision) {
-    let message = holdMessage(decision, skillSpread);
-    if (matchingStyle === "king_queen" && decision.hold === "not_enough_players") {
-      // Players saved for a court above are waiting but cannot be used here.
-      message = holdMessage(decision, skillSpread, reservedAbove(history, line, courts, courtId));
-    }
-    return { error: message, hold: decision.hold };
-  }
-  const teamA = decision.teamA;
-  const teamB = decision.teamB;
-  const playing = new Set<string>([...teamA, ...teamB]);
-  const entryIds = allWaitingEntries.filter((e) => playing.has(e.player_id)).map((e) => e.id);
-
-  // 5. Mark selected queue entries as playing
-  // Compare-and-set: only entries still waiting are claimed, so two simultaneous calls cannot double-book.
-  const { data: claimed, error: claimError } = await supabase
-    .from("queue_entries")
-    .update({
-      status: "playing",
-      called_at: new Date().toISOString(),
-      target_court_id: courtId,
-    })
-    .in("id", entryIds)
-    .eq("status", "waiting")
-    .select("id");
-  if (claimError || (claimed?.length ?? 0) < entryIds.length) {
-    if (claimed && claimed.length > 0) {
-      await supabase
+  // 3. Read the line, decide, start the game. If the line changed in between
+  //    (someone else called a player first), read and decide once more.
+  const result = await withLineRetry(
+    async (): Promise<CallAttempt> => {
+      const { data: allWaitingEntries, error: qErr } = await supabase
         .from("queue_entries")
-        .update({ status: "waiting", called_at: null, target_court_id: null })
-        .in("id", claimed.map((c) => c.id));
-    }
-    return { error: "The line changed while calling players. Try again." };
+        .select(`
+          id,
+          player_id,
+          group_id,
+          joined_at,
+          player:profiles (
+            id,
+            skill_rating
+          )
+        `)
+        .eq("session_id", sessionId)
+        .eq("status", "waiting")
+        .order("joined_at", { ascending: true });
+
+      if (qErr || !allWaitingEntries || allWaitingEntries.length === 0) {
+        return { ok: false, error: "No waiting players currently in queue." };
+      }
+
+      const line: LineEntry[] = allWaitingEntries.map((e) => ({
+        playerId: e.player_id,
+        rating: (e.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,
+        pairId: e.group_id,
+      }));
+      const decision = decide({
+        style: matchingStyle,
+        line,
+        history,
+        court: courtId,
+        courts,
+        settings: { skillSpread },
+        random: Math.random,
+        force: options.force,
+      });
+      if ("hold" in decision) {
+        let message = holdMessage(decision, skillSpread);
+        if (matchingStyle === "king_queen" && decision.hold === "not_enough_players") {
+          // Players saved for a court above are waiting but cannot be used here.
+          message = holdMessage(decision, skillSpread, reservedAbove(history, line, courts, courtId));
+        }
+        return { ok: false, error: message, hold: decision.hold };
+      }
+
+      // One transaction: checks the court and players, claims them, creates the game.
+      const { data, error } = await supabase.rpc("start_match", {
+        p_session_id: sessionId,
+        p_court_id: courtId,
+        p_team_a: decision.teamA,
+        p_team_b: decision.teamB,
+        p_from_queue: true,
+      });
+      if (error) {
+        console.error("start_match failed:", error.message);
+        return { ok: false, error: gameStateErrorMessage(undefined) };
+      }
+      const out = data as { match_id?: string; error?: string } | null;
+      if (!out?.match_id) return { ok: false, error: gameStateErrorMessage(out?.error), code: out?.error };
+      return { ok: true, matchId: out.match_id, teamA: decision.teamA, teamB: decision.teamB };
+    },
+    (attempt) => !attempt.ok && attempt.code === "line_changed"
+  );
+
+  if (!result.ok) {
+    return result.hold ? { error: result.error, hold: result.hold } : { error: result.error };
   }
-
-  // 6. Create Match and assign to court
-  // Void any previous orphaned in_progress matches on this court
-  await supabase
-    .from("matches")
-    .update({ status: "abandoned", ended_at: new Date().toISOString() })
-    .eq("court_id", courtId)
-    .eq("status", "in_progress");
-
-  const totalPlayersCount = teamA.length + teamB.length;
-  const { data: match, error: matchError } = await supabase
-    .from("matches")
-    .insert({
-      session_id: sessionId,
-      court_id: courtId,
-      format: totalPlayersCount >= 4 ? "doubles" : "singles",
-      status: "in_progress",
-      team_a_score: 0,
-      team_b_score: 0,
-      started_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (matchError || !match) {
-    console.error("Match creation error:", matchError);
-    return { error: matchError?.message || "Failed to create match." };
-  }
-
-  // Link court to match
-  await supabase
-    .from("courts")
-    .update({
-      status: "occupied",
-      current_match_id: match.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", courtId);
-
-  // Insert match players
-  const matchPlayersToInsert = [
-    ...teamA.map((id) => ({
-      match_id: match.id,
-      player_id: id,
-      team: "team_a" as const,
-    })),
-    ...teamB.map((id) => ({
-      match_id: match.id,
-      player_id: id,
-      team: "team_b" as const,
-    })),
-  ];
-
-  await supabase.from("match_players").insert(matchPlayersToInsert);
+  const { matchId, teamA, teamB } = result;
 
   // Logged as the signed-in admin who called the group (or whose saved result auto-filled the court).
   recordSessionEvent(async () => {
     const { data: { user: caller } } = await supabase.auth.getUser();
     if (!caller) return null;
+    const { data: court } = await supabase.from("courts").select("name").eq("id", courtId).maybeSingle();
     return {
       sessionId,
       type: "game_started",
@@ -771,7 +714,7 @@ export async function callNextUp(
       actorRole: "admin",
       subjectIds: [...teamA, ...teamB],
       courtId,
-      matchId: match.id,
+      matchId,
       details: { courtName: court?.name ?? null, teamA, teamB },
     };
   });
@@ -779,7 +722,7 @@ export async function callNextUp(
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath(`/courts/${courtId}/monitor`);
   revalidatePath("/");
-  return { success: true, count: entryIds.length, matchId: match.id };
+  return { success: true, count: teamA.length + teamB.length, matchId };
 }
 
 /**
@@ -898,110 +841,54 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
 
 /**
  * Swaps a called player who didn't turn up for the next person in line, before the
- * first point. The no-show goes on a break at the back of the line.
+ * first point. The no-show goes on a break at the back of the line. The swap itself
+ * is one database transaction (swap_match_player).
  */
 export async function swapNoShow(matchId: string, noShowPlayerId: string) {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
-  const { data: match } = await supabase
-    .from("matches")
-    .select("id, session_id, court_id, status, team_a_score, team_b_score, started_at")
-    .eq("id", matchId)
-    .single();
-
-  if (!match || match.status !== "in_progress") return { error: "This game is no longer in progress." };
-  if (!canSwapNoShow(Number(match.team_a_score ?? 0), Number(match.team_b_score ?? 0), match.started_at)) {
-    return { error: `Players can only be swapped before the first point, in the first ${NO_SHOW_WINDOW_MINUTES} minutes.` };
-  }
-
-  const { data: matchPlayers } = await supabase
-    .from("match_players")
-    .select("id, player_id")
-    .eq("match_id", matchId);
-  const slot = (matchPlayers || []).find((mp) => mp.player_id === noShowPlayerId);
-  if (!slot) return { error: "That player isn't in this game." };
-
-  const { data: waiting } = await supabase
-    .from("queue_entries")
-    .select("id, player_id, joined_at, player:profiles (email, full_name, display_name)")
-    .eq("session_id", match.session_id)
-    .eq("status", "waiting")
-    .order("joined_at", { ascending: true })
-    .limit(20);
-
-  const candidates = (waiting || []).filter(
-    (w) => !isRootSystemAdmin((w.player as { email?: string | null } | null)?.email)
-  );
-  // Claim the replacement only if they're still waiting, so another court or admin
-  // calling them at the same moment can't put them in two games.
-  const now = new Date().toISOString();
-  const inMatch = (matchPlayers || []).map((mp) => mp.player_id);
-  const ordered: { id: string; player_id: string }[] = [];
-  let remaining = candidates;
-  for (let next = pickReplacement(remaining, inMatch); next; next = pickReplacement(remaining, inMatch)) {
-    ordered.push(next);
-    remaining = remaining.filter((c) => c.id !== next!.id);
-  }
-  const replacement = await claimFirstAvailable(ordered, async (c) => {
-    const { data } = await supabase
-      .from("queue_entries")
-      .update({ status: "playing", called_at: now, target_court_id: match.court_id })
-      .eq("id", c.id)
-      .eq("status", "waiting")
-      .select("id");
-    return Boolean(data && data.length > 0);
+  const { data, error } = await supabase.rpc("swap_match_player", {
+    p_match_id: matchId,
+    p_out: noShowPlayerId,
+    p_window_minutes: NO_SHOW_WINDOW_MINUTES,
   });
-  if (!replacement) return { error: "No one is waiting to swap in." };
-
-  // Only swap if the no-show is still in that slot (another admin may have swapped first).
-  const { data: swapped, error: swapError } = await supabase
-    .from("match_players")
-    .update({ player_id: replacement.player_id })
-    .eq("id", slot.id)
-    .eq("player_id", noShowPlayerId)
-    .select("id");
-  if (swapError || !swapped || swapped.length === 0) {
-    await supabase
-      .from("queue_entries")
-      .update({ status: "waiting", called_at: null, target_court_id: null })
-      .eq("id", replacement.id);
-    return { error: swapError?.message || "Someone already changed this game. Reload and try again." };
+  if (error) {
+    console.error("swap_match_player failed:", error.message);
+    return { error: gameStateErrorMessage(undefined) };
   }
+  const out = data as { replacement_id?: string; error?: string } | null;
+  if (!out?.replacement_id) return { error: gameStateErrorMessage(out?.error) };
+  const replacementId = out.replacement_id;
 
-  // The no-show keeps a spot but is skipped until they tap "I'm back".
-  await supabase
-    .from("queue_entries")
-    .update({ status: "on_break", joined_at: now, target_court_id: null })
-    .eq("session_id", match.session_id)
-    .eq("player_id", noShowPlayerId)
-    .eq("status", "playing");
+  const [{ data: match }, { data: replacementProfile }] = await Promise.all([
+    supabase.from("matches").select("session_id, court_id").eq("id", matchId).maybeSingle(),
+    supabase.from("profiles").select("full_name, display_name").eq("id", replacementId).maybeSingle(),
+  ]);
 
   const actorId = auth.context!.userId;
-  recordSessionEvent(async () => {
-    const { data: swapCourt } = match.court_id
-      ? await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle()
-      : { data: null };
-    return {
-      sessionId: match.session_id,
-      type: "no_show_swapped",
-      actorId,
-      actorRole: "admin",
-      subjectIds: [noShowPlayerId, replacement.player_id],
-      courtId: match.court_id,
-      matchId,
-      details: { courtName: swapCourt?.name ?? null, out: noShowPlayerId, in: replacement.player_id },
-    };
-  });
-
-  revalidatePath(`/sessions/${match.session_id}`);
-  revalidatePath(`/courts/${match.court_id}/monitor`);
+  if (match) {
+    recordSessionEvent(async () => {
+      const { data: swapCourt } = match.court_id
+        ? await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle()
+        : { data: null };
+      return {
+        sessionId: match.session_id,
+        type: "no_show_swapped",
+        actorId,
+        actorRole: "admin",
+        subjectIds: [noShowPlayerId, replacementId],
+        courtId: match.court_id,
+        matchId,
+        details: { courtName: swapCourt?.name ?? null, out: noShowPlayerId, in: replacementId },
+      };
+    });
+    revalidatePath(`/sessions/${match.session_id}`);
+    if (match.court_id) revalidatePath(`/courts/${match.court_id}/monitor`);
+  }
   revalidatePath("/");
 
-  const replacementProfile = candidates.find((c) => c.id === replacement.id)?.player as
-    | { full_name?: string | null; display_name?: string | null }
-    | null;
   return {
     success: true as const,
     replacementName: replacementProfile?.full_name || replacementProfile?.display_name || "The next player",
