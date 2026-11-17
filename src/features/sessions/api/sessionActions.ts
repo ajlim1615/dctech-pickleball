@@ -185,6 +185,7 @@ export async function createSession(formData: FormData) {
   const rawTitle = formData.get("title") as string;
   const rawDescription = formData.get("description") as string;
   const rawLocation = (formData.get("location") as string) || "DCTECH Sports Arena";
+  const rawVenueId = (formData.get("venueId") as string | null)?.trim() || null;
   const startTime = formData.get("startTime") as string;
   const endTime = formData.get("endTime") as string;
   const maxPlayersStr = formData.get("maxPlayers") as string;
@@ -238,6 +239,7 @@ export async function createSession(formData: FormData) {
     title,
     description: finalDescription,
     location,
+    venue_id: rawVenueId,
     start_time: isoStartTime,
     end_time: isoEndTime,
     max_players: maxPlayersStr ? Math.min(200, Math.max(2, parseInt(maxPlayersStr, 10))) : null,
