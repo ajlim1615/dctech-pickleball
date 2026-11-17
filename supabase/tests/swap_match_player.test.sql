@@ -1,5 +1,5 @@
 do $$
-declare a uuid; p uuid[]; s uuid; c1 uuid; m uuid; r json; outsider uuid;
+declare a uuid; p uuid[]; s uuid; c1 uuid; c2 uuid; m uuid; other uuid; busy uuid; r json; outsider uuid;
 begin
   a := pg_temp.itest_user('admin');
   select array_agg(pg_temp.itest_user()) into p from generate_series(1, 6);
@@ -42,6 +42,17 @@ begin
   -- 4. the player must be in this game
   r := public.swap_match_player(m, outsider, 5);
   if r->>'error' is distinct from 'not_in_game' then raise exception 'FAIL 4: %', r; end if;
+
+  -- 7. never swap in someone who is playing on another court, even if they look
+  --    'waiting' at the front of the line (older data, or a manual match)
+  busy := pg_temp.itest_user();
+  c2 := pg_temp.itest_court('itest B', 902);
+  insert into public.queue_entries (session_id, player_id, status, joined_at)
+    values (s, busy, 'waiting', now() - interval '2 hours');
+  insert into public.matches (session_id, court_id, status) values (s, c2, 'in_progress') returning id into other;
+  insert into public.match_players (match_id, player_id, team) values (other, busy, 'team_a');
+  r := public.swap_match_player(m, p[3], 5);
+  if (r->>'replacement_id')::uuid is distinct from p[6] then raise exception 'FAIL 7: %', r; end if;
 
   -- 5. the game must be live
   update public.matches set status = 'completed', ended_at = now() where id = m;

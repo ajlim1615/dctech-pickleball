@@ -237,7 +237,7 @@ git commit -m "feat(db): start_match and one-active-entry / one-live-game indexe
 
 ### Task 5: Apply to production
 
-The app needs these procedures before its wiring can be checked in the local preview. The old app keeps working against them (the procedures are additive); the only old-code exposure is a duplicate insert now failing instead of duplicating, so finish Tasks 6–11 and deploy the same day.
+The app needs these procedures before its wiring can be checked in the local preview. **Correction (final review):** this is not purely additive — `game_state_finish_match` revokes `record_match_result` from `authenticated`, so the previously deployed app cannot save results until this branch is deployed. Apply and deploy together.
 
 - [ ] **Step 1: Check for violations** — `execute_sql`: count (session, player) groups with more than one `status <> 'left'` entry, and courts with more than one `in_progress` match. Report any rows to the user (the migration's cleanup resolves them).
 - [ ] **Step 2: Ask the user to approve** applying the four migrations to production.

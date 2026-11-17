@@ -1,5 +1,5 @@
 do $$
-declare a uuid; p uuid[]; s uuid; c1 uuid; c2 uuid; r json; n int;
+declare a uuid; p uuid[]; s uuid; c1 uuid; c2 uuid; c3 uuid; x1 uuid; x2 uuid; r json; n int;
 begin
   a := pg_temp.itest_user('admin');
   select array_agg(pg_temp.itest_user()) into p from generate_series(1, 6);
@@ -64,6 +64,21 @@ begin
   begin
     insert into public.matches (session_id, court_id, status) values (s, c1, 'in_progress');
     raise exception 'FAIL 9: second live game allowed';
+  exception when unique_violation then null; end;
+
+  -- 12. a manual match gives players who weren't in line a 'playing' entry, so they
+  --     can't re-enter the line (and be called elsewhere) while on court
+  x1 := pg_temp.itest_user();
+  x2 := pg_temp.itest_user();
+  c3 := pg_temp.itest_court('itest C', 903);
+  r := public.start_match(s, c3, array[x1], array[x2], false);
+  if r->>'match_id' is null then raise exception 'FAIL 12: %', r; end if;
+  select count(*) into n from public.queue_entries
+    where session_id = s and player_id in (x1, x2) and status = 'playing' and target_court_id = c3;
+  if n <> 2 then raise exception 'FAIL 12b: playing entries = %', n; end if;
+  begin
+    insert into public.queue_entries (session_id, player_id, status) values (s, x1, 'waiting');
+    raise exception 'FAIL 12c: player on court could rejoin the line';
   exception when unique_violation then null; end;
 
   -- 10. session must be live
