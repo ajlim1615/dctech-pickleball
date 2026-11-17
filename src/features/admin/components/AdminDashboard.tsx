@@ -20,6 +20,7 @@ import {
   ExternalLink,
   AlertTriangle,
   History,
+  MapPin,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ export function AdminDashboard({
 }: AdminDashboardProps) {
   const router = useRouter();
   const [venues, setVenues] = useState<Venue[]>(initialVenues);
-  const [activeTab, setActiveTab] = useState<"sessions" | "players" | "guide" | "activity">("sessions");
+  const [activeTab, setActiveTab] = useState<"sessions" | "venues" | "players" | "guide" | "activity">("sessions");
   const [notification, setNotification] = useState<string | null>(null);
 
   // Fast-Add Walk In State
@@ -523,6 +524,7 @@ export function AdminDashboard({
       <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-800 text-sm overflow-x-auto scrollbar-none whitespace-nowrap">
         {([
           { id: "sessions", label: "Sessions", icon: Calendar },
+          { id: "venues", label: "Venues", icon: MapPin },
           { id: "players", label: "Players", icon: Users },
           { id: "guide", label: "Rules & guide", icon: BookOpen },
           { id: "activity", label: "Activity", icon: History },
@@ -687,8 +689,6 @@ export function AdminDashboard({
               </details>
             </Card>
           ) : null}
-
-          <AdminVenuesSection venues={venues} onVenuesChange={setVenues} />
 
           {/* Upcoming sessions header + new session form */}
           <div className="flex items-center justify-between gap-3">
@@ -1405,6 +1405,10 @@ export function AdminDashboard({
       )}
 
       {/* Tab 2: Player & Staff Directory */}
+      {activeTab === "venues" && (
+        <AdminVenuesSection venues={venues} onVenuesChange={setVenues} />
+      )}
+
       {activeTab === "players" && (
         <>
           {/* Fast Add Modal */}
