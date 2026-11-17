@@ -47,6 +47,7 @@ import {
 import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { NO_LIMITS_USED, leaveIsFinal, type QueueLimits } from "@/features/queue/utils/queueLimits";
 import { createWalkInPlayer, updateSessionCourtCount, updateSessionDetails } from "@/features/admin/api/adminActions";
+import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent, Venue } from "@/types";
 import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
@@ -161,11 +162,10 @@ export function SessionDetailView({
   const [walkInName, setWalkInName] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
-  const [walkInIsGuest, setWalkInIsGuest] = useState(true);
+  const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
+  const [walkInIsGuest, setWalkInIsGuest] = useState(!sessionMeta.isRanked);
   const [walkInAutoQueue, setWalkInAutoQueue] = useState(true);
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
-
-  const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
   const [displayTitle, setDisplayTitle] = useState(session.title);
   const [displayDescription, setDisplayDescription] = useState(sessionMeta.cleanDescription);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
@@ -248,6 +248,7 @@ export function SessionDetailView({
     setSelectedPlayerIds([]);
     setBulkSearch("");
     setModalTab("roster");
+    setWalkInIsGuest(!sessionMeta.isRanked);
     setShowBulkModal(true);
   }
 
@@ -271,9 +272,11 @@ export function SessionDetailView({
 
   const eligibleEmployees = useMemo(() => {
     return employees.filter(
-      (e) => e.email?.toLowerCase() !== "admin@dctechmicro.com"
+      (e) =>
+        e.email?.toLowerCase() !== "admin@dctechmicro.com" &&
+        (!sessionMeta.isRanked || !isGuestProfile(e))
     );
-  }, [employees]);
+  }, [employees, sessionMeta.isRanked]);
 
   const currentlyQueuedIds = useMemo(() => {
     return new Set(initialQueue.map((q) => q.player_id));
@@ -325,11 +328,13 @@ export function SessionDetailView({
     e.preventDefault();
     if (!walkInName.trim()) return;
     setIsCreatingWalkIn(true);
+    const isGuestWalkIn = !sessionMeta.isRanked && walkInIsGuest;
     const res = await createWalkInPlayer({
       fullName: walkInName.trim(),
-      email: !walkInIsGuest && walkInEmail.trim() ? walkInEmail.trim() : undefined,
-      isGuest: walkInIsGuest,
+      email: !isGuestWalkIn && walkInEmail.trim() ? walkInEmail.trim() : undefined,
+      isGuest: isGuestWalkIn,
       skillRating: walkInRating,
+      sessionId: session.id,
     });
     if (res?.error || !res?.player) {
       alert(`Error creating walk-in player: ${res?.error || "Unknown error"}`);
@@ -1194,49 +1199,56 @@ export function SessionDetailView({
                   </div>
 
                   {/* Player Type */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                      Player Category
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setWalkInIsGuest(true)}
-                        className={`p-3 rounded-xl border text-left text-xs font-mono transition-all cursor-pointer ${
-                          walkInIsGuest
-                            ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs"
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400"
-                        }`}
-                      >
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span>🏷️ External Guest / Visitor</span>
-                        </div>
-                        <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
-                          Appends &quot;(Guest)&quot; to name automatically
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setWalkInIsGuest(false)}
-                        className={`p-3 rounded-xl border text-left text-xs font-mono transition-all cursor-pointer ${
-                          !walkInIsGuest
-                            ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs"
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400"
-                        }`}
-                      >
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span>🏢 Internal Coworker</span>
-                        </div>
-                        <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
-                          Unregistered or walk-in employee
-                        </div>
-                      </button>
+                  {sessionMeta.isRanked ? (
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 px-3.5 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">Ranked session:</span>{" "}
+                      Only DCTECH employees can be added. Non-employee guests can only be added in Casual sessions.
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                        Player Category
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setWalkInIsGuest(true)}
+                          className={`p-3 rounded-xl border text-left text-xs font-mono transition-all cursor-pointer ${
+                            walkInIsGuest
+                              ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs"
+                              : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5">
+                            <span>🏷️ Guest / Non-Employee</span>
+                          </div>
+                          <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
+                            No login · queue only
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setWalkInIsGuest(false)}
+                          className={`p-3 rounded-xl border text-left text-xs font-mono transition-all cursor-pointer ${
+                            !walkInIsGuest
+                              ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs"
+                              : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5">
+                            <span>🏢 Internal Coworker</span>
+                          </div>
+                          <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5">
+                            Unregistered or walk-in employee
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Optional Work Email for Internal Coworkers */}
-                  {!walkInIsGuest && (
+                  {(sessionMeta.isRanked || !walkInIsGuest) && (
                     <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
