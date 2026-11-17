@@ -516,23 +516,55 @@ export function ShareLeaderboardModal({
     day: "numeric",
   });
 
+  async function renderStoryPngBlob(): Promise<{ blob: Blob; filename: string } | null> {
+    if (!exportRef.current) return null;
+    const { toPng } = await import("html-to-image");
+    const dataUrl = await toPng(exportRef.current, {
+      cacheBust: true,
+      pixelRatio: 1,
+      width: 1080,
+      height: 1920,
+    });
+    const blob = await (await fetch(dataUrl)).blob();
+    const safeTitle = sessionTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "leaderboard";
+    return { blob, filename: `session-results-story-${safeTitle}.png` };
+  }
+
   async function handleDownloadImage() {
     if (!exportRef.current) return;
     try {
       setIsDownloading(true);
-      const { toPng } = await import("html-to-image");
-      const dataUrl = await toPng(exportRef.current, {
-        cacheBust: true,
-        pixelRatio: 1,
-        width: 1080,
-        height: 1920,
-      });
-      const link = document.createElement("a");
-      const safeTitle = sessionTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      link.download = `session-results-story-${safeTitle}.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
+      const rendered = await renderStoryPngBlob();
+      if (!rendered) return;
+      const { blob, filename } = rendered;
+
+      // iOS Safari / PWAs don't save <a download> to Photos; the native share sheet has "Save Image".
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS && navigator.share) {
+        const file = new File([blob], filename, { type: "image/png" });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ title: `${sessionTitle} Leaderboard`, files: [file] });
+          return;
+        }
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      if ("download" in HTMLAnchorElement.prototype) {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+      }
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
       console.error("Error generating image:", err);
       alert("Failed to export image. You can use the Share or Copy option.");
     } finally {
@@ -554,17 +586,12 @@ export function ShareLeaderboardModal({
     if (navigator.share && exportRef.current) {
       try {
         setIsDownloading(true);
-        const { toPng } = await import("html-to-image");
-        const dataUrl = await toPng(exportRef.current, {
-          cacheBust: true,
-          pixelRatio: 1,
-          width: 1080,
-          height: 1920,
-        });
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], "pickleball-story-leaderboard.png", { type: "image/png" });
+        const rendered = await renderStoryPngBlob();
+        const file = rendered
+          ? new File([rendered.blob], "pickleball-story-leaderboard.png", { type: "image/png" })
+          : null;
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: `${sessionTitle} Leaderboard`,
             text: shareText,
