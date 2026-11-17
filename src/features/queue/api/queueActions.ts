@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { QueueEntry, QueueEntryWithPlayer, QueueStatus } from "@/types";
 import { decide, type LineEntry } from "@/features/queue/matchmaking";
 import { parseSessionMetadata } from "@/lib/utils";
+import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { canSwapNoShow, claimFirstAvailable, NO_SHOW_WINDOW_MINUTES, pickReplacement } from "@/features/queue/utils/noShow";
@@ -214,14 +215,34 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     return { error: "Please select at least one employee." };
   }
 
-  const { data: sessionRow } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const { data: sessionRow } = await supabase
+    .from("sessions")
+    .select("status, description")
+    .eq("id", sessionId)
+    .maybeSingle();
   const closed = queueClosedReason(sessionRow?.status);
   if (closed) return { error: closed };
 
-  // Exclude system admin from bulk queue
-  const { data: profiles } = await supabase.from("profiles").select("id, email").in("id", playerIds);
-  const adminIds = new Set(profiles?.filter((p) => p.email?.toLowerCase() === "admin@dctechmicro.com").map((p) => p.id) || []);
-  const validPlayerIds = playerIds.filter((id) => !adminIds.has(id));
+  const isRankedSession = parseSessionMetadata(sessionRow?.description).isRanked;
+
+  // Exclude system admin (and guests in Ranked sessions) from bulk queue
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, email, is_guest")
+    .in("id", playerIds);
+  const blockedIds = new Set(
+    profiles
+      ?.filter(
+        (p) =>
+          p.email?.toLowerCase() === "admin@dctechmicro.com" ||
+          (isRankedSession && isGuestProfile(p))
+      )
+      .map((p) => p.id) || []
+  );
+  const validPlayerIds = playerIds.filter((id) => !blockedIds.has(id));
+  if (validPlayerIds.length === 0) {
+    return { error: isRankedSession ? "Guest / non-employee players cannot be added to Ranked sessions." : "No eligible players selected." };
+  }
 
   // Get currently active queue entries to avoid duplicates
   const { data: currentEntries } = await supabase

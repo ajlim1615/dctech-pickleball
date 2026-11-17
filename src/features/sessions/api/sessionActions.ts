@@ -174,6 +174,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { sanitizeString } from "@/lib/security/validation";
 import { parseCourtCount, parseSessionMetadata, parseSkillSpread } from "@/lib/utils";
+import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { setRentedCourtCount } from "@/features/admin/api/adminActions";
 
@@ -427,7 +428,11 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
   }
 
   // Checking in puts you in the queue, which only opens once the session is live.
-  const { data: sessionRow } = await supabase.from("sessions").select("status").eq("id", sessionId).maybeSingle();
+  const { data: sessionRow } = await supabase
+    .from("sessions")
+    .select("status, description")
+    .eq("id", sessionId)
+    .maybeSingle();
   const closed = queueClosedReason(sessionRow?.status);
   if (closed) return { error: closed };
 
@@ -441,10 +446,17 @@ export async function checkInToSession(sessionId: string, playerId?: string) {
     }
   }
 
-  // Guard: Root system admin cannot check in to play
-  const { data: profile } = await supabase.from("profiles").select("email").eq("id", targetPlayerId).single();
+  // Guard: Root system admin cannot check in to play, and guests cannot enter Ranked sessions
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, is_guest")
+    .eq("id", targetPlayerId)
+    .single();
   if (profile?.email?.toLowerCase() === "admin@dctechmicro.com") {
     return { error: "The System Admin account (admin@dctechmicro.com) is a non-playing administrator and cannot check in to play." };
+  }
+  if (profile && isGuestProfile(profile) && parseSessionMetadata(sessionRow?.description).isRanked) {
+    return { error: "Guest / non-employee players can only be checked in to Casual sessions." };
   }
 
   const { error } = await supabase.from("session_checkins").upsert(

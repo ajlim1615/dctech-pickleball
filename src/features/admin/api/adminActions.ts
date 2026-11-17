@@ -685,6 +685,7 @@ export async function createWalkInPlayer(params: {
   email?: string;
   isGuest?: boolean;
   skillRating?: number;
+  sessionId?: string;
 }) {
   // Server-side RBAC Guard
   const auth = await requireAdminUser();
@@ -704,6 +705,20 @@ export async function createWalkInPlayer(params: {
   const cleanName = validation.data.name;
   const providedEmail = validation.data.email;
   const supabase = await createClient();
+
+  if (params.isGuest) {
+    if (!params.sessionId) {
+      return { error: "Guest / non-employee players can only be added inside a Casual session." };
+    }
+    const { data: targetSession } = await supabase
+      .from("sessions")
+      .select("description")
+      .eq("id", params.sessionId)
+      .maybeSingle();
+    if (!targetSession || parseSessionMetadata(targetSession.description).isRanked) {
+      return { error: "Guest / non-employee players can only be added to Casual sessions." };
+    }
+  }
 
   // If email is provided, check if profile already exists with this email
   if (providedEmail) {
@@ -731,6 +746,7 @@ export async function createWalkInPlayer(params: {
     displayName: cleanName,
     email: providedEmail || undefined,
     rating: validation.data.skillRating,
+    isGuest: Boolean(params.isGuest),
   });
   if (created.error || !created.id) {
     console.error("createWalkInPlayer error:", created.error);
