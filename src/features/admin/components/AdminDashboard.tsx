@@ -89,11 +89,10 @@ export function AdminDashboard({
   const [activeTab, setActiveTab] = useState<"sessions" | "venues" | "players" | "guide" | "activity">("sessions");
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Fast-Add Walk In State
+  // Fast-Add Employee State
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [walkInName, setWalkInName] = useState("");
   const [walkInEmail, setWalkInEmail] = useState("");
-  const [walkInType, setWalkInType] = useState<"guest" | "employee">("guest");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
 
   // Edit Player Details State (Name & Email)
@@ -1420,10 +1419,10 @@ export function AdminDashboard({
                 <CardHeader className="border-b border-slate-200 dark:border-slate-800 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <UserPlus className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
-                    Add Walk-In / Guest Player
+                    Add Employee
                   </CardTitle>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Quickly add an unregistered colleague or guest player to the directory.
+                    Add an unregistered DCTECH employee to the directory. (For non-employee guests, add them inside a Casual session.)
                   </p>
                 </CardHeader>
                 <CardContent className="pt-5 space-y-4">
@@ -1433,14 +1432,14 @@ export function AdminDashboard({
                       if (!walkInName) return;
                       const res = await createWalkInPlayer({
                         fullName: walkInName,
-                        email: walkInType === "employee" && walkInEmail.trim() ? walkInEmail.trim() : undefined,
-                        isGuest: walkInType === "guest",
+                        email: walkInEmail.trim() ? walkInEmail.trim() : undefined,
+                        isGuest: false,
                         skillRating: walkInRating,
                       });
                       if (res?.error) {
                         showNotice(`Error: ${res.error}`);
                       } else {
-                        showNotice(`Added player "${walkInName}"!`);
+                        showNotice(`Added employee "${walkInName}"!`);
                         setIsAddingPlayer(false);
                         setWalkInName("");
                         setWalkInEmail("");
@@ -1449,7 +1448,7 @@ export function AdminDashboard({
                     className="space-y-4"
                   >
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Player Full Name</label>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Employee Full Name</label>
                       <input
                         type="text"
                         required
@@ -1460,58 +1459,42 @@ export function AdminDashboard({
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Player Type</label>
-                        <select
-                          value={walkInType}
-                          onChange={(e) => setWalkInType(e.target.value as any)}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono"
-                        >
-                          <option value="guest">Guest / Plus-One</option>
-                          <option value="employee">DCTECH Employee (Unregistered)</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Initial Skill Level (Stars)</label>
-                        <select
-                          value={walkInRating}
-                          onChange={(e) => setWalkInRating(parseFloat(e.target.value))}
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-medium"
-                        >
-                          <option value="2.0">★☆☆☆☆☆ Beginner (2.0)</option>
-                          <option value="2.5">★★☆☆☆☆ Adv. Beginner (2.5)</option>
-                          <option value="3.0">★★★☆☆☆ Intermediate (3.0)</option>
-                          <option value="3.5">★★★★☆☆ Adv. Intermediate (3.5)</option>
-                          <option value="4.0">★★★★★☆ Advanced (4.0)</option>
-                          <option value="4.5">★★★★★★ Expert (4.5+)</option>
-                        </select>
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Initial Skill Level (Stars)</label>
+                      <select
+                        value={walkInRating}
+                        onChange={(e) => setWalkInRating(parseFloat(e.target.value))}
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:outline-none font-mono font-medium"
+                      >
+                        <option value="2.0">★☆☆☆☆☆ Beginner (2.0)</option>
+                        <option value="2.5">★★☆☆☆☆ Adv. Beginner (2.5)</option>
+                        <option value="3.0">★★★☆☆☆ Intermediate (3.0)</option>
+                        <option value="3.5">★★★★☆☆ Adv. Intermediate (3.5)</option>
+                        <option value="4.0">★★★★★☆ Advanced (4.0)</option>
+                        <option value="4.5">★★★★★★ Expert (4.5+)</option>
+                      </select>
                     </div>
 
-                    {walkInType === "employee" && (
-                      <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                            DCTECH Work Email
-                          </label>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
-                            Optional (auto-generated if empty)
-                          </span>
-                        </div>
-                        <input
-                          type="email"
-                          value={walkInEmail}
-                          onChange={(e) => setWalkInEmail(e.target.value)}
-                          placeholder="e.g. michael.chen@dctechmicro.com"
-                          className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
-                        />
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                          Syncs match history and rating automatically when they log in with this email.
-                        </p>
+                    <div className="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                          DCTECH Work Email
+                        </label>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                          Optional (needed to sign in)
+                        </span>
                       </div>
-                    )}
+                      <input
+                        type="email"
+                        value={walkInEmail}
+                        onChange={(e) => setWalkInEmail(e.target.value)}
+                        placeholder="e.g. michael.chen@dctechmicro.com"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none font-mono"
+                      />
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Syncs match history and rating automatically when they log in with this email.
+                      </p>
+                    </div>
 
                     <div className="pt-2 flex items-center justify-end gap-3">
                       <Button
@@ -1731,7 +1714,7 @@ export function AdminDashboard({
                 </Button>
                 <Button variant="volt" size="sm" onClick={() => setIsAddingPlayer(true)} className="font-bold text-xs cursor-pointer">
                   <UserPlus className="h-3.5 w-3.5 mr-1" aria-hidden />
-                  Add walk-in
+                  Add employee
                 </Button>
               </>
             }

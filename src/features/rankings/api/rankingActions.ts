@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { buildLeaderboard, type RankedPlayer } from "../utils/leaderboard";
 
 export type { RankedPlayer };
@@ -29,5 +30,6 @@ export async function getLeaderboard(options?: { since?: string }): Promise<Rank
     return [];
   }
 
-  return buildLeaderboard(profilesRes.data, totalsRes.data);
+  const employeesOnly = profilesRes.data.filter((p) => !isGuestProfile(p));
+  return buildLeaderboard(employeesOnly, totalsRes.data);
 }

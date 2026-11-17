@@ -18,7 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { formatRating } from "@/lib/utils";
-import { isRootSystemAdminEmail, ratingLevel } from "../utils/playerDirectory";
+import { isGuestProfile, isRootSystemAdminEmail, ratingLevel } from "../utils/playerDirectory";
 import type { Profile } from "@/types";
 
 const PAGE_SIZE = 25;
@@ -74,7 +74,10 @@ export function PlayerDirectory({
   }
 
   const systemAdmin = players.find((p) => isRootSystemAdminEmail(p.email));
-  const roster = useMemo(() => players.filter((p) => !isRootSystemAdminEmail(p.email)), [players]);
+  const roster = useMemo(
+    () => players.filter((p) => !isRootSystemAdminEmail(p.email) && !isGuestProfile(p)),
+    [players]
+  );
 
   const counts = useMemo(
     () => ({
