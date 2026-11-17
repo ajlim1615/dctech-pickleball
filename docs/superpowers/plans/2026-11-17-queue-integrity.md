@@ -15,6 +15,7 @@
 - Supabase project id `fuofachkihszubrcrkww`. Local dev talks to this (production) database.
 - **SQL test runs:** one `execute_sql` query = `supabase/tests/_fixtures.sql` + every migration of this plan not yet applied (in version order) + the test file. No `BEGIN`/`COMMIT`. Each test ends with `raise exception 'ALL TESTS PASSED'`, which rolls everything back. Pass = that error text; anything else = fail.
 - Migration versions: `20261117120000`, `…130000`, `…140000`, `…150000` (production's latest recorded is `20261117110808`). Never run `supabase db push` on this project.
+- **Since Task 5:** all four are on production as `20261117140735`/`140738`/`140742`/`140746` (files renamed to match). A test run is now fixtures + test file only.
 - `apply_migration` on production needs the user's explicit OK in chat first.
 - Every procedure: `language plpgsql security definer set search_path = ''`, fully qualified names, first statement `if not public.is_admin() then return json_build_object('error','not_admin'); end if;`, then lock the session row `for update`; `revoke execute … from public, anon; grant execute … to authenticated;`; a header comment saying it must be called with the signed-in user's client (not the service key).
 - Expected failures return `json_build_object('error', '<code>')` with a code from `GAME_STATE_ERRORS`; only bugs `raise`.
