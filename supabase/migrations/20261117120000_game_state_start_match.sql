@@ -129,10 +129,16 @@ begin
   )
   returning id into v_match_id;
 
-  insert into public.match_players (match_id, player_id, team)
-  select v_match_id, x, 'team_a'::public.match_team from unnest(p_team_a) x
-  union all
-  select v_match_id, x, 'team_b'::public.match_team from unnest(p_team_b) x;
+  -- created_at follows the listed order (clock_timestamp ticks per row), so anything
+  -- that replays "court order" (finish_match's requeue) is deterministic.
+  insert into public.match_players (match_id, player_id, team, created_at)
+  select v_match_id, t.x, t.team, clock_timestamp()
+  from (
+    select x, 'team_a'::public.match_team as team, i from unnest(p_team_a) with ordinality a(x, i)
+    union all
+    select x, 'team_b'::public.match_team, 10 + i from unnest(p_team_b) with ordinality b(x, i)
+  ) t
+  order by t.i;
 
   update public.courts
   set status = 'occupied', current_match_id = v_match_id, updated_at = now()

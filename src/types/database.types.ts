@@ -521,7 +521,26 @@ export interface Database {
         Args: { p_match_id: string; p_out: string; p_window_minutes: number };
         Returns: Json;
       };
-      /** Saves a finished game (score, court, totals, ratings, history) in one transaction. */
+      /**
+       * Saves a finished game (via record_match_result) and requeues its checked-in
+       * players in one transaction. Returns { success, requeued, session_id, court_id }
+       * or { error: code }.
+       */
+      finish_match: {
+        Args: {
+          p_match_id: string;
+          p_team_a_score: number;
+          p_team_b_score: number;
+          p_winning_team: WinningTeam;
+          p_ranked: boolean;
+          p_rating_changes: Json;
+          p_rules_version: number;
+          p_min_rating: number;
+          p_max_rating: number;
+        };
+        Returns: Json;
+      };
+      /** Internal since finish_match: not callable by signed-in users. Kept for finish_match. */
       record_match_result: {
         Args: {
           p_match_id: string;
