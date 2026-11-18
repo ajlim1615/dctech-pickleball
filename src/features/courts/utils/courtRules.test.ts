@@ -86,3 +86,10 @@ describe("chooseSlotsReducer", () => {
     expect(chooseSlotsReducer(s, { type: "pick", playerId: "p1" })).toEqual(s);
   });
 });
+
+describe("cardForFreeCourt skips incomplete cards", () => {
+  it("an incomplete hand-edited card doesn't block the full ones behind it", () => {
+    const cards = [card("half", { isAuto: false, teamB: ["b1"] }), card("full", { position: 2 })];
+    expect(cardForFreeCourt("c1", ["c1"], cards)?.id).toBe("full");
+  });
+});

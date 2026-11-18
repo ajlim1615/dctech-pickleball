@@ -12,7 +12,8 @@ export function cardForFreeCourt(courtId: string, freeCourtIds: string[], cards:
   const bound = ordered.find((c) => c.targetCourtId === courtId);
   if (bound) return bound;
 
-  const unbound = ordered.filter((c) => c.targetCourtId === null);
+  // An incomplete card (an admin is still filling it) never holds up the full ones.
+  const unbound = ordered.filter((c) => c.targetCourtId === null && isFull(c));
   const courtsUsingUnbound = freeCourtIds.filter((id) => !ordered.some((c) => c.targetCourtId === id));
   const k = courtsUsingUnbound.indexOf(courtId);
   return k >= 0 ? unbound[k] ?? null : null;

@@ -28,7 +28,7 @@ import {
 } from "@/features/queue/utils/queueLimits";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 import { afterLineChange } from "@/features/queue/server/afterLineChange";
-import { getUpNext, sendUpNextToCourt } from "@/features/queue/api/upNextActions";
+import { getUpNext, refreshUpNext, sendUpNextToCourt } from "@/features/queue/api/upNextActions";
 import { markNoShow } from "@/features/courts/api/courtPlayerActions";
 
 type HoldKind = Extract<Decision, { hold: unknown }>["hold"];
@@ -733,11 +733,12 @@ export async function fillOpenCourts(sessionId: string) {
     const card = ready.find((c) => c.targetCourtId === courtId) ?? ready.find((c) => c.targetCourtId === null);
     if (!card) continue;
     ready.splice(ready.indexOf(card), 1);
-    const res = await sendUpNextToCourt(sessionId, card.id, courtId);
+    const res = await sendUpNextToCourt(sessionId, card.id, courtId, { refresh: false });
     if ("error" in res) lastError = res.error;
     else filled++;
   }
 
+  await refreshUpNext(sessionId);
   if (filled === 0) return { error: lastError || "No Up Next match is ready to start." };
   return { success: true, filled, remainingOpen: freeIds.length - filled };
 }

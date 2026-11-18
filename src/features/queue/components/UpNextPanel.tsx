@@ -77,7 +77,7 @@ export function UpNextPanel({
 
   function save(card: UpNextCard | null, teamA: string[], teamB: string[]) {
     run(async () => {
-      const res = await saveUpNextCard(sessionId, card?.id ?? null, teamA, teamB);
+      const res = await saveUpNextCard(sessionId, card?.id ?? null, teamA, teamB, card?.targetCourtId ?? null);
       if ("success" in res && res.unpaired.length > 0) setNotice("That split a pair; they are no longer paired.");
       return res;
     });

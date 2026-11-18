@@ -116,7 +116,9 @@ export async function saveUpNextCard(
   sessionId: string,
   cardId: string | null,
   teamA: string[],
-  teamB: string[]
+  teamB: string[],
+  /** Keep a court-bound (King/Queen) card on its court. */
+  targetCourtId: string | null = null
 ): Promise<Result<{ cardId: string; unpaired: string[] }>> {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
@@ -128,6 +130,7 @@ export async function saveUpNextCard(
     p_team_a: teamA,
     p_team_b: teamB,
     p_per_side: PER_SIDE,
+    p_target_court_id: targetCourtId,
   });
   const failed = rpcError(data, error, "save_up_next_card");
   if (failed) return { error: failed };
@@ -182,7 +185,8 @@ async function logGameStarted(supabase: Supabase, sessionId: string, courtId: st
 async function startOnCourt(
   sessionId: string,
   courtId: string,
-  args: { teamA: string[]; teamB: string[]; cardId: string | null }
+  args: { teamA: string[]; teamB: string[]; cardId: string | null },
+  options: { refresh?: boolean } = {}
 ): Promise<Result<{ matchId: string }>> {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
@@ -200,7 +204,9 @@ async function startOnCourt(
   const matchId = (data as { match_id: string }).match_id;
 
   await logGameStarted(supabase, sessionId, courtId, matchId, auth.context!.userId);
-  await refreshUpNext(sessionId);
+  // Several starts in a row (Fill open courts) refresh once at the end instead, so the
+  // remaining cards keep their ids.
+  if (options.refresh !== false) await refreshUpNext(sessionId);
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath(`/courts/${courtId}/monitor`);
   revalidatePath("/");
@@ -208,8 +214,13 @@ async function startOnCourt(
 }
 
 /** Start or Send to Court: the card's players start on this court and the card goes away. */
-export async function sendUpNextToCourt(sessionId: string, cardId: string, courtId: string) {
-  return startOnCourt(sessionId, courtId, { teamA: [], teamB: [], cardId });
+export async function sendUpNextToCourt(
+  sessionId: string,
+  cardId: string,
+  courtId: string,
+  options: { refresh?: boolean } = {}
+) {
+  return startOnCourt(sessionId, courtId, { teamA: [], teamB: [], cardId }, options);
 }
 
 /** Choose Players: start exactly these teams (all must be waiting in line). */
