@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/features/auth/api/authActions";
 import type { Profile } from "@/types";
 
 export interface AuthContext {
@@ -12,29 +12,27 @@ export interface AuthContext {
  * Server-side guard ensuring caller is an authenticated user.
  */
 export async function requireAuthenticatedUser(): Promise<{ error?: string; context?: AuthContext }> {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const authData = await getCurrentUser();
 
-  if (authError || !user) {
+  if (!authData?.user) {
     return { error: "Authentication required. Please sign in." };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
+  if (!authData.profile) {
     return { error: "User profile not found or inactive." };
   }
 
+  const profile = authData.profile as Profile;
+  const rawRole: string = profile.role;
+  const role: AuthContext["role"] =
+    rawRole === "admin" || rawRole === "staff" ? rawRole : "player";
+
   return {
     context: {
-      userId: user.id,
-      email: user.email || profile.email,
-      role: (profile.role as any) || "player",
-      profile: profile as Profile,
+      userId: authData.user.id,
+      email: authData.user.email || profile.email,
+      role,
+      profile,
     },
   };
 }

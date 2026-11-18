@@ -7,8 +7,13 @@ import { Button } from "@/components/ui/button";
 
 const PWA_DISMISSED_KEY = "dctech_pwa_banner_dismissed";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export function PWAInstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
@@ -18,7 +23,7 @@ export function PWAInstallBanner() {
 
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowBanner(true);
     };
 
@@ -58,7 +63,6 @@ export function PWAInstallBanner() {
             width={36}
             height={36}
             className="h-full w-full object-contain rounded-lg"
-            priority
           />
         </div>
         <div className="text-xs">

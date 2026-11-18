@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
+import { refreshClientUserProfile } from "@/hooks/useClientUserProfile";
 import { formatRating } from "@/lib/utils";
 import type { PlayerRatingHistory, Profile } from "@/types";
 import { RatingTrend } from "@/features/players/components/RatingTrend";
@@ -305,6 +306,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
       if (res.error) {
         setAvatarNotice(`Error: ${res.error}`);
       } else {
+        void refreshClientUserProfile();
         setAvatarNotice("Profile picture updated!");
         setTimeout(() => setAvatarNotice(null), 3500);
       }
@@ -319,6 +321,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
     const formData = new FormData();
     formData.set("avatarUrl", "__REMOVE__");
     await updateProfile(profile.id, formData);
+    void refreshClientUserProfile();
     setIsUploading(false);
     setAvatarNotice("Profile picture removed.");
     setTimeout(() => setAvatarNotice(null), 3000);

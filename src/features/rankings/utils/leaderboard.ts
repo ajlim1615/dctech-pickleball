@@ -10,7 +10,12 @@ export interface PlayerTotals {
   points_against: number;
 }
 
-export interface RankedPlayer extends Profile {
+export type LeaderboardProfile = Pick<
+  Profile,
+  "id" | "email" | "full_name" | "display_name" | "avatar_url" | "skill_rating" | "role" | "is_active" | "employee_no"
+>;
+
+export interface RankedPlayer extends LeaderboardProfile {
   /**
    * For qualified players, a shared ("competition") rank: players level on rating, win
    * rate and wins share a number, and the next one skips (1, 2, 2, 4). Null for players
@@ -27,13 +32,13 @@ export interface RankedPlayer extends Profile {
   gamesToQualify: number;
 }
 
-const nameOf = (p: Profile) => (p.full_name || p.display_name || "").toLowerCase();
+const nameOf = (p: LeaderboardProfile) => (p.full_name || p.display_name || "").toLowerCase();
 
 const winRatio = (p: { games_won: number; games_played: number }) =>
   p.games_played > 0 ? p.games_won / p.games_played : 0;
 
 export function buildLeaderboard(
-  profiles: Profile[],
+  profiles: LeaderboardProfile[],
   totals: PlayerTotals[],
   rules: RatingRules = RATING_RULES,
 ): RankedPlayer[] {

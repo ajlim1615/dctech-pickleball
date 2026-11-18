@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
-  Users,
   Trophy,
   User,
   ShieldCheck,
@@ -13,7 +12,6 @@ import {
   BookOpen,
   LogOut,
   ChevronDown,
-  Sparkles,
 } from "lucide-react";
 import Image from "next/image";
 import { cn, formatRating } from "@/lib/utils";
@@ -22,6 +20,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/features/auth/api/authActions";
 import { formatPHTClock } from "@/lib/timezone";
+import { shouldPrefetchOnIntent, useClientUserProfile } from "@/hooks/useClientUserProfile";
 
 function LiveNavbarClock() {
   const [currentTime, setCurrentTime] = useState<string>("");
@@ -51,53 +50,11 @@ export function Navbar() {
   const router = useRouter();
   // No app navigation on the sign-in screens, including the forced password change.
   const isLoginPage = pathname === "/login" || pathname === "/set-password";
-  const [userProfile, setUserProfile] = useState<{
-    id: string;
-    email: string;
-    full_name: string | null;
-    display_name: string | null;
-    avatar_url: string | null;
-    role: string;
-    skill_rating: number;
-  } | null>(null);
+  const userProfile = useClientUserProfile(!isLoginPage);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    const fetchUserProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setUserProfile(null);
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, email, full_name, display_name, avatar_url, role, skill_rating")
-        .eq("id", user.id)
-        .single();
-
-      if (profile) {
-        setUserProfile(profile);
-      }
-    };
-
-    fetchUserProfile();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      fetchUserProfile();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -113,11 +70,6 @@ export function Navbar() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isMenuOpen]);
-
-  // Close menu on route change
-  useEffect(() => {
-    setIsMenuOpen(false);
-  }, [pathname]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -179,7 +131,12 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  prefetch={true}
+                  onPointerEnter={() => {
+                    if (shouldPrefetchOnIntent()) router.prefetch(item.href);
+                  }}
+                  onFocus={() => {
+                    if (shouldPrefetchOnIntent()) router.prefetch(item.href);
+                  }}
                   className={cn(
                     "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap",
                     isActive

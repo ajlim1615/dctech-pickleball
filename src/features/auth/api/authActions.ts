@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -157,21 +158,25 @@ export async function signOut() {
   redirect("/login");
 }
 
-export async function getCurrentUser() {
+const readCurrentUser = cache(async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data: profile } = await supabase
-  .from("profiles")
-  .select("*")
-  .eq("id", user.id)
-  .single();
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
 
   return {
     user,
     profile,
   };
+});
+
+export async function getCurrentUser() {
+  return readCurrentUser();
 }
 
 export async function updateUserPassword(formData: FormData) {

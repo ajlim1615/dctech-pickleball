@@ -14,7 +14,7 @@ export async function getLeaderboard(options?: { since?: string }): Promise<Rank
   const [profilesRes, totalsRes] = await Promise.all([
     supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, full_name, display_name, avatar_url, skill_rating, role, is_active, employee_no")
       .eq("is_active", true)
       .neq("email", "admin@dctechmicro.com"),
     supabase.rpc("leaderboard_stats", { p_since: options?.since ?? null }),

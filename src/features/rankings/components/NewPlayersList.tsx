@@ -39,7 +39,7 @@ export function NewPlayersList({ players, onView, onPhoto }: NewPlayersListProps
                       className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 cursor-zoom-in hover:ring-2 hover:ring-emerald-500/60 focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none transition"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={player.avatar_url} alt="" className="h-full w-full object-cover" />
+                      <img src={player.avatar_url} alt="" width={36} height={36} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     </button>
                   ) : (
                     <div className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-bold text-[11px] text-emerald-700 dark:text-emerald-400 shrink-0">

@@ -116,10 +116,16 @@ button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"])
   transition: transform 75ms ease-out;
 }
 
-/* GPU hardware-accelerate micro-animations */
-.animate-ping, .animate-pulse, .animate-spin, .animate-nav-progress {
+/* GPU hardware-accelerate transient navigation progress */
+.animate-nav-progress {
   will-change: transform, opacity;
   transform: translateZ(0);
+}
+
+/* Defer offscreen layout/paint for long scrollable lists */
+.deferred-list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 64px;
 }
 
 /* Custom court scrollbar */

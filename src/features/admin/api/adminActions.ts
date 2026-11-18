@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { GUEST_RANKED_MESSAGE, blockedFromSession } from "@/features/sessions/utils/guestRules";
 import { revalidatePath } from "next/cache";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
@@ -794,7 +795,7 @@ export async function createWalkInPlayer(params: {
   return { success: true, player: data };
 }
 
-export async function getAllEmployees(): Promise<Profile[]> {
+const readAllEmployees = cache(async (): Promise<Profile[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -803,4 +804,8 @@ export async function getAllEmployees(): Promise<Profile[]> {
 
   if (error || !data) return [];
   return data as Profile[];
+});
+
+export async function getAllEmployees(): Promise<Profile[]> {
+  return readAllEmployees();
 }

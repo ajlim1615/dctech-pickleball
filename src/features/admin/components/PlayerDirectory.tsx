@@ -249,7 +249,7 @@ export function PlayerDirectory({
             return (
               <li
                 key={p.id}
-                className={`grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_88px_120px_64px_44px_44px] items-center gap-3 px-4 sm:px-5 py-2.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${
+                className={`deferred-list-row grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,1fr)_88px_120px_64px_44px_44px] items-center gap-3 px-4 sm:px-5 py-2.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors ${
                   p.is_active ? "" : "bg-slate-50/60 dark:bg-slate-950/30"
                 }`}
               >
@@ -264,7 +264,7 @@ export function PlayerDirectory({
                       className="h-9 w-9 shrink-0 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 cursor-zoom-in focus-visible:outline-2 focus-visible:outline-emerald-500"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />
+                      <img src={p.avatar_url} alt="" width={36} height={36} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     </button>
                   ) : (
                     <span

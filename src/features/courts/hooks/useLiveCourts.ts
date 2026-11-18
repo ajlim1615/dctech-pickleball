@@ -80,7 +80,15 @@ export function useLiveCourts(
     const channel = supabase
       .channel(`courts:${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "courts" }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, (payload) => {
+        const nextStatus = (payload.new as { status?: string } | null)?.status;
+        const prevStatus = (payload.old as { status?: string } | null)?.status;
+        // Skip historical/completed match edits that don't affect active courts.
+        if (nextStatus && nextStatus !== "in_progress" && prevStatus !== "in_progress") {
+          return;
+        }
+        scheduleRefresh();
+      })
       .subscribe();
 
     return () => {

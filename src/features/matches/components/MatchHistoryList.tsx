@@ -1,13 +1,32 @@
 "use client";
 
 import { useMemo } from "react";
-import { Trophy, Calendar, CheckCircle2, Clock, MapPin, Plus, PlayCircle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Trophy, PlayCircle, CheckCircle2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatPHTDateTime } from "@/lib/timezone";
 import { formatMatchDuration } from "@/lib/duration";
 import { isResultOnlyScore } from "@/features/matches/utils/scoring";
+
+interface RawMatchPlayer {
+  team?: string | null;
+  player?: { full_name?: string | null; display_name?: string | null } | null;
+  profile?: { full_name?: string | null } | null;
+}
+
+interface RawMatch {
+  id: string;
+  court?: { name?: string | null } | string | null;
+  format?: string | null;
+  players?: RawMatchPlayer[] | unknown;
+  team_a_score?: number | null;
+  team_b_score?: number | null;
+  winning_team?: "team_a" | "team_b" | "tie" | null;
+  ended_at?: string | null;
+  started_at?: string | null;
+  created_at?: string | null;
+}
 
 export interface MatchItem {
   id: string;
@@ -25,26 +44,29 @@ export interface MatchItem {
 }
 
 interface MatchHistoryListProps {
-  initialMatches?: any[];
+  initialMatches?: Array<MatchItem | RawMatch>;
 }
 
 export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps) {
   const matches: MatchItem[] = useMemo(() => {
-    return initialMatches.map((m: any) => {
+    return initialMatches.map((raw) => {
       // If already formatted MatchItem
-      if (Array.isArray(m.teamA) && Array.isArray(m.teamB)) {
-        return m as MatchItem;
+      if ("teamA" in raw && Array.isArray(raw.teamA) && Array.isArray(raw.teamB)) {
+        return raw;
       }
 
+      const m = raw as RawMatch;
       // Raw Match from DB
-      const courtName = m.court?.name || (typeof m.court === "string" ? m.court : "Court");
+      const courtName =
+        typeof m.court === "string" ? m.court : m.court?.name || "Court";
       const format = m.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
-      const teamAPlayers: string[] = (m.players || [])
-        .filter((p: any) => p.team === "team_a")
-        .map((p: any) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
-      const teamBPlayers: string[] = (m.players || [])
-        .filter((p: any) => p.team === "team_b")
-        .map((p: any) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
+      const players = Array.isArray(m.players) ? (m.players as RawMatchPlayer[]) : [];
+      const teamAPlayers: string[] = players
+        .filter((p) => p.team === "team_a")
+        .map((p) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
+      const teamBPlayers: string[] = players
+        .filter((p) => p.team === "team_b")
+        .map((p) => p.player?.full_name || p.player?.display_name || p.profile?.full_name || "Player");
 
       const scoreA = m.team_a_score ?? 0;
       const scoreB = m.team_b_score ?? 0;
@@ -80,13 +102,13 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
           <p className="text-sm text-slate-500 dark:text-slate-400">Every finished game, newest first.</p>
         </div>
 
-        <a
+        <Link
           href="/sessions"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-4 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <PlayCircle className="h-4 w-4" />
           Sessions
-        </a>
+        </Link>
       </div>
 
       <div className="space-y-4">
@@ -97,12 +119,12 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
             <p className="text-slate-500 max-w-sm mx-auto">
               Finished games show up here as soon as a result is saved.
             </p>
-            <a
+            <Link
               href="/sessions"
               className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 font-bold text-slate-950 text-xs hover:bg-emerald-400 shadow-sm"
             >
               Go to Sessions
-            </a>
+            </Link>
           </Card>
         ) : (
           matches.map((m) => {

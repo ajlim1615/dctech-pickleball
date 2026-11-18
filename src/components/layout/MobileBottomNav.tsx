@@ -1,44 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, PlayCircle, Users, Trophy, User, ShieldCheck, BookOpen } from "lucide-react";
+import { Activity, PlayCircle, Trophy, User, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { useClientUserProfile } from "@/hooks/useClientUserProfile";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
   // No app navigation on the sign-in screens, including the forced password change.
   const isLoginPage = pathname === "/login" || pathname === "/set-password";
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setUserRole(null);
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      setUserRole(profile?.role || "player");
-    };
-
-    fetchUserRole();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchUserRole();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  const userProfile = useClientUserProfile(!isLoginPage);
+  const userRole = userProfile?.role ?? null;
 
   if (isLoginPage || !userRole) return null;
 
@@ -60,7 +33,6 @@ export function MobileBottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={true}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 py-1.5 px-1 text-[10px] font-mono transition-all rounded-xl active:scale-90 select-none",
                 isActive

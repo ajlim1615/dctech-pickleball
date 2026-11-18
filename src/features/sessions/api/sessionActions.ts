@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
@@ -15,15 +16,31 @@ import { queueClosedReason } from "@/features/queue/utils/queueOpen";
 import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
-export async function getSessions(): Promise<Session[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("sessions")
-    .select("*")
-    .order("start_time", { ascending: true });
+const COMPLETED_SESSIONS_LIMIT = 50;
 
-  if (error || !data) return [];
-  return data as Session[];
+const readSessions = cache(async (): Promise<Session[]> => {
+  const supabase = await createClient();
+  const [openRes, completedRes] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("*")
+      .in("status", ["active", "scheduled"])
+      .order("start_time", { ascending: true }),
+    supabase
+      .from("sessions")
+      .select("*")
+      .not("status", "in", "(active,scheduled)")
+      .order("start_time", { ascending: false })
+      .limit(COMPLETED_SESSIONS_LIMIT),
+  ]);
+
+  if (openRes.error && completedRes.error) return [];
+  const combined = [...(openRes.data ?? []), ...(completedRes.data ?? [])] as Session[];
+  return combined.sort((a, b) => a.start_time.localeCompare(b.start_time));
+});
+
+export async function getSessions(): Promise<Session[]> {
+  return readSessions();
 }
 
 export async function getSessionById(id: string) {

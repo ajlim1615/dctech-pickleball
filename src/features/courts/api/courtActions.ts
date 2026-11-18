@@ -1,12 +1,13 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import type { Court, CourtStatus, ActiveCourtView } from "@/types";
 
-export async function getCourts(): Promise<ActiveCourtView[]> {
+const readCourts = cache(async (): Promise<ActiveCourtView[]> => {
   const supabase = await createClient();
 
   const [courtsRes, matchesRes] = await Promise.all([
@@ -76,6 +77,10 @@ export async function getCourts(): Promise<ActiveCourtView[]> {
     ...c,
     current_match: matchByCourtId.get(c.id) || null,
   })) as unknown as ActiveCourtView[];
+});
+
+export async function getCourts(): Promise<ActiveCourtView[]> {
+  return readCourts();
 }
 
 /** Statuses an admin sets by hand. "occupied" is owned by the game procedures. */
