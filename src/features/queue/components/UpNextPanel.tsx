@@ -14,7 +14,7 @@ import {
   sendUpNextToCourt,
 } from "@/features/queue/api/upNextActions";
 import { canSendCard } from "@/features/courts/utils/courtRules";
-import { PlayerPickerSheet, playerName } from "./PlayerPickerSheet";
+import { PlayerPickerSheet } from "./PlayerPickerSheet";
 import type { UpNextCard } from "@/features/queue/upNext/types";
 import type { ActiveCourtView, QueueEntryWithPlayer } from "@/types";
 
@@ -41,7 +41,6 @@ export function UpNextPanel({
   const [filling, setFilling] = useState<{ card: UpNextCard | null; team: Team } | null>(null);
 
   const waiting = queue.filter((q) => q.status === "waiting");
-  const nameOf = (id: string) => playerName(queue.find((q) => q.player_id === id)?.player);
   const courtName = (id: string) => courts.find((c) => c.id === id)?.name ?? "court";
   const freeCourtIds = courts.filter((c) => c.status === "available" && !c.current_match_id).map((c) => c.id);
   const carded = new Set(cards.flatMap((c) => [...c.teamA, ...c.teamB]));
@@ -96,11 +95,11 @@ export function UpNextPanel({
         {Array.from({ length: card.perSide }, (_, i) => card[team][i]).map((id, i) =>
           id ? (
             <li key={id} className="flex items-center justify-between gap-1 text-sm">
-              <span className="truncate font-medium text-slate-900 dark:text-slate-100">{nameOf(id)}</span>
+              <span className="truncate font-medium text-slate-900 dark:text-slate-100">{card.names[id] ?? "Player"}</span>
               {isAdmin && (
                 <button
                   type="button"
-                  aria-label={`Take ${nameOf(id)} out of this match`}
+                  aria-label={`Take ${card.names[id] ?? "Player"} out of this match`}
                   disabled={pending}
                   onClick={() =>
                     save(card, card.teamA.filter((p) => p !== id), card.teamB.filter((p) => p !== id))

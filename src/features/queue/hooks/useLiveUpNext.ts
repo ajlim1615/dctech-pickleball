@@ -20,9 +20,9 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
     async function load() {
       const [{ data: rows }, { data: players }] = await Promise.all([
         supabase.from("up_next_matches").select("id, position, per_side, target_court_id, is_auto").eq("session_id", sessionId!),
-        supabase.from("up_next_players").select("card_id, player_id, team, slot").eq("session_id", sessionId!),
+        supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId!),
       ]);
-      if (!cancelled) setCards(toUpNextCards((rows ?? []) as UpNextCardRow[], (players ?? []) as UpNextPlayerRow[]));
+      if (!cancelled) setCards(toUpNextCards((rows ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]));
     }
     // A rebuild writes several rows at once; reload once they've all landed.
     const reload = () => {

@@ -20,9 +20,9 @@ const PER_SIDE = 2 as const;
 async function loadCards(supabase: Supabase, sessionId: string): Promise<UpNextCard[]> {
   const [{ data: cards }, { data: players }] = await Promise.all([
     supabase.from("up_next_matches").select("id, position, per_side, target_court_id, is_auto").eq("session_id", sessionId),
-    supabase.from("up_next_players").select("card_id, player_id, team, slot").eq("session_id", sessionId),
+    supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId),
   ]);
-  return toUpNextCards((cards ?? []) as UpNextCardRow[], (players ?? []) as UpNextPlayerRow[]);
+  return toUpNextCards((cards ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]);
 }
 
 function rpcError(out: unknown, error: { message: string } | null, label: string): string | null {

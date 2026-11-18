@@ -10,6 +10,8 @@ export type UpNextCard = {
   /** Player ids in slot order. */
   teamA: string[];
   teamB: string[];
+  /** Display names carried from the card's own rows (never looked up in the waiting list). */
+  names: Record<string, string>;
 };
 
 export type UpNextCardRow = {
@@ -20,27 +22,46 @@ export type UpNextCardRow = {
   is_auto: boolean;
 };
 
+export type UpNextPlayerProfile = {
+  full_name: string | null;
+  display_name: string | null;
+};
+
 export type UpNextPlayerRow = {
   card_id: string;
   player_id: string;
   team: "team_a" | "team_b";
   slot: number;
+  player?: UpNextPlayerProfile | UpNextPlayerProfile[] | null;
 };
+
+function profileName(player: UpNextPlayerRow["player"]): string {
+  const row = Array.isArray(player) ? player[0] : player;
+  return row?.full_name || row?.display_name || "Player";
+}
 
 /** Joins card rows and player rows into cards, in position order. */
 export function toUpNextCards(cards: UpNextCardRow[], players: UpNextPlayerRow[]): UpNextCard[] {
   const bySlot = [...players].sort((a, b) => a.slot - b.slot);
   return [...cards]
     .sort((a, b) => a.position - b.position)
-    .map((c) => ({
-      id: c.id,
-      position: c.position,
-      perSide: c.per_side === 1 ? 1 : 2,
-      targetCourtId: c.target_court_id,
-      isAuto: c.is_auto,
-      teamA: bySlot.filter((p) => p.card_id === c.id && p.team === "team_a").map((p) => p.player_id),
-      teamB: bySlot.filter((p) => p.card_id === c.id && p.team === "team_b").map((p) => p.player_id),
-    }));
+    .map((c) => {
+      const cardPlayers = bySlot.filter((p) => p.card_id === c.id);
+      const names: Record<string, string> = {};
+      for (const p of cardPlayers) {
+        names[p.player_id] = profileName(p.player);
+      }
+      return {
+        id: c.id,
+        position: c.position,
+        perSide: c.per_side === 1 ? 1 : 2,
+        targetCourtId: c.target_court_id,
+        isAuto: c.is_auto,
+        teamA: cardPlayers.filter((p) => p.team === "team_a").map((p) => p.player_id),
+        teamB: cardPlayers.filter((p) => p.team === "team_b").map((p) => p.player_id),
+        names,
+      };
+    });
 }
 
 /** True when the built cards match the saved auto cards exactly (same teams, same courts, same order). */

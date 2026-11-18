@@ -158,10 +158,7 @@ export function CourtCard({
   const nameOf = (p: Profile) => p.full_name || p.display_name || "Player";
   const teamKey = (t: ScoringTeam) => (t === "A" ? "team_a" : "team_b");
   const readyCard = cards ? cardForFreeCourt(court.id, freeCourtIds ?? [court.id], cards) : null;
-  const cardName = (id: string) => {
-    const p = waiting.find((q) => q.player_id === id)?.player;
-    return p ? nameOf(p) : "Player";
-  };
+  const cardName = (id: string) => readyCard?.names[id] ?? "Player";
 
   // Save every change so other screens (and the no-show check) see the live score,
   // and a refresh doesn't reset it.
