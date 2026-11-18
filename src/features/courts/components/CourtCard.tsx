@@ -45,8 +45,6 @@ export interface CourtCardProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
-  /** When true, submitting a result immediately calls the next group onto this court. */
-  autoFill?: boolean;
   /** Session rule: must a team lead by 2? Defaults to true at 11 pts, false at 6. */
   winByTwo?: boolean;
   /** false: win/loss-only session, the admin just picks the winning team. */
@@ -65,7 +63,6 @@ export function CourtCard({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
-  autoFill = true,
   winByTwo,
   trackScores = true,
   allowCourtRename,
@@ -247,17 +244,11 @@ export function CourtCard({
       : `${finalA}-${finalB}`;
 
     startTransition(async () => {
-      const res = await finalizeMatch(activeMatch.id, finalA, finalB, { autoFill });
+      const res = await finalizeMatch(activeMatch.id, finalA, finalB);
       if (res?.error) {
         setErrorMessage(res.error);
       } else {
-        setSuccessMessage(
-          res?.autoFilled
-            ? `Saved ${saved}. Players re-queued and the next group is on court.`
-            : `Saved ${saved}. Players are back in the queue.${
-                autoFill && res?.autoFillMessage ? ` Court left open: ${res.autoFillMessage}` : ""
-              }`
-        );
+        setSuccessMessage(`Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
         setScoreA(0);
         setScoreB(0);
         setPendingWinner(null);

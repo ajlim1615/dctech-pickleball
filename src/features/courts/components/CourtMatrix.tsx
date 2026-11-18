@@ -66,7 +66,6 @@ interface CourtMatrixProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
-  autoFill?: boolean;
   winByTwo?: boolean;
   trackScores?: boolean;
   allowCourtRename?: boolean;
@@ -83,7 +82,6 @@ export function CourtMatrix({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
-  autoFill = true,
   winByTwo,
   trackScores,
   allowCourtRename,
@@ -160,7 +158,6 @@ export function CourtMatrix({
               isAdmin={isAdministrator}
               readOnly={readOnly}
               targetPoints={targetPoints}
-              autoFill={autoFill}
               winByTwo={winByTwo}
               trackScores={trackScores}
               allowCourtRename={allowCourtRename}

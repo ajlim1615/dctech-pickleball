@@ -71,8 +71,8 @@ const PHASES: { id: string; label: string; when: string; icon: typeof Sunrise; s
         title: <>Put players on courts</>,
         detail: (
           <>
-            <Btn>Call next 4</Btn> on an open court, or <Btn>Fill open courts</Btn> for all of them. With{" "}
-            <Btn>Auto-fill courts</Btn> on, the next 4 are called as soon as a result is saved.
+            <Btn>Start Up Next</Btn> or <Btn>Choose Players</Btn> on an open court, or <Btn>Fill open courts</Btn> for all of them.
+            When a game is saved the court frees up and shows the next Up Next match. Tap Start when you're ready.
           </>
         ),
       },

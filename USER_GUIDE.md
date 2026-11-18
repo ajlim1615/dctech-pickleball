@@ -76,7 +76,7 @@ Sports Staff members are stationed at courts to manage match flow and scorekeepi
    - `Side Out / Fault`: Automatically rotates Server 1 to Server 2, or turns the serve over to Team 2.
    - `60s Timeout`: Starts a one-minute timer with visual countdown.
 3. **Queue Call-Up**:
-   - Once a match completes, tap **"Call Queue"** to auto-assign the next 4 waiting players from the queue.
+   - Once a match completes, the court frees up and shows the next **Up Next** match. Tap **Start** when you're ready — nothing starts by itself.
 4. **Finalizing Match**:
    - Tap **"Complete Game & Record Score"** to calculate the winner and update company rankings.
 

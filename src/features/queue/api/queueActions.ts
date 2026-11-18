@@ -684,7 +684,7 @@ export async function callNextUp(
   }
   const { matchId, teamA, teamB } = result;
 
-  // Logged as the signed-in admin who called the group (or whose saved result auto-filled the court).
+  // Logged as the signed-in admin who called the group.
   recordSessionEvent(async () => {
     const { data: { user: caller } } = await supabase.auth.getUser();
     if (!caller) return null;

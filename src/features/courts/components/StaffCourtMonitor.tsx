@@ -116,7 +116,7 @@ export function StaffCourtMonitor({
   // Active match ID
   const [activeMatchId, setActiveMatchId] = useState<string | null>(currentMatch?.id || null);
 
-  // Follow matches started elsewhere (Call next / auto-fill after a submitted result).
+  // Follow matches started elsewhere (Start / Send to Court on another screen).
   const [syncedMatchId, setSyncedMatchId] = useState<string | null>(currentMatch?.id || null);
   if (currentMatch?.id && currentMatch.status === "in_progress" && currentMatch.id !== syncedMatchId) {
     setSyncedMatchId(currentMatch.id);
