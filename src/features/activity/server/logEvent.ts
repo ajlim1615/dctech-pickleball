@@ -1,6 +1,26 @@
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applySessionCourtNames, parseSessionMetadata } from "@/lib/utils";
 import type { SessionEventActorRole, SessionEventType } from "@/types";
+
+/** Resolves a court's display name for a session, applying any custom `courtNames` override. */
+export async function resolveSessionCourtName(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: { from: (table: any) => any },
+  sessionId: string | null | undefined,
+  courtId: string | null | undefined
+): Promise<string | null> {
+  if (!courtId) return null;
+  const [{ data: courts }, sessionRes] = await Promise.all([
+    supabase.from("courts").select("id, name, sort_order").order("sort_order", { ascending: true }).order("name", { ascending: true }),
+    sessionId
+      ? supabase.from("sessions").select("description").eq("id", sessionId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const list = (courts ?? []) as { id: string; name: string; sort_order?: number | null }[];
+  const custom = sessionRes?.data?.description ? parseSessionMetadata(sessionRes.data.description).courtNames : undefined;
+  return applySessionCourtNames(list, custom).find((c) => c.id === courtId)?.name ?? null;
+}
 
 /** The slice of the Supabase client this needs, so tests can pass a fake. */
 export interface SupabaseLike {

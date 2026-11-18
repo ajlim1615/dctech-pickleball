@@ -13,7 +13,7 @@ import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { withLineRetry } from "@/features/queue/utils/lineRetry";
 import type { Decision } from "@/features/queue/matchmaking";
-import { logSessionEvent, recordSessionEvent } from "@/features/activity/server/logEvent";
+import { logSessionEvent, recordSessionEvent, resolveSessionCourtName } from "@/features/activity/server/logEvent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
 import { createPlayerAccount } from "@/features/players/server/createPlayer";
@@ -690,7 +690,7 @@ export async function callNextUp(
   recordSessionEvent(async () => {
     const { data: { user: caller } } = await supabase.auth.getUser();
     if (!caller) return null;
-    const { data: court } = await supabase.from("courts").select("name").eq("id", courtId).maybeSingle();
+    const courtName = await resolveSessionCourtName(supabase, sessionId, courtId);
     return {
       sessionId,
       type: "game_started",
@@ -699,7 +699,7 @@ export async function callNextUp(
       subjectIds: [...teamA, ...teamB],
       courtId,
       matchId,
-      details: { courtName: court?.name ?? null, teamA, teamB },
+      details: { courtName, teamA, teamB },
     };
   });
 

@@ -32,7 +32,7 @@ export default async function SessionDetailPage({
     getQueueForSession(id),
     getAllEmployees(),
     getSessionRsvps(id),
-    getSessionFeed(id),
+    getSessionFeed(id, 500),
     getAverageGameMinutes(id),
     getMyQueueLimits(id),
     getVenues(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Trophy,
   Award,
@@ -9,6 +9,7 @@ import {
   Search,
   ArrowUpDown,
   History,
+  Activity,
   Users,
   Calendar,
   CheckCircle2,
@@ -20,6 +21,7 @@ import { getSessionExport } from "../api/sessionExportActions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PlayerAvatar } from "@/components/ui/PlayerAvatar";
 import { formatRating } from "@/lib/utils";
 import { formatPHTTime } from "@/lib/timezone";
 import { formatMatchDuration } from "@/lib/duration";
@@ -38,6 +40,13 @@ interface SessionLeaderboardProps {
   rule?: ScoringRule;
   /** Needed for the admin's Excel export. */
   sessionId?: string;
+  /** Session-specific court names keyed by court_id. */
+  courtNames?: Record<string, string>;
+  /** Fallback court names keyed by match_id (for deleted courts where match.court_id is null). */
+  matchCourtNames?: Record<string, string>;
+  /** Rendered in the Activity tab beside Match Logs. */
+  activityFeed?: ReactNode;
+  activityCount?: number;
 }
 
 type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff";
@@ -51,6 +60,10 @@ export function SessionLeaderboard({
   isAdmin = false,
   rule = { targetPoints: 11, winByTwo: true },
   sessionId,
+  courtNames,
+  matchCourtNames,
+  activityFeed,
+  activityCount,
 }: SessionLeaderboardProps) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -79,7 +92,7 @@ export function SessionLeaderboard({
     }
   }
   const [editing, setEditing] = useState<EditableMatch | null>(null);
-  const [activeTab, setActiveTab] = useState<"standings" | "matches">("standings");
+  const [activeTab, setActiveTab] = useState<"standings" | "matches" | "activity">("standings");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
@@ -156,15 +169,25 @@ export function SessionLeaderboard({
     ? matches.filter((m) => m.status !== "cancelled" && m.status !== "abandoned")
     : completedMatches;
 
+  const gameNumberById = new Map<string, number>();
+  [...matches]
+    .filter((m) => m?.id && m.status !== "cancelled" && m.status !== "abandoned")
+    .sort((a, b) => {
+      const ta = a.started_at || a.created_at || "";
+      const tb = b.started_at || b.created_at || "";
+      return ta < tb ? -1 : ta > tb ? 1 : String(a.id).localeCompare(String(b.id));
+    })
+    .forEach((m, idx) => gameNumberById.set(m.id, idx + 1));
+
   return (
     <div className="space-y-6">
       {/* Tab Switcher & Stats Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 lg:pb-0">
           <button
             type="button"
             onClick={() => setActiveTab("standings")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer shrink-0 ${
               activeTab === "standings"
                 ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -176,7 +199,7 @@ export function SessionLeaderboard({
           <button
             type="button"
             onClick={() => setActiveTab("matches")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer shrink-0 ${
               activeTab === "matches"
                 ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -185,6 +208,21 @@ export function SessionLeaderboard({
             <History className="h-4 w-4" />
             Match Logs ({totalGamesPlayed})
           </button>
+          {activityFeed && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("activity")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer shrink-0 ${
+                activeTab === "activity"
+                  ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}
+            >
+              <Activity className="h-4 w-4" />
+              Activity{typeof activityCount === "number" && activityCount > 0 ? ` (${activityCount})` : ""}
+              {isSessionActive && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -245,16 +283,23 @@ export function SessionLeaderboard({
                       </span>
                     </div>
 
-                    <div className="space-y-0.5">
-                      <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 truncate">
-                        {player.full_name || player.display_name}
-                      </div>
-                      <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                        <span>{player.games_won}W - {player.games_lost}L</span>
-                        <span>•</span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                          {player.win_rate}% Win Rate
-                        </span>
+                    <div className="flex items-center gap-3">
+                      <PlayerAvatar
+                        name={player.full_name || player.display_name}
+                        avatarUrl={player.avatar_url}
+                        size="md"
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 truncate">
+                          {player.full_name || player.display_name}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                          <span>{player.games_won}W - {player.games_lost}L</span>
+                          <span>•</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            {player.win_rate}% Win Rate
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -399,8 +444,15 @@ export function SessionLeaderboard({
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <div className="font-bold text-slate-900 dark:text-slate-100">
-                              {player.full_name || player.display_name}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <PlayerAvatar
+                                name={player.full_name || player.display_name}
+                                avatarUrl={player.avatar_url}
+                                size="sm"
+                              />
+                              <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                                {player.full_name || player.display_name}
+                              </span>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold">
@@ -465,12 +517,19 @@ export function SessionLeaderboard({
                         key={player.id}
                         className="flex items-center justify-between px-4 py-2.5 text-xs font-mono"
                       >
-                        <div>
-                          <div className="font-bold text-slate-900 dark:text-slate-100">
-                            {player.full_name || player.display_name}
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {player.win_rate}% win rate · Games played: {player.games_played} · {needed} more to qualify
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <PlayerAvatar
+                            name={player.full_name || player.display_name}
+                            avatarUrl={player.avatar_url}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {player.full_name || player.display_name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {player.win_rate}% win rate · Games played: {player.games_played} · {needed} more to qualify
+                            </div>
                           </div>
                         </div>
                         <div className="text-right font-bold text-slate-700 dark:text-slate-300">
@@ -484,7 +543,7 @@ export function SessionLeaderboard({
             </Card>
           )}
         </div>
-      ) : (
+      ) : activeTab === "matches" ? (
         /* Match History Log for this Session */
         <div className="space-y-4">
           {visibleMatches.length === 0 ? (
@@ -495,91 +554,130 @@ export function SessionLeaderboard({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {visibleMatches.map((m) => {
                 const isCompleted = m.status === "completed";
-                const teamAPlayers = (m.players || [])
-                  .filter((p: any) => p.team === "team_a")
-                  .map((p: any) => p.player?.full_name || p.player?.display_name || "Player");
-                const teamBPlayers = (m.players || [])
-                  .filter((p: any) => p.team === "team_b")
-                  .map((p: any) => p.player?.full_name || p.player?.display_name || "Player");
+                const toTeamPlayer = (p: any) => ({
+                  id: (p.player_id ?? p.player?.id ?? "") as string,
+                  name: (p.player?.full_name || p.player?.display_name || "Player") as string,
+                  avatar_url: (p.player?.avatar_url ?? null) as string | null,
+                });
+                const teamARoster = (m.players || []).filter((p: any) => p.team === "team_a").map(toTeamPlayer);
+                const teamBRoster = (m.players || []).filter((p: any) => p.team === "team_b").map(toTeamPlayer);
+                const teamAPlayers = teamARoster.map((p: { name: string }) => p.name);
+                const teamBPlayers = teamBRoster.map((p: { name: string }) => p.name);
 
                 const teamAWon = m.winning_team === "team_a" || (m.team_a_score > m.team_b_score);
                 const teamBWon = m.winning_team === "team_b" || (m.team_b_score > m.team_a_score);
                 const duration = isCompleted ? formatMatchDuration(m.started_at, m.ended_at) : null;
+                const gameNum = gameNumberById.get(m.id);
+                const resolvedCourt =
+                  (m.court_id && courtNames?.[m.court_id]) || m.court?.name || matchCourtNames?.[m.id] || "Court";
+                const headerLabel = gameNum ? `Game ${gameNum} @ ${resolvedCourt}` : resolvedCourt;
+
+                const resultOnly = isResultOnlyScore(m.team_a_score, m.team_b_score);
+                const rows = [
+                  { key: "A", roster: teamARoster, players: teamAPlayers, won: teamAWon, score: m.team_a_score ?? 0 },
+                  { key: "B", roster: teamBRoster, players: teamBPlayers, won: teamBWon, score: m.team_b_score ?? 0 },
+                ];
 
                 return (
                   <Card
                     key={m.id}
-                    className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-3 font-mono shadow-xs"
+                    className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 space-y-2.5 shadow-xs"
                   >
-                    <div className="flex items-center justify-between text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <span className="font-bold text-slate-700 dark:text-slate-300">
-                        {m.court?.name || "Court"} • {m.format?.toUpperCase() || "DOUBLES"}
+                    <div className="flex items-center justify-between gap-2 pb-1">
+                      <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
+                        {headerLabel}
                       </span>
-                      <Badge
-                        variant={isCompleted ? "outline" : "volt"}
-                        className="text-[9px] uppercase tracking-wider font-bold"
-                      >
-                        {isCompleted ? "FINAL" : "IN PLAY"}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-5 items-center gap-2 text-xs">
-                      {/* Team A */}
-                      <div className={`col-span-2 space-y-0.5 ${teamAWon ? "font-bold text-slate-900 dark:text-slate-100" : "text-slate-500"}`}>
-                        {teamAPlayers.map((name: string, i: number) => (
-                          <div key={i} className="truncate">{name}</div>
-                        ))}
-                      </div>
-
-                      {/* Score */}
-                      <div className="col-span-1 text-center font-extrabold text-sm flex items-center justify-center gap-1.5">
-                        <span className={teamAWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}>
-                          {isResultOnlyScore(m.team_a_score, m.team_b_score) ? (teamAWon ? "W" : "L") : m.team_a_score ?? 0}
-                        </span>
-                        <span className="text-slate-300 dark:text-slate-700">:</span>
-                        <span className={teamBWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}>
-                          {isResultOnlyScore(m.team_a_score, m.team_b_score) ? (teamBWon ? "W" : "L") : m.team_b_score ?? 0}
-                        </span>
-                      </div>
-
-                      {/* Team B */}
-                      <div className={`col-span-2 text-right space-y-0.5 ${teamBWon ? "font-bold text-slate-900 dark:text-slate-100" : "text-slate-500"}`}>
-                        {teamBPlayers.map((name: string, i: number) => (
-                          <div key={i} className="truncate">{name}</div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {m.started_at && (
-                      <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 flex items-center justify-between gap-2">
-                        <span className="tabular-nums">
-                          {formatPHTTime(m.started_at)}
-                          {duration ? ` · ${duration}` : ""}
-                        </span>
-                        {teamAWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 1 Victory</span>}
-                        {teamBWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 2 Victory</span>}
-                      </div>
-                    )}
-
-                    {isAdmin && isCompleted && (
-                      <div className="flex justify-end pt-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setEditing({
-                              id: m.id,
-                              team_a_score: Number(m.team_a_score ?? 0),
-                              team_b_score: Number(m.team_b_score ?? 0),
-                              teamA: teamAPlayers,
-                              teamB: teamBPlayers,
-                            })
-                          }
-                          className="h-11 px-3 font-sans text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
+                      <div className="flex items-center gap-2 shrink-0">
+                        {m.started_at && (
+                          <span className="font-mono text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                            {formatPHTTime(m.started_at)}
+                          </span>
+                        )}
+                        <Badge
+                          variant={isCompleted ? "outline" : "volt"}
+                          className="font-mono text-[9px] uppercase tracking-wider font-bold"
                         >
-                          Fix result
-                        </Button>
+                          {isCompleted ? "FINAL" : "IN PLAY"}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {rows.map((row) => (
+                        <div
+                          key={row.key}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
+                            row.won
+                              ? "border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-950/30 text-slate-900 dark:text-slate-100 font-semibold"
+                              : "border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {row.won ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                            ) : (
+                              <span className="h-4 w-4 shrink-0 flex items-center justify-center text-slate-300 dark:text-slate-700" aria-hidden>
+                                ·
+                              </span>
+                            )}
+                            {row.roster.length > 0 && (
+                              <div className="flex items-center -space-x-1.5 shrink-0">
+                                {row.roster.map((p: { id: string; name: string; avatar_url: string | null }, idx: number) => (
+                                  <PlayerAvatar
+                                    key={p.id || `${row.key}-${idx}`}
+                                    name={p.name}
+                                    avatarUrl={p.avatar_url}
+                                    size="xs"
+                                    className="ring-2 ring-white dark:ring-slate-900"
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            <span className="text-sm truncate">{row.players.join(" & ")}</span>
+                          </div>
+                          <div className="shrink-0 font-mono font-bold tabular-nums">
+                            {resultOnly ? (
+                              row.won ? (
+                                <span className="rounded-md bg-emerald-600/10 dark:bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+                                  WIN
+                                </span>
+                              ) : (
+                                <span className="px-2 text-xs text-slate-400 dark:text-slate-600">—</span>
+                              )
+                            ) : (
+                              <span className={`text-sm ${row.won ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400"}`}>
+                                {row.score}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {(duration || (isAdmin && isCompleted)) && (
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <span className="font-mono text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                          {duration ?? ""}
+                        </span>
+                        {isAdmin && isCompleted && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setEditing({
+                                id: m.id,
+                                team_a_score: Number(m.team_a_score ?? 0),
+                                team_b_score: Number(m.team_b_score ?? 0),
+                                teamA: teamAPlayers,
+                                teamB: teamBPlayers,
+                              })
+                            }
+                            className="h-8 px-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
+                          >
+                            Fix result
+                          </Button>
+                        )}
                       </div>
                     )}
                   </Card>
@@ -588,6 +686,8 @@ export function SessionLeaderboard({
             </div>
           )}
         </div>
+      ) : (
+        activityFeed
       )}
 
       {editing && <EditResultModal match={editing} rule={rule} onClose={() => setEditing(null)} />}

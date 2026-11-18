@@ -75,7 +75,7 @@ export async function updateMatchScore(matchId: string, teamAScore: number, team
 
 import { checkRateLimit, RATE_LIMIT_CONFIGS } from "@/lib/security/rateLimit";
 import { FinalizeMatchSchema } from "@/lib/security/validation";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent, resolveSessionCourtName } from "@/features/activity/server/logEvent";
 
 export async function finalizeMatch(
   matchId: string,
@@ -164,21 +164,26 @@ export async function finalizeMatch(
   const savedOutcome = saved as { error?: string } | null;
   if (savedOutcome?.error) return { error: gameStateErrorMessage(savedOutcome.error) };
 
-  recordSessionEvent(async () => ({
-    sessionId: matchRecord?.session_id ?? null,
-    type: "game_result",
-    actorId: user.id,
-    actorRole: "admin",
-    subjectIds: await matchPlayerIds(supabase, matchId),
-    courtId: matchRecord?.court_id ?? null,
-    matchId,
-    details: {
-      courtName: await courtName(supabase, matchRecord?.court_id),
-      scoreA: teamAScore,
-      scoreB: teamBScore,
-      winner: winningTeam,
-    },
-  }));
+  recordSessionEvent(async () => {
+    const teams = await matchTeams(supabase, matchId);
+    return {
+      sessionId: matchRecord?.session_id ?? null,
+      type: "game_result",
+      actorId: user.id,
+      actorRole: "admin",
+      subjectIds: [...teams.teamA, ...teams.teamB],
+      courtId: matchRecord?.court_id ?? null,
+      matchId,
+      details: {
+        courtName: await resolveSessionCourtName(supabase, matchRecord?.session_id, matchRecord?.court_id),
+        scoreA: teamAScore,
+        scoreB: teamBScore,
+        winner: winningTeam,
+        teamA: teams.teamA,
+        teamB: teams.teamB,
+      },
+    };
+  });
 
   // finish_match already put everyone who just played at the back of the line. The
   // freed court waits for an admin to tap Start; nothing starts by itself.
@@ -396,7 +401,13 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
     subjectIds: [...teamA, ...teamB].map((p) => p.id),
     matchId,
     courtId: match.court_id,
-    details: { courtName: await courtName(supabase, match.court_id), from: oldScore, to: { a: scoreA, b: scoreB } },
+    details: {
+      courtName: await resolveSessionCourtName(supabase, match.session_id, match.court_id),
+      from: oldScore,
+      to: { a: scoreA, b: scoreB },
+      teamA: teamA.map((p) => p.id),
+      teamB: teamB.map((p) => p.id),
+    },
   }));
 
   if (match.session_id) revalidatePath(`/sessions/${match.session_id}`);
@@ -407,16 +418,15 @@ export async function correctMatchResult(matchId: string, scoreA: number, scoreB
   return { success: true as const };
 }
 
-async function matchPlayerIds(supabase: Awaited<ReturnType<typeof createClient>>, matchId: string): Promise<string[]> {
-  const { data } = await supabase.from("match_players").select("player_id").eq("match_id", matchId);
-  return (data || []).map((row) => row.player_id);
-}
-
-async function courtName(
+async function matchTeams(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  courtId: string | null | undefined
-): Promise<string | null> {
-  if (!courtId) return null;
-  const { data } = await supabase.from("courts").select("name").eq("id", courtId).maybeSingle();
-  return data?.name ?? null;
+  matchId: string
+): Promise<{ teamA: string[]; teamB: string[] }> {
+  const { data } = await supabase.from("match_players").select("player_id, team").eq("match_id", matchId);
+  const teamA: string[] = [];
+  const teamB: string[] = [];
+  for (const row of data || []) {
+    (row.team === "team_a" ? teamA : teamB).push(row.player_id);
+  }
+  return { teamA, teamB };
 }

@@ -27,7 +27,7 @@ import {
   setSessionCourtCount,
   setSessionCourtNames,
 } from "@/lib/utils";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent, resolveSessionCourtName } from "@/features/activity/server/logEvent";
 
 export async function updatePlayerDetails(userId: string, fullName: string, email: string) {
   // Only the System Admin changes who a player is (name, email).
@@ -210,19 +210,17 @@ export async function toggleCourtStatus(
   if (status !== "occupied") {
     const actorId = auth.context!.userId;
     recordSessionEvent(async () => {
-      const [{ data: court }, liveRes] = await Promise.all([
-        supabase.from("courts").select("name").eq("id", courtId).maybeSingle(),
-        sessionId
-          ? Promise.resolve({ data: { id: sessionId } })
-          : supabase.from("sessions").select("id").eq("status", "active").maybeSingle(),
-      ]);
+      const liveRes = sessionId
+        ? { data: { id: sessionId } }
+        : await supabase.from("sessions").select("id").eq("status", "active").maybeSingle();
+      const targetSessionId = liveRes.data?.id ?? null;
       return {
-        sessionId: liveRes.data?.id ?? null,
+        sessionId: targetSessionId,
         type: status === "available" ? "court_reopened" : "court_closed",
         actorId,
         actorRole: "admin",
         courtId,
-        details: { courtName: court?.name ?? null, status },
+        details: { courtName: await resolveSessionCourtName(supabase, targetSessionId, courtId), status },
       };
     });
   }

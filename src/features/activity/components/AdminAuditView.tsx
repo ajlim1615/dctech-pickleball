@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { getAdminAudit } from "@/features/activity/api/activityActions";
-import { describeEvent } from "@/features/activity/utils/describeEvent";
+import { buildMatchTeams, describeEvent } from "@/features/activity/utils/describeEvent";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import type { AdminAuditEvent, Session, SessionEventType } from "@/types";
 
@@ -45,6 +45,7 @@ export function AdminAuditView({ sessions, names }: { sessions: Session[]; names
   const [events, setEvents] = useState<AdminAuditEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const matchTeams = useMemo(() => buildMatchTeams(events), [events]);
 
   useEffect(() => {
     const types = FILTERS.find((f) => f.id === filterId)?.types ?? undefined;
@@ -118,7 +119,7 @@ export function AdminAuditView({ sessions, names }: { sessions: Session[]; names
                 {formatPHTDate(e.created_at)} {formatPHTTime(e.created_at)}
               </time>
               <span className="min-w-0 flex-1 text-slate-800 dark:text-slate-200">
-                {describeEvent({ ...e, actor_name: e.actor_role === "admin" ? e.actor_name : null }, names)}
+                {describeEvent({ ...e, actor_name: e.actor_role === "admin" ? e.actor_name : null }, names, undefined, matchTeams)}
                 {!sessionId && e.session_title ? (
                   <span className="text-slate-500 dark:text-slate-400"> ({e.session_title})</span>
                 ) : null}

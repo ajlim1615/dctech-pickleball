@@ -302,17 +302,21 @@ export function SessionQueueLiveBoard({
     }
   }
 
-  async function handleAdminRemove(entryId: string, name: string) {
-    if (!isAdmin || !sessionId) return;
-    if (confirm(`Remove ${name} from queue?`)) {
-      setIsSubmitting(true);
-      await adminRemovePlayerFromQueue(sessionId, entryId);
+  const [pendingRemove, setPendingRemove] = useState<{ entryId: string; name: string } | null>(null);
+
+  async function handleConfirmAdminRemove(alsoCheckOut: boolean) {
+    if (!isAdmin || !sessionId || !pendingRemove || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await adminRemovePlayerFromQueue(sessionId, pendingRemove.entryId, alsoCheckOut);
+      setPendingRemove(null);
+    } finally {
       setIsSubmitting(false);
     }
   }
 
   const removeFor = (entry: QueueEntryWithPlayer | undefined, name: string) =>
-    isAdmin && entry ? () => handleAdminRemove(entry.id, name) : undefined;
+    isAdmin && entry ? () => setPendingRemove({ entryId: entry.id, name }) : undefined;
 
   return (
     <section
@@ -772,6 +776,77 @@ export function SessionQueueLiveBoard({
           </form>
         </div>
       </Modal>
+
+      {/* Admin: Remove from line vs Check out */}
+      <Modal
+        isOpen={pendingRemove !== null}
+        onClose={() => {
+          if (!isSubmitting) setPendingRemove(null);
+        }}
+      >
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-xl cursor-default">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Remove {pendingRemove?.name}?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Choose whether they are just stepping out of line or leaving the session.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => !isSubmitting && setPendingRemove(null)}
+              aria-label="Close"
+              className="-mr-2 -mt-1 flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleConfirmAdminRemove(false)}
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/60 hover:bg-slate-100 dark:hover:bg-slate-800 px-3.5 py-2.5 text-left transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Remove from line only
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Takes them out of the queue; they stay checked in.
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handleConfirmAdminRemove(true)}
+              className="w-full rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100/70 dark:hover:bg-rose-950/50 px-3.5 py-2.5 text-left transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+                Check out of session
+              </div>
+              <div className="text-xs text-rose-600/80 dark:text-rose-400/80">
+                Removes them from the queue and checks them out of attendance.
+              </div>
+            </button>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={() => setPendingRemove(null)}
+              className="h-9 cursor-pointer"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }
@@ -925,8 +1000,8 @@ function PlayerLine({
         <button
           type="button"
           onClick={onRemove}
-          aria-label={`Remove ${name} from the queue`}
-          title="Remove from queue"
+          aria-label={`Remove or check out ${name}`}
+          title="Remove or check out"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
         >
           <X className="h-4 w-4" />

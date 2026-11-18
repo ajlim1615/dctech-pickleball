@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeEvent } from "@/features/activity/utils/describeEvent";
+import { buildMatchTeams, describeEvent } from "@/features/activity/utils/describeEvent";
 import type { SessionEvent } from "@/types";
 
 const names: Record<string, string> = {
@@ -68,7 +68,81 @@ describe("describeEvent", () => {
       subject_ids: ["maria", "jun", "carlo", "bea"],
       details: { courtName: "Court 3", teamA: ["maria", "jun"], teamB: ["carlo", "bea"] },
     });
-    expect(describeEvent(e, names)).toBe("Court 3: Maria Santos & Jun Reyes vs Carlo Dizon & Bea Villanueva");
+    expect(describeEvent(e, names)).toBe("Court 3 started: Maria Santos & Jun Reyes vs Carlo Dizon & Bea Villanueva");
+  });
+
+  it("describes a win/loss-only game result using matchTeams from game_started", () => {
+    const started = ev({
+      id: "e0",
+      type: "game_started",
+      match_id: "m1",
+      details: { courtName: "Court 3", teamA: ["maria", "jun"], teamB: ["carlo", "bea"] },
+    });
+    const finished = ev({
+      id: "e1",
+      type: "game_result",
+      match_id: "m1",
+      details: { courtName: "Court 3", scoreA: 0, scoreB: 1, winner: "team_b" },
+    });
+    const matchTeams = buildMatchTeams([finished, started]);
+    expect(describeEvent(started, names, undefined, matchTeams)).toBe(
+      "Game 1 @ Court 3 started: Maria Santos & Jun Reyes vs Carlo Dizon & Bea Villanueva"
+    );
+    expect(describeEvent(finished, names, undefined, matchTeams)).toBe(
+      "Game 1 @ Court 3: Carlo Dizon & Bea Villanueva beat Maria Santos & Jun Reyes"
+    );
+  });
+
+  it("describes a scored game result with teams", () => {
+    const finished = ev({
+      type: "game_result",
+      match_id: "m2",
+      details: {
+        courtName: "Court 1",
+        scoreA: 11,
+        scoreB: 7,
+        winner: "team_a",
+        teamA: ["maria", "jun"],
+        teamB: ["carlo", "bea"],
+      },
+    });
+    expect(describeEvent(finished, names)).toBe(
+      "Court 1: Maria Santos & Jun Reyes beat Carlo Dizon & Bea Villanueva (11-7)"
+    );
+  });
+
+  it("avoids cryptic W-L when teams are unknown for a win/loss-only result", () => {
+    const finished = ev({
+      type: "game_result",
+      details: { courtName: "Court 3", scoreA: 1, scoreB: 0, winner: "team_a" },
+    });
+    expect(describeEvent(finished, names)).toBe("Court 3 finished");
+  });
+
+  it("names added players when subject_ids are present", () => {
+    const one = ev({ type: "players_added", actor_role: "admin", subject_ids: ["mark"], details: { count: 1 } });
+    const two = ev({ type: "players_added", actor_role: "admin", subject_ids: ["mark", "ana"], details: { count: 2 } });
+    const four = ev({
+      type: "players_added",
+      actor_role: "admin",
+      subject_ids: ["mark", "ana", "rico", "joy"],
+      details: { count: 4 },
+    });
+    expect(describeEvent(one, names)).toBe("An admin added Mark Aquino to the queue");
+    expect(describeEvent(two, names)).toBe("An admin added Mark Aquino & Ana Lim to the queue");
+    expect(describeEvent(four, names)).toBe("An admin added Mark Aquino, Ana Lim & 2 others to the queue");
+  });
+
+  it("prefers session courtNames over raw details.courtName when court_id matches", () => {
+    const e = ev({
+      type: "game_started",
+      court_id: "c3",
+      match_id: "m1",
+      details: { courtName: "Court 3", teamA: ["maria", "jun"], teamB: ["carlo", "bea"] },
+    });
+    expect(describeEvent(e, names, undefined, { m1: { teamA: ["maria", "jun"], teamB: ["carlo", "bea"], gameNumber: 1 } }, { c3: "Court 1" })).toBe(
+      "Game 1 @ Court 1 started: Maria Santos & Jun Reyes vs Carlo Dizon & Bea Villanueva"
+    );
   });
 
   it("falls back to 'A player' for unknown people", () => {

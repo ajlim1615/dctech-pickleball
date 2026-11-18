@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatPHTTime } from "@/lib/timezone";
-import { describeEvent } from "@/features/activity/utils/describeEvent";
+import { buildMatchTeams, describeEvent } from "@/features/activity/utils/describeEvent";
 import { estimateWait, eventsAffecting } from "@/features/activity/utils/waitEstimate";
 import type { SessionEvent } from "@/types";
 
@@ -27,6 +27,7 @@ export function WaitCard({
   const [open, setOpen] = useState(false);
   const wait = estimateWait({ position, courtsInPlay, avgGameMinutes });
   const mine = eventsAffecting(events, viewerId);
+  const matchTeams = useMemo(() => buildMatchTeams(events), [events]);
   const perGame = avgGameMinutes ?? 12;
 
   const summary = wait.nextGame
@@ -62,7 +63,7 @@ export function WaitCard({
                   <time dateTime={e.created_at} className="w-16 shrink-0 font-mono tabular-nums text-xs leading-5">
                     {formatPHTTime(e.created_at)}
                   </time>
-                  {describeEvent(e, names, viewerId)}
+                  {describeEvent(e, names, viewerId, matchTeams)}
                 </li>
               ))}
             </ul>

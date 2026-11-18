@@ -9,7 +9,7 @@ import { loadOpenCourtIds, loadSessionArrivals, loadSessionHistory } from "@/fea
 import { autoCardCount, buildAutoCards } from "@/features/queue/upNext/buildCards";
 import { sameAutoCards, toUpNextCards, type UpNextCard, type UpNextCardRow, type UpNextPlayerRow } from "@/features/queue/upNext/types";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent, resolveSessionCourtName } from "@/features/activity/server/logEvent";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 type Result<T = object> = ({ success: true } & T) | { error: string };
@@ -165,8 +165,8 @@ export async function deleteUpNextCard(sessionId: string, cardId: string): Promi
 
 async function logGameStarted(supabase: Supabase, sessionId: string, courtId: string, matchId: string, actorId: string) {
   recordSessionEvent(async () => {
-    const [{ data: court }, { data: players }] = await Promise.all([
-      supabase.from("courts").select("name").eq("id", courtId).maybeSingle(),
+    const [courtName, { data: players }] = await Promise.all([
+      resolveSessionCourtName(supabase, sessionId, courtId),
       supabase.from("match_players").select("player_id, team").eq("match_id", matchId),
     ]);
     const teamA = (players ?? []).filter((p) => p.team === "team_a").map((p) => p.player_id);
@@ -179,7 +179,7 @@ async function logGameStarted(supabase: Supabase, sessionId: string, courtId: st
       subjectIds: [...teamA, ...teamB],
       courtId,
       matchId,
-      details: { courtName: court?.name ?? null, teamA, teamB },
+      details: { courtName, teamA, teamB },
     };
   });
 }

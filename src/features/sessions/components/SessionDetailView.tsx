@@ -50,13 +50,14 @@ import { bulkAddPlayersToQueue } from "@/features/queue/api/queueActions";
 import { NO_LIMITS_USED, leaveIsFinal, type QueueLimits } from "@/features/queue/utils/queueLimits";
 import { createWalkInPlayer, updateSessionCourtCount, updateSessionDetails } from "@/features/admin/api/adminActions";
 import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
-import { formatRating, parseSessionMetadata } from "@/lib/utils";
+import { applySessionCourtNames, formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent, Venue } from "@/types";
 import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
 import { gamesPlayedCounts, type PastGame } from "@/features/queue/matchmaking";
 import { arrivalsFromCheckins } from "@/features/queue/api/matchmakingData";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
+import type { MatchTeams } from "@/features/activity/utils/describeEvent";
 import { describeRule } from "@/features/matches/utils/scoring";
 import { DEFAULT_COURT_COUNT } from "@/lib/constants";
 import { previewCourts } from "@/features/sessions/utils/previewCourts";
@@ -114,18 +115,58 @@ export function SessionDetailView({
   openStart = false,
 }: SessionDetailViewProps) {
   const events = useLiveFeed(session.id, initialEvents);
-  // Names for the activity feed: everyone the page knows about.
-  const activityNames = useMemo(() => {
-    const map: Record<string, string> = {};
-    const add = (p?: { id?: string; full_name?: string | null; display_name?: string | null } | null) => {
-      if (p?.id) map[p.id] = p.full_name || p.display_name || map[p.id] || "A player";
+  // Names & avatars for the activity feed: everyone the page knows about.
+  const { activityNames, activityAvatars } = useMemo(() => {
+    const namesMap: Record<string, string> = {};
+    const avatarsMap: Record<string, string | null> = {};
+    const add = (p?: { id?: string; full_name?: string | null; display_name?: string | null; avatar_url?: string | null } | null) => {
+      if (!p?.id) return;
+      namesMap[p.id] = p.full_name || p.display_name || namesMap[p.id] || "A player";
+      if (p.avatar_url) avatarsMap[p.id] = p.avatar_url;
+      else if (!(p.id in avatarsMap)) avatarsMap[p.id] = null;
     };
     employees.forEach(add);
     (session.checkins || []).forEach((c: { player?: Profile }) => add(c.player));
     initialQueue.forEach((q) => add(q.player));
     (courts || []).forEach((c) => c.current_match?.players?.forEach((p) => add(p.profile)));
+    (initialMatches || []).forEach((m: { players?: { player?: Profile | null }[] }) =>
+      m.players?.forEach((p) => add(p.player))
+    );
+    return { activityNames: namesMap, activityAvatars: avatarsMap };
+  }, [employees, session.checkins, initialQueue, courts, initialMatches]);
+
+  const activityMatchCourtNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const e of events) {
+      const d = (e.details ?? {}) as Record<string, unknown>;
+      if (e.match_id && !map[e.match_id] && typeof d.courtName === "string" && d.courtName) {
+        map[e.match_id] = d.courtName;
+      }
+    }
     return map;
-  }, [employees, session.checkins, initialQueue, courts]);
+  }, [events]);
+
+  const activityMatchTeams = useMemo(() => {
+    const map: Record<string, MatchTeams> = {};
+    const ordered = (initialMatches || [])
+      .filter((m) => m?.id && m.status !== "cancelled" && m.status !== "abandoned")
+      .sort((a, b) => {
+        const ta = a.started_at || a.created_at || "";
+        const tb = b.started_at || b.created_at || "";
+        return ta < tb ? -1 : ta > tb ? 1 : String(a.id).localeCompare(String(b.id));
+      });
+    ordered.forEach((m, idx) => {
+      const teamA: string[] = [];
+      const teamB: string[] = [];
+      for (const p of Array.isArray(m.players) ? m.players : []) {
+        const pid = p.player_id ?? p.player?.id;
+        if (!pid) continue;
+        (p.team === "team_a" ? teamA : teamB).push(pid);
+      }
+      map[m.id] = { teamA, teamB, gameNumber: idx + 1 };
+    });
+    return map;
+  }, [initialMatches]);
   const iAmGoing = Boolean(currentUserId && rsvps.some((r) => r.playerId === currentUserId));
   const router = useRouter();
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -182,6 +223,20 @@ export function SessionDetailView({
   const [walkInEmail, setWalkInEmail] = useState("");
   const [walkInRating, setWalkInRating] = useState<number>(3.0);
   const sessionMeta = useMemo(() => parseSessionMetadata(session.description), [session.description]);
+  const activityCourtNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of applySessionCourtNames(courts || [], sessionMeta.courtNames)) {
+      if (c.id) map[c.id] = c.name;
+    }
+    // Preserve names of courts that were later removed from the facility list.
+    for (const e of events) {
+      const d = (e.details ?? {}) as Record<string, unknown>;
+      if (e.court_id && !map[e.court_id] && typeof d.courtName === "string" && d.courtName) {
+        map[e.court_id] = d.courtName;
+      }
+    }
+    return map;
+  }, [courts, sessionMeta.courtNames, events]);
   const [walkInIsGuest, setWalkInIsGuest] = useState(!sessionMeta.isRanked);
   const [walkInAutoQueue, setWalkInAutoQueue] = useState(true);
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
@@ -1510,7 +1565,8 @@ export function SessionDetailView({
         />
       )}
 
-      {/* Main Grid: Court Matrix + Unified Live Queue Link Card */}
+      {/* Main Grid: Court Matrix + Unified Live Queue Link Card (only for active/scheduled sessions) */}
+      {(currentStatus === "active" || currentStatus === "scheduled") && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           {isAdmin && (currentStatus === "active" || currentStatus === "scheduled") && (
@@ -1682,10 +1738,9 @@ export function SessionDetailView({
           />
         </div>
       </div>
+      )}
 
-      <ActivityFeed events={events} names={activityNames} viewerId={currentUserId} sessionStatus={currentStatus} />
-
-      {/* Session Leaderboard & Match Logs */}
+      {/* Session Leaderboard, Match Logs & Activity */}
       <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
         <SessionLeaderboard
           initialRankings={initialLeaderboard}
@@ -1694,7 +1749,21 @@ export function SessionDetailView({
           isSessionActive={currentStatus === "active"}
           isAdmin={isAdmin}
           sessionId={session.id}
+          courtNames={activityCourtNames}
+          matchCourtNames={activityMatchCourtNames}
           rule={{ targetPoints: sessionMeta.targetPoints, winByTwo: sessionMeta.winByTwo, trackScores: sessionMeta.trackScores }}
+          activityCount={currentStatus === "scheduled" ? 0 : events.length}
+          activityFeed={
+            <ActivityFeed
+              events={events}
+              names={activityNames}
+              avatars={activityAvatars}
+              viewerId={currentUserId}
+              sessionStatus={currentStatus}
+              matchTeams={activityMatchTeams}
+              courtNames={activityCourtNames}
+            />
+          }
         />
       </div>
     </div>

@@ -1,13 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { Activity, Flag, Lock, PlayCircle, Trophy, Users, Wrench, type LucideIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Activity, ChevronLeft, ChevronRight, Flag, Lock, PlayCircle, Search, Trophy, Users, Wrench, type LucideIcon } from "lucide-react";
+import { PlayerAvatar } from "@/components/ui/PlayerAvatar";
 import { formatPHTTime } from "@/lib/timezone";
-import { describeEvent } from "@/features/activity/utils/describeEvent";
+import { buildMatchTeams, describeEvent, type MatchTeams } from "@/features/activity/utils/describeEvent";
 import { eventKind, groupEventsByDay, isHighlight, type EventKind } from "@/features/activity/utils/feedLayout";
 import type { SessionEvent, SessionStatus } from "@/types";
 
-const PAGE = 15;
+const PAGE_SIZE = 15;
+
+type FeedFilter = "all" | "game" | "queue" | "court";
+
+const FILTER_OPTIONS: { id: FeedFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "game", label: "Games" },
+  { id: "queue", label: "Queue" },
+  { id: "court", label: "Courts & Fixes" },
+];
 
 const KIND_STYLE: Record<EventKind, { icon: LucideIcon; tile: string }> = {
   session: {
@@ -36,20 +46,70 @@ const KIND_STYLE: Record<EventKind, { icon: LucideIcon; tile: string }> = {
 export function ActivityFeed({
   events,
   names,
+  avatars,
   viewerId,
   sessionStatus,
+  matchTeams: initialMatchTeams,
+  courtNames,
 }: {
   events: SessionEvent[];
   names: Record<string, string>;
+  avatars?: Record<string, string | null>;
   viewerId?: string;
   /** Before the start there is nothing real to report; the feed says so instead of listing stray events. */
   sessionStatus?: SessionStatus;
+  matchTeams?: Record<string, MatchTeams>;
+  courtNames?: Record<string, string>;
 }) {
-  const [shown, setShown] = useState(PAGE);
+  const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState<FeedFilter>("all");
+  const [query, setQuery] = useState("");
   const notStarted = sessionStatus === "scheduled";
   const isLive = sessionStatus === "active";
-  const visible = notStarted ? [] : events.slice(0, shown);
-  const days = groupEventsByDay(visible);
+  const matchTeams = useMemo(
+    () => buildMatchTeams(events, initialMatchTeams),
+    [events, initialMatchTeams]
+  );
+
+  const described = useMemo(() => {
+    if (notStarted) return [];
+    return events.map((e) => {
+      const kind = eventKind(e.type);
+      const text = describeEvent(e, names, viewerId, matchTeams, courtNames);
+      return { event: e, kind, text };
+    });
+  }, [notStarted, events, names, viewerId, matchTeams, courtNames]);
+
+  const counts = useMemo(() => {
+    const c: Record<FeedFilter, number> = { all: described.length, game: 0, queue: 0, court: 0 };
+    for (const item of described) {
+      if (item.kind === "game") c.game++;
+      else if (item.kind === "queue") c.queue++;
+      else if (item.kind === "court" || item.kind === "fix") c.court++;
+    }
+    return c;
+  }, [described]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return described.filter((item) => {
+      if (filter === "game" && item.kind !== "game") return false;
+      if (filter === "queue" && item.kind !== "queue") return false;
+      if (filter === "court" && item.kind !== "court" && item.kind !== "fix") return false;
+      if (q && !item.text.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [described, filter, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const startIdx = (safePage - 1) * PAGE_SIZE;
+  const pageItems = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+  const textById = useMemo(
+    () => new Map(pageItems.map((item) => [item.event.id, item.text])),
+    [pageItems]
+  );
+  const days = groupEventsByDay(pageItems.map((item) => item.event));
 
   return (
     <section
@@ -86,66 +146,149 @@ export function ActivityFeed({
             : "Nothing has happened yet."}
         </p>
       ) : (
-        <div className="space-y-4" aria-live="polite" aria-relevant="additions">
-          {days.map((day) => (
-            <div key={day.key} className="space-y-1.5">
-              <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {day.label}
-              </h3>
-              <ol className="space-y-1.5">
-                {day.events.map((e) => {
-                  const kind = eventKind(e.type);
-                  const style = KIND_STYLE[kind];
-                  const Icon = e.type === "session_ended" ? Flag : style.icon;
-                  const mine = Boolean(viewerId) && e.subject_ids.includes(viewerId!);
-                  const strong = isHighlight(kind) || mine;
-                  return (
-                    <li
-                      key={e.id}
-                      className={`flex items-start gap-3 rounded-2xl border px-3 py-2.5 ${
-                        mine
-                          ? "border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-950/20"
-                          : "border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60"
-                      }`}
-                    >
-                      <span
-                        className={`mt-0.5 h-7 w-7 shrink-0 rounded-lg border flex items-center justify-center ${style.tile}`}
-                        aria-hidden
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <span
-                        className={`min-w-0 flex-1 text-sm leading-6 ${
-                          strong
-                            ? "font-semibold text-slate-900 dark:text-slate-100"
-                            : "text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        {describeEvent(e, names, viewerId)}
-                      </span>
-                      <time
-                        dateTime={e.created_at}
-                        className="mt-0.5 shrink-0 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400"
-                      >
-                        {formatPHTTime(e.created_at)}
-                      </time>
-                    </li>
-                  );
-                })}
-              </ol>
+        <>
+          {/* Filter chips & search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5 sm:pb-0">
+              {FILTER_OPTIONS.map((opt) => {
+                const active = filter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setFilter(opt.id);
+                      setPage(1);
+                    }}
+                    className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-mono font-bold transition-colors cursor-pointer ${
+                      active
+                        ? "bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {opt.label} ({counts[opt.id]})
+                  </button>
+                );
+              })}
             </div>
-          ))}
-        </div>
-      )}
+            <div className="relative sm:w-56">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search player or court…"
+                aria-label="Filter activity by player or court"
+                className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 pl-8 pr-3 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              />
+            </div>
+          </div>
 
-      {!notStarted && events.length > shown && (
-        <button
-          type="button"
-          onClick={() => setShown((n) => n + PAGE)}
-          className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-mono font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
-        >
-          Show more ({events.length - shown} older)
-        </button>
+          {filtered.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+              No matching activity found.
+            </p>
+          ) : (
+            <div className="space-y-4" aria-live="polite" aria-relevant="additions">
+              {days.map((day) => (
+                <div key={day.key} className="space-y-1.5">
+                  <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {day.label}
+                  </h3>
+                  <ol className="space-y-1.5">
+                    {day.events.map((e) => {
+                      const kind = eventKind(e.type);
+                      const style = KIND_STYLE[kind];
+                      const Icon = e.type === "session_ended" ? Flag : style.icon;
+                      const mine = Boolean(viewerId) && e.subject_ids.includes(viewerId!);
+                      const strong = isHighlight(kind) || mine;
+                      return (
+                        <li
+                          key={e.id}
+                          className={`flex items-start gap-3 rounded-2xl border px-3 py-2.5 ${
+                            mine
+                              ? "border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-950/20"
+                              : "border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60"
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 h-7 w-7 shrink-0 rounded-lg border flex items-center justify-center ${style.tile}`}
+                            aria-hidden
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          {e.subject_ids.length > 0 && (
+                            <div className="mt-0.5 flex items-center -space-x-1.5 shrink-0">
+                              {e.subject_ids.slice(0, 4).map((pid, idx) => (
+                                <PlayerAvatar
+                                  key={`${e.id}-${pid}-${idx}`}
+                                  name={names[pid] || "Player"}
+                                  avatarUrl={avatars?.[pid]}
+                                  size="xs"
+                                  className="ring-2 ring-white dark:ring-slate-900"
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <span
+                            className={`min-w-0 flex-1 text-sm leading-6 ${
+                              strong
+                                ? "font-semibold text-slate-900 dark:text-slate-100"
+                                : "text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {textById.get(e.id) ?? describeEvent(e, names, viewerId, matchTeams, courtNames)}
+                          </span>
+                          <time
+                            dateTime={e.created_at}
+                            className="mt-0.5 shrink-0 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400"
+                          >
+                            {formatPHTTime(e.created_at)}
+                          </time>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+              <span className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                Showing {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center gap-1 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Prev
+                </button>
+                <span className="px-2 text-xs font-mono tabular-nums font-bold text-slate-600 dark:text-slate-300">
+                  Page {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center gap-1 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

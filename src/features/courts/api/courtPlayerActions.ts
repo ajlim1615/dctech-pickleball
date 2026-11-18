@@ -5,7 +5,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
-import { recordSessionEvent } from "@/features/activity/server/logEvent";
+import { recordSessionEvent, resolveSessionCourtName } from "@/features/activity/server/logEvent";
 import { afterLineChange } from "@/features/queue/server/afterLineChange";
 import { pickReplacement } from "@/features/queue/upNext/buildCards";
 import type { SessionEventType } from "@/types";
@@ -32,7 +32,10 @@ async function matchInfo(supabase: Supabase, matchId: string): Promise<MatchInfo
   return {
     sessionId: data.session_id,
     courtId: data.court_id,
-    courtName: (data.court as unknown as { name: string } | null)?.name ?? null,
+    courtName:
+      (await resolveSessionCourtName(supabase, data.session_id, data.court_id)) ??
+      (data.court as unknown as { name: string } | null)?.name ??
+      null,
   };
 }
 
