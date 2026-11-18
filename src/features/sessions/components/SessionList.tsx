@@ -9,6 +9,7 @@ import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { RsvpButton } from "@/features/sessions/components/RsvpButton";
 import { CourtsBadge, RankedBadge } from "@/features/sessions/components/RankedBadge";
 import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
+import { sortSessionsForDisplay } from "@/features/sessions/utils/sortSessions";
 import type { Session, Venue } from "@/types";
 
 interface SessionListProps {
@@ -31,7 +32,11 @@ export function SessionList({
   isSystemAdmin = false,
 }: SessionListProps) {
   const isAdmin = userRole === "admin";
-  const sessions: Session[] = initialSessions;
+  const sessions: Session[] = sortSessionsForDisplay(initialSessions);
+  const firstPastIdx = sessions.findIndex(
+    (s) => s.status === "completed" || s.status === "cancelled"
+  );
+  const hasLiveOrUpcoming = firstPastIdx > 0;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
@@ -67,7 +72,7 @@ export function SessionList({
             </p>
           </Card>
         ) : (
-          sessions.map((s) => {
+          sessions.map((s, idx) => {
             const isActive = s.status === "active";
             const isCompleted = s.status === "completed";
             const isScheduled = s.status === "scheduled";
@@ -75,9 +80,17 @@ export function SessionList({
             const cleanedDesc = cleanSessionDescription(s.description);
 
             return (
-              <Card
-                key={s.id}
-                className={`border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 transition-all hover:border-slate-300 dark:hover:border-slate-700 shadow-sm ${
+              <div key={s.id} className="space-y-4">
+                {hasLiveOrUpcoming && idx === firstPastIdx && (
+                  <div className="pt-3 flex items-center gap-3">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Past Sessions
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                  </div>
+                )}
+                <Card
+                  className={`border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 transition-all hover:border-slate-300 dark:hover:border-slate-700 shadow-sm ${
                   isActive
                     ? "border-emerald-500/50 ring-1 ring-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/10"
                     : isCompleted
@@ -174,6 +187,7 @@ export function SessionList({
                   </div>
                 </CardContent>
               </Card>
+              </div>
             );
           })
         )}
