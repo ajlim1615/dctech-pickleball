@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { formatRating } from "@/lib/utils";
 import { formatPHTTime } from "@/lib/timezone";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
-import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
+import { MIN_QUALIFIED_GAMES, type SessionRankedPlayer } from "../utils/sessionLeaderboard";
 import { isResultOnlyScore, type ScoringRule } from "@/features/matches/utils/scoring";
 import { EditResultModal, type EditableMatch } from "@/features/matches/components/EditResultModal";
 
@@ -39,7 +39,7 @@ interface SessionLeaderboardProps {
   sessionId?: string;
 }
 
-type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff";
+type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff" | "schedule_strength";
 type SortOrder = "asc" | "desc";
 
 export function SessionLeaderboard({
@@ -83,6 +83,8 @@ export function SessionLeaderboard({
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showProvisional, setShowProvisional] = useState(false);
+  const [showTieBreakerInfo, setShowTieBreakerInfo] = useState(false);
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -123,25 +125,39 @@ export function SessionLeaderboard({
       case "point_diff":
         comparison = (a.point_diff || 0) - (b.point_diff || 0);
         break;
+      case "schedule_strength":
+        comparison = (a.schedule_strength || 0) - (b.schedule_strength || 0);
+        break;
       default:
         comparison = 0;
     }
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
-  const top3 = initialRankings.filter((p) => p.games_played > 0).slice(0, 3);
-  const completedMatchesCount = matches.filter(
+  const isQualified = (p: SessionRankedPlayer) => p.qualified ?? p.games_played >= MIN_QUALIFIED_GAMES;
+  const hasQualified = initialRankings.some(isQualified);
+  const mainSorted = hasQualified ? sorted.filter(isQualified) : sorted;
+  const provisionalSorted = hasQualified ? sorted.filter((p) => !isQualified(p)) : [];
+
+  const top3 = (hasQualified
+    ? initialRankings.filter(isQualified)
+    : initialRankings.filter((p) => p.games_played > 0)
+  ).slice(0, 3);
+  const completedMatches = matches.filter(
     (m) =>
       m.status === "completed" ||
-      m.winning_team ||
+      Boolean(m.winning_team) ||
       (m.team_a_score !== null &&
         m.team_b_score !== null &&
         (Number(m.team_a_score) > 0 || Number(m.team_b_score) > 0))
-  ).length;
+  );
   const derivedGamesCount = Math.ceil(
     initialRankings.reduce((sum, p) => sum + (p.games_played || 0), 0) / 4
   );
-  const totalGamesPlayed = Math.max(completedMatchesCount, derivedGamesCount, matches.length);
+  const totalGamesPlayed = Math.max(completedMatches.length, derivedGamesCount);
+  const visibleMatches = isSessionActive
+    ? matches.filter((m) => m.status !== "cancelled" && m.status !== "abandoned")
+    : completedMatches;
 
   return (
     <div className="space-y-6">
@@ -266,7 +282,7 @@ export function SessionLeaderboard({
           )}
 
           {/* Standings Filter & Search */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <input
@@ -277,9 +293,11 @@ export function SessionLeaderboard({
                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
-            <span className="text-xs font-mono text-slate-400">
-              Showing {sorted.length} players
-            </span>
+            <div className="flex items-center gap-3 text-xs font-mono text-slate-500 dark:text-slate-400">
+              <span>Total wins · Minimum {MIN_QUALIFIED_GAMES} completed games</span>
+              <span className="text-slate-300 dark:text-slate-700">|</span>
+              <span>Showing {mainSorted.length} {hasQualified ? "ranked" : "players"}</span>
+            </div>
           </div>
 
           {/* Standings Table */}
@@ -351,17 +369,27 @@ export function SessionLeaderboard({
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </th>
+                    <th
+                      className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200 transition-colors text-right"
+                      onClick={() => toggleSort("schedule_strength")}
+                      title="Schedule strength: opponents' win rate excluding games against you"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>SOS %</span>
+                        <ArrowUpDown className="h-3 w-3" />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {sorted.length === 0 ? (
+                  {mainSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         No checked-in players or match records found for this session.
                       </td>
                     </tr>
                   ) : (
-                    sorted.map((player) => {
+                    mainSorted.map((player) => {
                       const isPodium = player.rank <= 3 && player.games_played > 0;
                       return (
                         <tr
@@ -415,6 +443,9 @@ export function SessionLeaderboard({
                                 : player.point_diff
                               : "-"}
                           </td>
+                          <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300 font-medium">
+                            {player.games_played > 0 ? `${(player.schedule_strength ?? 0).toFixed(1)}%` : "-"}
+                          </td>
                         </tr>
                       );
                     })
@@ -423,17 +454,78 @@ export function SessionLeaderboard({
               </table>
             </div>
           </Card>
+
+          {/* Tie-breaker explanation */}
+          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 space-y-1">
+            <button
+              type="button"
+              onClick={() => setShowTieBreakerInfo((v) => !v)}
+              className="underline decoration-dotted hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer text-left"
+            >
+              Same wins, win rate, and point differential? Higher schedule strength ranks first.
+            </button>
+            {showTieBreakerInfo && (
+              <p className="text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5">
+                Based on your opponents’ win rates, excluding games against you. If all their games were against you, their overall win rate is used. Displayed values are rounded; very close strengths can look equal.
+              </p>
+            )}
+          </div>
+
+          {/* Provisional players (< 3 completed games) */}
+          {hasQualified && provisionalSorted.length > 0 && (
+            <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 shadow-xs overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="text-xs font-bold font-mono text-slate-600 dark:text-slate-300">
+                  Provisional · fewer than {MIN_QUALIFIED_GAMES} games ({provisionalSorted.length})
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowProvisional((v) => !v)}
+                  className="h-7 px-2.5 text-xs font-mono cursor-pointer"
+                >
+                  {showProvisional ? "Hide" : "Show"}
+                </Button>
+              </div>
+              {showProvisional && (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {provisionalSorted.map((player) => {
+                    const needed = Math.max(0, MIN_QUALIFIED_GAMES - player.games_played);
+                    return (
+                      <div
+                        key={player.id}
+                        className="flex items-center justify-between px-4 py-2.5 text-xs font-mono"
+                      >
+                        <div>
+                          <div className="font-bold text-slate-900 dark:text-slate-100">
+                            {player.full_name || player.display_name}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {player.win_rate}% win rate · Games played: {player.games_played} · {needed} more to qualify
+                          </div>
+                        </div>
+                        <div className="text-right font-bold text-slate-700 dark:text-slate-300">
+                          {player.games_won} {player.games_won === 1 ? "win" : "wins"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       ) : (
         /* Match History Log for this Session */
         <div className="space-y-4">
-          {matches.length === 0 ? (
+          {visibleMatches.length === 0 ? (
             <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-8 text-center font-mono text-xs text-slate-500">
               No matches recorded for this session yet. Matches played on facility courts will appear here in real time.
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {matches.map((m) => {
+              {visibleMatches.map((m) => {
                 const isCompleted = m.status === "completed";
                 const teamAPlayers = (m.players || [])
                   .filter((p: any) => p.team === "team_a")
