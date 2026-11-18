@@ -4,6 +4,7 @@ import { useReducer } from "react";
 import { X } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { IconButton } from "@/components/ui/icon-button";
+import { WaitTimer } from "@/components/ui/wait-timer";
 import { chooseSlotsReducer } from "@/features/courts/utils/courtRules";
 import { playerName } from "@/features/queue/components/PlayerPickerSheet";
 import type { QueueEntryWithPlayer } from "@/types";
@@ -14,6 +15,7 @@ export function ChoosePlayersSheet({
   candidates,
   perSide,
   pending,
+  gamesPlayed,
   onFill,
   onClose,
 }: {
@@ -21,6 +23,7 @@ export function ChoosePlayersSheet({
   candidates: QueueEntryWithPlayer[];
   perSide: 1 | 2;
   pending: boolean;
+  gamesPlayed?: Record<string, number>;
   onFill: (teamA: string[], teamB: string[]) => void;
   onClose: () => void;
 }) {
@@ -93,12 +96,14 @@ export function ChoosePlayersSheet({
           {ordered.map((c) => {
             const inA = state.teamA.includes(c.player_id);
             const inB = state.teamB.includes(c.player_id);
+            const played = gamesPlayed?.[c.player_id] ?? 0;
+            const selected = inA || inB;
             return (
               <li key={c.id}>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: picked.has(c.player_id) ? "clear" : "pick", playerId: c.player_id })}
-                  aria-pressed={inA || inB}
+                  aria-pressed={selected}
                   className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 ${
                     inA
                       ? "border-emerald-500 bg-emerald-600 text-white"
@@ -107,8 +112,30 @@ export function ChoosePlayersSheet({
                         : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 hover:border-emerald-500"
                   }`}
                 >
-                  <span className="truncate font-semibold">{playerName(c.player)}</span>
-                  {c.group_id && <span className="shrink-0 text-xs opacity-80">paired</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{playerName(c.player)}</span>
+                    <span
+                      className={`flex items-center gap-1.5 text-xs ${
+                        selected ? "text-white/85" : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      <span className="tabular-nums">
+                        {played} {played === 1 ? "game" : "games"}
+                      </span>
+                      {c.joined_at && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <WaitTimer since={c.joined_at} />
+                        </>
+                      )}
+                      {c.group_id && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span>paired</span>
+                        </>
+                      )}
+                    </span>
+                  </span>
                 </button>
               </li>
             );

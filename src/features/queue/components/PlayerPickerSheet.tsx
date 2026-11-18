@@ -3,15 +3,11 @@
 import { useMemo, useState } from "react";
 import { Sparkles, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
+import { WaitTimer } from "@/components/ui/wait-timer";
 import type { QueueEntryWithPlayer } from "@/types";
 
 export function playerName(p?: { full_name?: string | null; display_name?: string | null } | null) {
   return p?.full_name || p?.display_name || "Player";
-}
-
-function waitedFor(joinedAt: string) {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(joinedAt).getTime()) / 60000));
-  return mins < 1 ? "just joined" : `waiting ${mins} min`;
 }
 
 /**
@@ -22,6 +18,8 @@ export function PlayerPickerSheet({
   title,
   subtitle,
   candidates,
+  gamesPlayed,
+  showWait = true,
   onPick,
   onAutoPick,
   onClose,
@@ -29,6 +27,8 @@ export function PlayerPickerSheet({
   title: string;
   subtitle?: string;
   candidates: QueueEntryWithPlayer[];
+  gamesPlayed?: Record<string, number>;
+  showWait?: boolean;
   onPick: (playerId: string, name: string) => void;
   onAutoPick?: () => void;
   onClose: () => void;
@@ -79,24 +79,43 @@ export function PlayerPickerSheet({
         </label>
         <ul className="space-y-1.5">
           {shown.length === 0 && <li className="py-6 text-center text-sm text-slate-500">No one waiting matches.</li>}
-          {shown.map((c) => (
-            <li key={c.id}>
-              <button
-                type="button"
-                onClick={() => onPick(c.player_id, playerName(c.player))}
-                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2.5 text-left cursor-pointer hover:border-emerald-500 focus-visible:outline-2 focus-visible:outline-emerald-500"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{playerName(c.player)}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
-                    {c.player?.skill_rating != null ? `${Number(c.player.skill_rating).toFixed(1)} · ` : ""}
-                    {waitedFor(c.joined_at)}
-                    {c.group_id ? " · paired" : ""}
+          {shown.map((c) => {
+            const played = gamesPlayed?.[c.player_id] ?? 0;
+            return (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => onPick(c.player_id, playerName(c.player))}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2.5 text-left cursor-pointer hover:border-emerald-500 focus-visible:outline-2 focus-visible:outline-emerald-500"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{playerName(c.player)}</span>
+                    <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {c.player?.skill_rating != null && (
+                        <span className="font-mono tabular-nums">{Number(c.player.skill_rating).toFixed(1)}</span>
+                      )}
+                      {c.player?.skill_rating != null && <span aria-hidden>·</span>}
+                      <span className="tabular-nums">
+                        {played} {played === 1 ? "game" : "games"}
+                      </span>
+                      {showWait && c.joined_at && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <WaitTimer since={c.joined_at} prefix="waiting " />
+                        </>
+                      )}
+                      {c.group_id && (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span>paired</span>
+                        </>
+                      )}
+                    </span>
                   </span>
-                </span>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </Sheet>

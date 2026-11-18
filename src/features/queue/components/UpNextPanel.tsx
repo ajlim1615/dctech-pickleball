@@ -29,6 +29,7 @@ export function UpNextPanel({
   queue,
   cards,
   isAdmin,
+  gamesPlayed,
 }: {
   sessionId: string;
   courts: ActiveCourtView[];
@@ -229,6 +230,7 @@ export function UpNextPanel({
         <PlayerPickerSheet
           title={filling.card ? `Add to Up Next ${filling.card.position}` : "New match: pick the first player"}
           candidates={waiting.filter((q) => !carded.has(q.player_id))}
+          gamesPlayed={gamesPlayed}
           onPick={(id) => {
             const card = filling.card;
             const teamA = card ? [...card.teamA] : [];

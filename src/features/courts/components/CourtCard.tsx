@@ -89,6 +89,7 @@ export function CourtCard({
   cards,
   freeCourtIds,
   actions,
+  gamesPlayed,
 }: CourtCardProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -643,6 +644,7 @@ export function CourtCard({
           title={`Replace ${nameOf(sheet.player)}`}
           subtitle={`${cleanCourtName}. ${nameOf(sheet.player)} goes to the back of the line.`}
           candidates={waiting}
+          gamesPlayed={gamesPlayed}
           onAutoPick={() => {
             actions.autoPick(activeMatch.id, sheet.player.id);
             setSheet(null);
@@ -664,6 +666,8 @@ export function CourtCard({
             joined_at: new Date().toISOString(),
             group_id: null,
           }) as unknown as QueueEntryWithPlayer)}
+          gamesPlayed={gamesPlayed}
+          showWait={false}
           onPick={(id) => {
             actions.switchTeams(activeMatch.id, sheet.player.id, id);
             setSheet(null);
@@ -675,6 +679,7 @@ export function CourtCard({
         <PlayerPickerSheet
           title={`Add a player to ${sheet.team === "A" ? "Team 1" : "Team 2"}`}
           candidates={waiting}
+          gamesPlayed={gamesPlayed}
           onAutoPick={() => {
             actions.autoFill(activeMatch.id, teamKey(sheet.team));
             setSheet(null);
@@ -692,6 +697,7 @@ export function CourtCard({
           candidates={waiting}
           perSide={2}
           pending={actions.pending}
+          gamesPlayed={gamesPlayed}
           onFill={(teamA, teamB) => {
             actions.startChosen(court.id, teamA, teamB);
             setSheet(null);
