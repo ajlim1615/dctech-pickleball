@@ -28,6 +28,9 @@ const AFFECTING: SessionEventType[] = [
   "game_started",
   "game_result",
   "result_corrected",
+  "court_player_replaced",
+  "court_player_removed",
+  "court_change_undone",
 ];
 
 /** The latest events that changed things for this player, newest first. */

@@ -76,6 +76,18 @@ export function describeEvent(
         return `${actor} closed ${court ?? "a court"}`;
       case "court_reopened":
         return `${actor} reopened ${court ?? "a court"}`;
+      case "court_player_replaced":
+        return `${actor} put ${who(d.in)} in for ${who(d.out)} on ${court ?? "a court"}`;
+      case "court_player_removed":
+        return `${actor} took ${who(d.out)} off ${court ?? "a court"}`;
+      case "court_teams_switched":
+        return `${actor} switched ${who(event.subject_ids[0])} and ${who(event.subject_ids[1])} on ${court ?? "a court"}`;
+      case "court_slot_filled":
+        return `${actor} added ${who(d.in)} to ${court ?? "a court"}`;
+      case "court_change_undone":
+        return `${actor} undid a change on ${court ?? "a court"}`;
+      case "up_next_edited":
+        return `${actor} changed Up Next`;
       default:
         return "Something changed";
     }

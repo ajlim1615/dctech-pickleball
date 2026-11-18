@@ -35,7 +35,13 @@ export type SessionEventType =
   | "result_corrected"
   | "no_show_swapped"
   | "court_closed"
-  | "court_reopened";
+  | "court_reopened"
+  | "court_player_replaced"
+  | "court_player_removed"
+  | "court_teams_switched"
+  | "court_slot_filled"
+  | "court_change_undone"
+  | "up_next_edited";
 export type SessionEventActorRole = "self" | "admin" | "system";
 export type MatchTeam = "team_a" | "team_b";
 
