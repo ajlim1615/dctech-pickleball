@@ -28,6 +28,10 @@ describe("game-state error codes", () => {
     ["no_replacement", "No one is waiting to swap in."],
     ["already_saved", "This game was already saved."],
     ["bad_status", "A session can only be ended or cancelled here."],
+    ["in_other_card", "That player is already in another Up Next match."],
+    ["not_waiting", "That player isn't waiting in line."],
+    ["teams_incomplete", "Fill every slot before starting or saving this game."],
+    ["wrong_court", "This match is set for a different court."],
   ])("%s has its copy", (code, text) => {
     expect(gameStateErrorMessage(code)).toBe(text);
   });

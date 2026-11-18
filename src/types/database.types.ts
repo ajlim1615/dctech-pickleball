@@ -559,7 +559,35 @@ export interface Database {
           p_team_a: string[];
           p_team_b: string[];
           p_from_queue: boolean;
+          /** Start this Up Next card: its teams are used and the card is removed. */
+          p_up_next_id?: string | null;
         };
+        Returns: Json;
+      };
+      /** Changes whenever the waiting line or a hand-edited card changes. */
+      up_next_line_version: {
+        Args: { p_session_id: string };
+        Returns: string;
+      };
+      /** Creates (p_card_id null) or edits one card; it becomes hand-edited. Returns { card_id, unpaired } or { error }. */
+      save_up_next_card: {
+        Args: {
+          p_session_id: string;
+          p_card_id: string | null;
+          p_team_a: string[];
+          p_team_b: string[];
+          p_per_side: number;
+          p_target_court_id?: string | null;
+        };
+        Returns: Json;
+      };
+      delete_up_next_card: {
+        Args: { p_card_id: string };
+        Returns: Json;
+      };
+      /** Replaces the auto cards; { error: 'line_changed' } if the line moved since p_line_version was read. */
+      replace_auto_up_next: {
+        Args: { p_session_id: string; p_cards: Json; p_line_version: string };
         Returns: Json;
       };
       /** Swaps a no-show for the next waiting player. Returns { replacement_id } or { error: code }. */

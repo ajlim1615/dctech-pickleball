@@ -20,6 +20,10 @@ export const GAME_STATE_ERRORS = [
   "no_replacement",
   "already_saved",
   "bad_status",
+  "in_other_card",
+  "not_waiting",
+  "teams_incomplete",
+  "wrong_court",
 ] as const;
 
 export type GameStateError = (typeof GAME_STATE_ERRORS)[number];
@@ -39,6 +43,10 @@ const MESSAGES: Record<GameStateError, string> = {
   no_replacement: "No one is waiting to swap in.",
   already_saved: "This game was already saved.",
   bad_status: "A session can only be ended or cancelled here.",
+  in_other_card: "That player is already in another Up Next match.",
+  not_waiting: "That player isn't waiting in line.",
+  teams_incomplete: "Fill every slot before starting or saving this game.",
+  wrong_court: "This match is set for a different court.",
 };
 
 const FALLBACK = "That couldn't be saved. Nothing was changed; please try again.";
