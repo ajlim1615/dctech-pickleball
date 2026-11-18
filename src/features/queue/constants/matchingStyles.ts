@@ -34,7 +34,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     tag: "Algorithm Pairing",
     adminSummary: "Balances teams by rating. Avoids repeat partners and opponents when possible.",
     guideDescription:
-      "Picks four from the first six in line (the first person is always included) and splits them into the most even teams by rating, preferring people who haven't partnered or played each other this session.",
+      "Picks four from the first eight in line (#1 is always included) and splits them into the most even teams by rating, preferring fresh partners/opponents and gently evening out games played since arrival.",
     strategy: "Evens out team ratings and avoids repeats.",
     bestFor: "Competitive matches without blowouts.",
     accent: "emerald",
@@ -48,7 +48,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     tag: "Avoids Repeats",
     adminSummary: "Avoids repeat partners and opponents. Doesn't use ratings.",
     guideDescription:
-      "Picks four from the first six in line and avoids repeat partners and opponents. Ratings are ignored, and equally good options are chosen at random.",
+      "Picks four from the first eight in line (#1 is always included) and avoids repeat partners and opponents. Ratings are ignored, and games played since arrival are gently evened out.",
     strategy: "Maximizes player mingling and new interactions.",
     bestFor: "Team building and welcome sessions.",
     accent: "purple",
@@ -62,7 +62,7 @@ export const MATCHING_STYLE_REGISTRY: Record<MatchingStyle, MatchingStyleMeta> =
     tag: "Closest Skill",
     adminSummary: "Keeps similar skill levels together. May leave a court waiting.",
     guideDescription:
-      "Pairs the first person in line with the next closest-rated players from the first ten waiting, so everyone on court is within the session's rating gap.",
+      "Pairs the first person in line with the next closest-rated players from the first eight waiting, so everyone on court is within the session's rating gap while keeping game pace fair since arrival.",
     strategy: "High vs High and Beginner vs Beginner.",
     bestFor: "High-paced competitive sessions.",
     accent: "sky",

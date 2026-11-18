@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, Shuffle } from "lucide-react";
+import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, Shuffle, HelpCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { WaitTimer } from "@/components/ui/wait-timer";
 import { useLiveQueue } from "@/features/queue/hooks/useLiveQueue";
 import {
   decide,
+  isRotationStyle,
   seededRandom,
   teamStats,
   DEFAULT_SKILL_SPREAD,
@@ -71,12 +73,59 @@ function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
   return p?.full_name || p?.display_name || "Player";
 }
 
+function matchingSummaryFor(style: MatchingStyle) {
+  if (isRotationStyle(style)) {
+    return (
+      <ul className="list-disc space-y-1 pl-4">
+        <li>
+          <strong className="font-semibold text-slate-800 dark:text-slate-100">#1 in line always plays next</strong> — waiting longest guarantees your spot.
+        </li>
+        <li>
+          <strong className="font-semibold text-slate-800 dark:text-slate-100">Fair game pace:</strong> Among the top 8 waiting, players who have played fewer games since arriving get a gentle nudge so faster vs. slower games stay even.
+        </li>
+        <li>
+          <strong className="font-semibold text-slate-800 dark:text-slate-100">Late arrivals stay fair:</strong> Joining later starts neutral (it won&apos;t jump you ahead of players who arrived earlier), while ratings and fresh partners are still balanced.
+        </li>
+      </ul>
+    );
+  }
+  switch (style) {
+    case "fifo":
+      return (
+        <p>
+          Players are called in strict first-in, first-out order. The first 2 waiting play against the next 2 in line.
+        </p>
+      );
+    case "king_queen":
+      return (
+        <p>
+          Winning pairs hold or move up toward the top court while challengers rotate in from the line and split pairings.
+        </p>
+      );
+    case "winners_stay":
+      return (
+        <p>
+          Previous winners stay on court and split against incoming challengers from the front of the line.
+        </p>
+      );
+    case "winners_losers":
+      return (
+        <p>
+          Players are grouped by their last result—winners play winners and losers play losers—reaching down the line as needed to form a match.
+        </p>
+      );
+    default:
+      return <p>Players are matched from the front of the line according to this session&apos;s rotation rules.</p>;
+  }
+}
+
 // Stable default: a fresh [] each render would retrigger useLiveQueue's
 // setQueue(initialQueue) effect forever.
 const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
 const EMPTY_COURTS: ActiveCourtView[] = [];
 const EMPTY_HISTORY: PastGame[] = [];
 const EMPTY_ARRIVALS: Record<string, string> = {};
+const EMPTY_GAMES_PLAYED: Record<string, number> = {};
 
 const courtLabel = (court?: Pick<ActiveCourtView, "name"> | null) =>
   court?.name.replace(/\s*\(Rented Court\)/i, "") || undefined;
@@ -99,6 +148,7 @@ export function SessionQueueLiveBoard({
   skillSpread = DEFAULT_SKILL_SPREAD,
   allowPartners = false,
   queueLimits = NO_LIMITS_USED,
+  gamesPlayed = EMPTY_GAMES_PLAYED,
   arrivedAtByPlayer = EMPTY_ARRIVALS,
 }: SessionQueueLiveBoardProps) {
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
@@ -124,6 +174,7 @@ export function SessionQueueLiveBoard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showMatchingInfo, setShowMatchingInfo] = useState(false);
   const [joinMode, setJoinMode] = useState<"solo" | "coworker" | "guest">("solo");
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [guestName, setGuestName] = useState("");
@@ -134,6 +185,10 @@ export function SessionQueueLiveBoard({
   const finalLeave = leaveIsFinal(queueLimits);
 
   const isUserInQueue = Boolean(myEntry);
+  const joinedAtByPlayerId = useMemo(
+    () => new Map(queue.map((q) => [q.player_id, q.joined_at])),
+    [queue]
+  );
 
   // Chunk queue into 4-player groups
   const pods = useMemo(() => {
@@ -282,6 +337,20 @@ export function SessionQueueLiveBoard({
             {" · "}
             {styleLabel(style)}
           </p>
+          <button
+            type="button"
+            onClick={() => setShowMatchingInfo((v) => !v)}
+            aria-expanded={showMatchingInfo}
+            aria-controls="how-matching-works-panel"
+            className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 rounded-md"
+          >
+            <HelpCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span>How matching works</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 shrink-0 transition-transform ${showMatchingInfo ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
         </div>
 
         {isAdmin && onOpenBulkQueue && isSessionActive && !isSessionScheduled && (
@@ -297,6 +366,15 @@ export function SessionQueueLiveBoard({
           </Button>
         )}
       </header>
+
+      {showMatchingInfo && (
+        <div
+          id="how-matching-works-panel"
+          className="mx-4 mb-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 p-3 text-xs text-slate-600 dark:text-slate-300 space-y-1.5"
+        >
+          {matchingSummaryFor(style)}
+        </div>
+      )}
 
       {calledAlert && <QueueCallupAlert courtName={calledCourtName} onAcknowledge={dismissAlert} />}
 
@@ -410,6 +488,7 @@ export function SessionQueueLiveBoard({
                       events={activity.events}
                       names={activity.names}
                       viewerId={currentUserId}
+                      gamesPlayed={gamesPlayed[currentUserId] ?? 0}
                     />
                   </div>
                 )}
@@ -496,6 +575,9 @@ export function SessionQueueLiveBoard({
               avg={nextMatchup.teamARatingAvg}
               currentUserId={currentUserId}
               removeFor={(p) => removeFor(queue.find((item) => item.player_id === p.id), playerName(p))}
+              gamesPlayed={gamesPlayed}
+              joinedAtByPlayerId={joinedAtByPlayerId}
+              showWait={isSessionActive}
             />
             <TeamBlock
               side="B"
@@ -503,6 +585,9 @@ export function SessionQueueLiveBoard({
               avg={nextMatchup.teamBRatingAvg}
               currentUserId={currentUserId}
               removeFor={(p) => removeFor(queue.find((item) => item.player_id === p.id), playerName(p))}
+              gamesPlayed={gamesPlayed}
+              joinedAtByPlayerId={joinedAtByPlayerId}
+              showWait={isSessionActive}
             />
           </div>
         ) : (
@@ -519,6 +604,9 @@ export function SessionQueueLiveBoard({
                   rating={item.player?.skill_rating}
                   isMe={item.player_id === currentUserId}
                   onRemove={removeFor(item, playerName(item.player))}
+                  gamesCount={gamesPlayed[item.player_id] ?? 0}
+                  joinedAt={item.joined_at}
+                  showWait={isSessionActive}
                 />
               ))}
               {Array.from({ length: 4 - nextPod.length }).map((_, emptyIdx) => (
@@ -563,6 +651,9 @@ export function SessionQueueLiveBoard({
                       rating={item.player?.skill_rating}
                       isMe={item.player_id === currentUserId}
                       onRemove={removeFor(item, playerName(item.player))}
+                      gamesCount={gamesPlayed[item.player_id] ?? 0}
+                      joinedAt={item.joined_at}
+                      showWait={isSessionActive}
                       muted
                     />
                   ))}
@@ -691,12 +782,18 @@ function TeamBlock({
   avg,
   currentUserId,
   removeFor,
+  gamesPlayed,
+  joinedAtByPlayerId,
+  showWait,
 }: {
   side: "A" | "B";
   players: Profile[];
   avg: number;
   currentUserId: string;
   removeFor: (p: Profile) => (() => void) | undefined;
+  gamesPlayed: Record<string, number>;
+  joinedAtByPlayerId: Map<string, string>;
+  showWait: boolean;
 }) {
   const isA = side === "A";
   const label = isA ? "Team 1" : "Team 2";
@@ -724,6 +821,9 @@ function TeamBlock({
             rating={p.skill_rating}
             isMe={p.id === currentUserId}
             onRemove={removeFor(p)}
+            gamesCount={gamesPlayed[p.id] ?? 0}
+            joinedAt={joinedAtByPlayerId.get(p.id)}
+            showWait={showWait}
           />
         ))}
       </ul>
@@ -742,6 +842,9 @@ function QueueRow({
   isMe: boolean;
   onRemove?: () => void;
   muted?: boolean;
+  gamesCount?: number;
+  joinedAt?: string | null;
+  showWait?: boolean;
 }) {
   return (
     <PlayerLine
@@ -763,6 +866,9 @@ function PlayerLine({
   onRemove,
   leading,
   muted,
+  gamesCount,
+  joinedAt,
+  showWait,
 }: {
   name: string;
   rating?: number | null;
@@ -770,22 +876,48 @@ function PlayerLine({
   onRemove?: () => void;
   leading?: React.ReactNode;
   muted?: boolean;
+  gamesCount?: number;
+  joinedAt?: string | null;
+  showWait?: boolean;
 }) {
+  const showGames = gamesCount !== undefined && (showWait || gamesCount > 0);
+  const showTimer = Boolean(showWait && joinedAt);
+  const showMeta = showGames || showTimer;
+
   return (
     <li className={`flex min-h-11 items-center gap-3 ${onRemove ? "pl-3 pr-0" : "px-3"}`}>
       {leading}
-      <span
-        className={`min-w-0 flex-1 truncate text-sm font-medium ${
-          muted ? "text-slate-700 dark:text-slate-300" : "text-slate-900 dark:text-slate-100"
-        }`}
-      >
-        {name}
-        {isMe && (
-          <span className="ml-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-            You
+      <div className="min-w-0 flex-1 py-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={`block truncate text-sm font-medium ${
+              muted ? "text-slate-700 dark:text-slate-300" : "text-slate-900 dark:text-slate-100"
+            }`}
+          >
+            {name}
           </span>
+          {isMe && (
+            <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              You
+            </span>
+          )}
+        </div>
+        {showMeta && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            {showGames && (
+              <span className="tabular-nums">
+                {gamesCount} {gamesCount === 1 ? "game" : "games"}
+              </span>
+            )}
+            {showTimer && joinedAt && (
+              <>
+                {showGames && <span aria-hidden>·</span>}
+                <WaitTimer since={joinedAt} />
+              </>
+            )}
+          </div>
         )}
-      </span>
+      </div>
       <span className="shrink-0 font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
         {formatRating(rating ?? 2.0)}
       </span>

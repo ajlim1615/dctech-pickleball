@@ -199,7 +199,7 @@ export const PLAYER_FLOW_STEPS: FlowStep[] = [
     step: "03",
     title: "Wait Estimate, Activity & Call-Up",
     description:
-      "Track your queue position, estimated wait-time card, and live session activity feed. When a court opens, you'll get a live call-up alert with your assigned court.",
+      "Track your queue position, live wait timer, session game count, estimated wait-time card, and live session activity feed. When a court opens, you'll get a live call-up alert with your assigned court.",
     href: "/sessions",
     ctaLabel: "Check Session",
     accent: "sky",
@@ -273,6 +273,11 @@ export interface FaqItem {
 }
 
 export const PLAYER_FAQS: FaqItem[] = [
+  {
+    question: "Why do some players have slightly more games than others, and how does fair matching work?",
+    answer:
+      "In rotation styles, #1 in line always plays next, so waiting longest guarantees your spot. Among the first eight waiting, players with fewer games since arriving get a gentle nudge so fast and slow courts even out. Late arrivals start neutral instead of leapfrogging earlier players, and totals can still differ slightly due to arrival times, breaks, or court speeds.",
+  },
   {
     question: "What if I am called to a court but need a minute (tying shoes / arriving)?",
     answer:
