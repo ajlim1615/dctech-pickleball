@@ -1,6 +1,6 @@
 import type { pairCounts } from "./history";
 import { buildCtx, buildWindow, shortfall } from "./scoring";
-import type { Decision, LineEntry, MatchmakingInput } from "./types";
+import { isRotationStyle, ROTATION_WINDOW_SIZE, WINDOW_SIZE, type Decision, type LineEntry, type MatchmakingInput } from "./types";
 import { balanced } from "./strategies/balanced";
 import { fifo } from "./strategies/fifo";
 import { kingQueen } from "./strategies/kingQueen";
@@ -28,7 +28,8 @@ export function decide(input: MatchmakingInput): Decision {
   // King/Queen places pairs before the line is used, so it bypasses the shared four-player hold.
   if (input.style === "king_queen" && !input.force) return kingQueen(input);
 
-  const window = buildWindow(input.line);
+  const windowSize = input.force || isRotationStyle(input.style) ? ROTATION_WINDOW_SIZE : WINDOW_SIZE;
+  const window = buildWindow(input.line, windowSize);
   if (window.length < 4) return { hold: "not_enough_players", needed: shortfall(window.length, 4) };
   const ctx = buildCtx(input, window);
   if (input.force) return balanced(input, ctx);

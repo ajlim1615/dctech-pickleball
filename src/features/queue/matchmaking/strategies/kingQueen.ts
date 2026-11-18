@@ -1,7 +1,7 @@
 import { kingQueenPlacements } from "../history";
-import { buildCtx, buildWindow, pickCheapest, shortfall } from "../scoring";
+import { buildCtx, buildWindow, enumerateOptions, pickCheapest, shortfall } from "../scoring";
 import type { Decision, LineEntry, MatchmakingInput } from "../types";
-import { balanced, balancedCost } from "./balanced";
+import { baseBalancedCost } from "./balanced";
 import type { Option } from "../scoring";
 
 /**
@@ -27,7 +27,8 @@ export function kingQueen(input: MatchmakingInput): Decision {
   if (sides.length === 2) return { teamA: sides[0], teamB: sides[1] };
   if (sides.length === 0) {
     if (window.length < 4) return { hold: "not_enough_players", needed: shortfall(window.length, 4) };
-    return balanced(input, ctx);
+    const best = pickCheapest(enumerateOptions(ctx.window, true), (o) => baseBalancedCost(o, ctx), "line");
+    return (best ? best.teams : { hold: "not_enough_players", needed: shortfall(ctx.window.length, 4) }) as Decision;
   }
 
   const side = sides[0];
@@ -46,6 +47,6 @@ export function kingQueen(input: MatchmakingInput): Decision {
     teams: { teamA: side, teamB: [first.playerId, partner.playerId] },
     skips: window.indexOf(partner) - 1,
   }));
-  const best = pickCheapest(options, (o) => balancedCost(o, ctx), "line");
+  const best = pickCheapest(options, (o) => baseBalancedCost(o, ctx), "line");
   return best ? best.teams : { hold: "not_enough_players", needed: 1 };
 }
