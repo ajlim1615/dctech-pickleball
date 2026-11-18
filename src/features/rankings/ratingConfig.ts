@@ -19,7 +19,7 @@ export const RATING_RULES = {
     { beforeGames: 15, multiplier: 1.5 },
   ],
   /** Games needed to appear on the rankings. */
-  qualifyGames: 5,
+  qualifyGames: 3,
 };
 
 export type RatingRules = typeof RATING_RULES;
