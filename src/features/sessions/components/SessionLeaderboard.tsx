@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatRating } from "@/lib/utils";
 import { formatPHTTime } from "@/lib/timezone";
+import { formatMatchDuration } from "@/lib/duration";
 import { ShareLeaderboardModal } from "./ShareLeaderboardModal";
 import { MIN_QUALIFIED_GAMES, type SessionRankedPlayer } from "../utils/sessionLeaderboard";
 import { isResultOnlyScore, type ScoringRule } from "@/features/matches/utils/scoring";
@@ -503,6 +504,7 @@ export function SessionLeaderboard({
 
                 const teamAWon = m.winning_team === "team_a" || (m.team_a_score > m.team_b_score);
                 const teamBWon = m.winning_team === "team_b" || (m.team_b_score > m.team_a_score);
+                const duration = isCompleted ? formatMatchDuration(m.started_at, m.ended_at) : null;
 
                 return (
                   <Card
@@ -549,8 +551,11 @@ export function SessionLeaderboard({
                     </div>
 
                     {m.started_at && (
-                      <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 flex items-center justify-between">
-                        <span>{formatPHTTime(m.started_at)}</span>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 flex items-center justify-between gap-2">
+                        <span className="tabular-nums">
+                          {formatPHTTime(m.started_at)}
+                          {duration ? ` · ${duration}` : ""}
+                        </span>
                         {teamAWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 1 Victory</span>}
                         {teamBWon && <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Team 2 Victory</span>}
                       </div>

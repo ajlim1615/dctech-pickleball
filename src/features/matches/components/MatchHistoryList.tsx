@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPHTDateTime } from "@/lib/timezone";
+import { formatMatchDuration } from "@/lib/duration";
 import { isResultOnlyScore } from "@/features/matches/utils/scoring";
 
 export interface MatchItem {
@@ -50,6 +51,7 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
       const winner = m.winning_team || (scoreA > scoreB ? "team_a" : scoreB > scoreA ? "team_b" : "tie");
       const dateSource = m.ended_at || m.started_at || m.created_at;
       const date = dateSource ? formatPHTDateTime(dateSource) : "Recent";
+      const duration = formatMatchDuration(m.started_at, m.ended_at) ?? undefined;
 
       return {
         id: m.id,
@@ -62,6 +64,7 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
         resultOnly: isResultOnlyScore(scoreA, scoreB),
         winner,
         date,
+        duration,
       };
     });
   }, [initialMatches]);
@@ -115,6 +118,12 @@ export function MatchHistoryList({ initialMatches = [] }: MatchHistoryListProps)
                       <span>{m.format}</span>
                       <span>•</span>
                       <span>{m.date}</span>
+                      {m.duration && (
+                        <>
+                          <span>•</span>
+                          <span className="font-mono tabular-nums">{m.duration}</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 pt-1">

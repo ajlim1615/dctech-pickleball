@@ -35,6 +35,7 @@ import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
+import { formatMatchDuration } from "@/lib/duration";
 import type { PlayerRatingHistory, Profile } from "@/types";
 import { RatingTrend } from "@/features/players/components/RatingTrend";
 
@@ -349,6 +350,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
       const dateSource = match.ended_at || match.started_at || item.created_at;
       const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
       const scoreLabel = formatMatchScore(match.team_a_score, match.team_b_score);
+      const duration = !isInProgress ? formatMatchDuration(match.started_at, match.ended_at) : null;
 
       return {
         result,
@@ -361,6 +363,7 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
         type: sessionTitle,
         score: scoreLabel,
         status: match.status,
+        duration,
       };
     });
   }, [matches]);
@@ -923,8 +926,9 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
                       <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-mono text-slate-600 dark:text-slate-400">
                         {m.sessionTitle}
                       </Badge>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
+                      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums">
                         {m.date}
+                        {m.duration ? ` • ${m.duration}` : ""}
                       </span>
                     </div>
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
+import { formatMatchDuration } from "@/lib/duration";
 import { formatMatchScore } from "@/features/matches/utils/scoring";
 import type { PhotoTarget } from "@/features/players/components/PlayerPhotoViewer";
 import type { RankedPlayer } from "../api/rankingActions";
@@ -54,6 +55,7 @@ export function PlayerStatsModal({ player, matches, isLoading: isLoadingMatches,
       const dateSource = match.ended_at || match.started_at || item.created_at;
       const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
       const scoreLabel = formatMatchScore(match.team_a_score, match.team_b_score);
+      const duration = !isInProgress ? formatMatchDuration(match.started_at, match.ended_at) : null;
 
       return {
         result,
@@ -65,6 +67,7 @@ export function PlayerStatsModal({ player, matches, isLoading: isLoadingMatches,
         date: dateLabel,
         type: sessionTitle,
         score: scoreLabel,
+        duration,
       };
     });
   }, [matches]);
@@ -212,8 +215,9 @@ export function PlayerStatsModal({ player, matches, isLoading: isLoadingMatches,
                             <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-mono text-slate-600 dark:text-slate-400">
                               {m.sessionTitle}
                             </Badge>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums">
                               {m.date}
+                              {m.duration ? ` • ${m.duration}` : ""}
                             </span>
                           </div>
 
