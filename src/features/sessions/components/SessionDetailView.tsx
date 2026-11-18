@@ -53,7 +53,8 @@ import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { formatRating, parseSessionMetadata } from "@/lib/utils";
 import type { Session, ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent, Venue } from "@/types";
 import { VenueLocationLink } from "@/features/venues/components/VenueLocationLink";
-import type { PastGame } from "@/features/queue/matchmaking";
+import { gamesPlayedCounts, type PastGame } from "@/features/queue/matchmaking";
+import { arrivalsFromCheckins } from "@/features/queue/api/matchmakingData";
 import { useLiveFeed } from "@/features/activity/hooks/useLiveFeed";
 import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
 import { describeRule } from "@/features/matches/utils/scoring";
@@ -136,6 +137,16 @@ export function SessionDetailView({
   useEffect(() => {
     setActiveCheckins(session.checkins || []);
   }, [session.checkins]);
+
+  const arrivedAtByPlayer = useMemo(
+    () => arrivalsFromCheckins(activeCheckins),
+    [activeCheckins]
+  );
+
+  const gamesPlayed = useMemo(() => {
+    const counts = gamesPlayedCounts(history ?? []);
+    return Object.fromEntries(counts);
+  }, [history]);
 
   const isUserCheckedInDatabase = Boolean(
     !isSystemAdmin &&
@@ -1565,6 +1576,7 @@ export function SessionDetailView({
             winByTwo={sessionMeta.winByTwo}
             trackScores={sessionMeta.trackScores}
             courtNames={sessionMeta.courtNames}
+            gamesPlayed={gamesPlayed}
           />
           {currentStatus === "active" && (
             <div className="mt-6">
@@ -1574,6 +1586,7 @@ export function SessionDetailView({
                 queue={initialQueue}
                 cards={upNextCards}
                 isAdmin={isAdmin}
+                gamesPlayed={gamesPlayed}
               />
             </div>
           )}
@@ -1664,6 +1677,8 @@ export function SessionDetailView({
             queueLimits={queueLimits}
             onOpenBulkQueue={openAddPlayers}
             activity={{ events, names: activityNames, avgGameMinutes }}
+            gamesPlayed={gamesPlayed}
+            arrivedAtByPlayer={arrivedAtByPlayer}
           />
         </div>
       </div>

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
 import { seededRandom, type LineEntry } from "@/features/queue/matchmaking";
-import { loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
+import { loadOpenCourtIds, loadSessionArrivals, loadSessionHistory } from "@/features/queue/api/matchmakingData";
 import { autoCardCount, buildAutoCards } from "@/features/queue/upNext/buildCards";
 import { sameAutoCards, toUpNextCards, type UpNextCard, type UpNextCardRow, type UpNextPlayerRow } from "@/features/queue/upNext/types";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
@@ -57,7 +57,7 @@ export async function refreshUpNext(sessionId: string, options: { reshuffle?: bo
     const { matchingMode, skillSpread, courtCount } = parseSessionMetadata(session.description);
 
     const { data: version } = await supabase.rpc("up_next_line_version", { p_session_id: sessionId });
-    const [{ data: waiting }, history, courts, cards] = await Promise.all([
+    const [{ data: waiting }, history, courts, cards, arrivals] = await Promise.all([
       supabase
         .from("queue_entries")
         .select("id, player_id, group_id, joined_at, player:profiles ( skill_rating )")
@@ -67,6 +67,7 @@ export async function refreshUpNext(sessionId: string, options: { reshuffle?: bo
       loadSessionHistory(supabase, sessionId),
       loadOpenCourtIds(supabase),
       loadCards(supabase, sessionId),
+      loadSessionArrivals(supabase, sessionId),
     ]);
 
     const manual = cards.filter((c) => !c.isAuto);
@@ -74,6 +75,7 @@ export async function refreshUpNext(sessionId: string, options: { reshuffle?: bo
       playerId: q.player_id,
       rating: (q.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,
       pairId: q.group_id,
+      arrivedAt: arrivals.get(q.player_id) ?? q.joined_at,
     }));
     const seed = (waiting ?? []).map((q) => q.id).join("|");
     const built = buildAutoCards({

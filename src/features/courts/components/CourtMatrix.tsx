@@ -76,6 +76,7 @@ interface CourtMatrixProps {
   allowCourtRename?: boolean;
   courtNames?: Record<string, string>;
   syncArenaList?: boolean;
+  gamesPlayed?: Record<string, number>;
 }
 
 export function CourtMatrix({
@@ -93,6 +94,7 @@ export function CourtMatrix({
   allowCourtRename,
   courtNames,
   syncArenaList = false,
+  gamesPlayed,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
   const [localCourtNames, setLocalCourtNames] = useState<Record<string, string>>(courtNames ?? {});
@@ -200,6 +202,7 @@ export function CourtMatrix({
               cards={isAdministrator && sessionId ? cards : undefined}
               freeCourtIds={freeCourtIds}
               actions={isAdministrator && sessionId ? courtActions : undefined}
+              gamesPlayed={gamesPlayed}
             />
           ))}
         </div>

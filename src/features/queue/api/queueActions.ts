@@ -8,7 +8,7 @@ import { decide, type LineEntry } from "@/features/queue/matchmaking";
 import { parseSessionMetadata } from "@/lib/utils";
 import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { GUEST_RANKED_MESSAGE, canEnterSession } from "@/features/sessions/utils/guestRules";
-import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
+import { holdMessage, loadOpenCourtIds, loadSessionArrivals, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { withLineRetry } from "@/features/queue/utils/lineRetry";
@@ -602,10 +602,11 @@ export async function callNextUp(
 
   const { matchingMode: matchingStyle, skillSpread } = parseSessionMetadata(sessionData?.description);
 
-  // 2. This session's completed games and the ladder of open courts
-  const [history, courts] = await Promise.all([
+  // 2. This session's completed games, open courts, and check-in arrival times
+  const [history, courts, arrivals] = await Promise.all([
     loadSessionHistory(supabase, sessionId),
     loadOpenCourtIds(supabase),
+    loadSessionArrivals(supabase, sessionId),
   ]);
 
   type CallAttempt =
@@ -640,6 +641,7 @@ export async function callNextUp(
         playerId: e.player_id,
         rating: (e.player as unknown as { skill_rating: number | null } | null)?.skill_rating ?? null,
         pairId: e.group_id,
+        arrivedAt: arrivals.get(e.player_id) ?? e.joined_at,
       }));
       const decision = decide({
         style: matchingStyle,

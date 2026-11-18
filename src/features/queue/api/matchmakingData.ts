@@ -89,3 +89,34 @@ export function previewCourtId(
   const court = (open.find((c) => !c.current_match_id) ?? open[0]).id;
   return { court, courts: open.map((c) => c.id) };
 }
+
+/** Pure helper mapping session_checkins rows to playerId -> checkin_time. */
+export function arrivalsFromCheckins(
+  rows: { player_id?: string | null; checkin_time?: string | null; player?: { id?: string } | null }[]
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    const id = row.player_id ?? row.player?.id;
+    if (id && row.checkin_time) map[id] = row.checkin_time;
+  }
+  return map;
+}
+
+/** Check-in timestamps for every player checked into this session. */
+export async function loadSessionArrivals(
+  supabase: SupabaseClient,
+  sessionId: string
+): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("session_checkins")
+    .select("player_id, checkin_time")
+    .eq("session_id", sessionId);
+  if (error) console.error("loadSessionArrivals failed:", error);
+  return new Map(
+    Object.entries(
+      arrivalsFromCheckins(
+        (data ?? []) as { player_id?: string | null; checkin_time?: string | null }[]
+      )
+    )
+  );
+}

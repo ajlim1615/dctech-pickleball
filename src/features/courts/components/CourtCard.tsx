@@ -67,6 +67,8 @@ export interface CourtCardProps {
   freeCourtIds?: string[];
   /** Shared court actions (admin screens). Without it the court is view-only for players. */
   actions?: CourtActions;
+  /** Completed games played per player in this session. */
+  gamesPlayed?: Record<string, number>;
 }
 
 export function CourtCard({

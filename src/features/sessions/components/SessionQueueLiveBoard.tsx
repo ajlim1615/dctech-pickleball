@@ -52,6 +52,10 @@ interface SessionQueueLiveBoardProps {
   allowPartners?: boolean;
   /** Breaks and leaves the signed-in player used this session (one break, one rejoin). */
   queueLimits?: QueueLimits;
+  /** Completed games played per player in this session. */
+  gamesPlayed?: Record<string, number>;
+  /** Session check-in timestamps per player (ISO strings). */
+  arrivedAtByPlayer?: Record<string, string>;
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -72,6 +76,7 @@ function playerName(p?: Pick<Profile, "full_name" | "display_name"> | null) {
 const EMPTY_QUEUE: QueueEntryWithPlayer[] = [];
 const EMPTY_COURTS: ActiveCourtView[] = [];
 const EMPTY_HISTORY: PastGame[] = [];
+const EMPTY_ARRIVALS: Record<string, string> = {};
 
 const courtLabel = (court?: Pick<ActiveCourtView, "name"> | null) =>
   court?.name.replace(/\s*\(Rented Court\)/i, "") || undefined;
@@ -94,6 +99,7 @@ export function SessionQueueLiveBoard({
   skillSpread = DEFAULT_SKILL_SPREAD,
   allowPartners = false,
   queueLimits = NO_LIMITS_USED,
+  arrivedAtByPlayer = EMPTY_ARRIVALS,
 }: SessionQueueLiveBoardProps) {
   const isSystemAdmin = userEmail?.toLowerCase() === "admin@dctechmicro.com";
   const isAdmin = !readOnly && (userRole === "admin" || isSystemAdmin);
@@ -150,7 +156,12 @@ export function SessionQueueLiveBoard({
     if (!target || callLine.length < 4) return null;
     const decision = decide({
       style,
-      line: callLine.map((q) => ({ playerId: q.player_id, rating: q.player?.skill_rating ?? null, pairId: q.group_id })),
+      line: callLine.map((q) => ({
+        playerId: q.player_id,
+        rating: q.player?.skill_rating ?? null,
+        pairId: q.group_id,
+        arrivedAt: arrivedAtByPlayer?.[q.player_id] ?? q.joined_at,
+      })),
       history,
       court: target.court,
       courts: target.courts,
@@ -168,7 +179,7 @@ export function SessionQueueLiveBoard({
       teamB: profilesOf(decision.teamB),
       ...teamStats(decision, ratingOf),
     };
-  }, [courts, queue, history, skillSpread, style]);
+  }, [courts, queue, history, skillSpread, style, arrivedAtByPlayer]);
   const nextMatchup = preview && preview.hold === null ? preview : null;
   const waitingForSkillMatch = preview?.hold === "no_skill_match";
   const isPreviewOnly = SHUFFLED_STYLES.includes(style);

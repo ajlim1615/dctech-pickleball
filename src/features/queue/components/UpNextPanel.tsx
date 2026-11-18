@@ -35,6 +35,7 @@ export function UpNextPanel({
   queue: QueueEntryWithPlayer[];
   cards: UpNextCard[];
   isAdmin: boolean;
+  gamesPlayed?: Record<string, number>;
 }) {
   const [pending, startTransition] = useTransition();
   const { message, flash, clear } = useFlashMessage();

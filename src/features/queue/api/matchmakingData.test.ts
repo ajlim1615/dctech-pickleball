@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { holdMessage, pastGamesFromMatches, previewCourtId, reservedAbove } from "./matchmakingData";
+import { arrivalsFromCheckins, holdMessage, pastGamesFromMatches, previewCourtId, reservedAbove } from "./matchmakingData";
 import type { PastGame } from "@/features/queue/matchmaking";
 
 describe("pastGamesFromMatches", () => {
@@ -69,5 +69,22 @@ describe("previewCourtId", () => {
       { id: "a", status: "occupied", sort_order: 1, current_match_id: "m1" },
     ];
     expect(previewCourtId(courts)).toEqual({ court: "a", courts: ["a", "b"] });
+  });
+});
+
+describe("arrivalsFromCheckins", () => {
+  it("maps player_id and player.id fallback to checkin_time and skips rows missing id or checkin_time", () => {
+    const rows = [
+      { player_id: "p1", checkin_time: "2026-01-01T10:00:00Z" },
+      { player_id: null, player: { id: "p2" }, checkin_time: "2026-01-01T10:05:00Z" },
+      { player_id: "p3", checkin_time: null },
+      { player_id: "p4" },
+      { player: { id: null as unknown as string }, checkin_time: "2026-01-01T10:10:00Z" },
+      { checkin_time: "2026-01-01T10:15:00Z" },
+    ];
+    expect(arrivalsFromCheckins(rows)).toEqual({
+      p1: "2026-01-01T10:00:00Z",
+      p2: "2026-01-01T10:05:00Z",
+    });
   });
 });
