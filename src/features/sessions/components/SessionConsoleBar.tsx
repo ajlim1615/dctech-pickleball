@@ -92,7 +92,7 @@ export function SessionConsoleBar({
         {/* Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 lg:ml-auto">
           {!isLive && (
-            <Button variant="volt" size="sm" onClick={onStart} disabled={isStarting} className="font-bold h-10 px-4 cursor-pointer">
+            <Button variant="volt" size="sm" onClick={onStart} disabled={isStarting} className="font-bold h-11 px-4 cursor-pointer">
               <PlayCircle className="h-4 w-4 mr-1.5" />
               {isStarting ? "Starting…" : "Start session"}
             </Button>
@@ -100,7 +100,7 @@ export function SessionConsoleBar({
 
           {/* Adding players to the line only works once the session is live. */}
           {isLive && (
-            <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-10 px-3 cursor-pointer">
+            <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-11 min-w-11 px-3 cursor-pointer">
               <Users className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Add players</span>
             </Button>
@@ -113,7 +113,7 @@ export function SessionConsoleBar({
                 size="sm"
                 onClick={handleFill}
                 disabled={isFilling || open === 0 || waitingCount < 4}
-                className="font-bold h-10 cursor-pointer disabled:cursor-not-allowed"
+                className="font-bold h-11 cursor-pointer disabled:cursor-not-allowed"
                 title="Start the Up Next matches on every open court"
               >
                 <LayoutGrid className="h-4 w-4 mr-1.5" />
@@ -124,7 +124,7 @@ export function SessionConsoleBar({
                 variant="ghost"
                 size="sm"
                 onClick={onEnd}
-                className="font-semibold h-10 px-2 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+                className="font-semibold h-11 px-2.5 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
               >
                 <Square className="h-3.5 w-3.5 mr-1.5" />
                 End<span className="hidden sm:inline">&nbsp;session</span>

@@ -49,7 +49,6 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
   useEffect(() => {
     if (!sessionId) {
       cardIdsRef.current = new Set();
-      setCards([]);
       return;
     }
     const supabase = createClient();
@@ -99,5 +98,5 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
     };
   }, [sessionId]);
 
-  return cards;
+  return sessionId ? cards : [];
 }

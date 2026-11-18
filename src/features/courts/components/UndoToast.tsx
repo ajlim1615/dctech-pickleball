@@ -23,13 +23,13 @@ export function UndoToast({
   return (
     <div
       role="status"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"
+      className="fixed inset-x-4 bottom-20 md:bottom-4 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white shadow-xl"
     >
       <span className="min-w-0 truncate">{change.message}</span>
       <button
         type="button"
         onClick={() => onUndo(change)}
-        className="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-bold text-slate-900 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400"
+        className="min-h-11 shrink-0 rounded-lg bg-white px-4 text-sm font-bold text-slate-900 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400"
       >
         Undo
       </button>

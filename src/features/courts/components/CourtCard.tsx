@@ -4,6 +4,8 @@ import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { Trophy, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
 import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
 import { canSaveResult, canSendCard, cardForFreeCourt } from "@/features/courts/utils/courtRules";
@@ -109,8 +111,7 @@ export function CourtCard({
   const [scoreA, setScoreA] = useState<number>(activeMatch?.team_a_score || 0);
   const [scoreB, setScoreB] = useState<number>(activeMatch?.team_b_score || 0);
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { message: cardFlash, flash: flashCard, clear: clearCardFlash } = useFlashMessage();
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
 
@@ -212,16 +213,16 @@ export function CourtCard({
 
   function handleSubmitScore(finalA = scoreA, finalB = scoreB) {
     if (!isAdministrator || isPending) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
 
     if (!hasPlayersOnCourt || !activeMatch) {
-      setErrorMessage("Cannot submit score: No players or active match on this court.");
+      flashCard("error", "Cannot submit score: No players or active match on this court.");
       return;
     }
 
     if (!getWinner(finalA, finalB, rule)) {
-      setErrorMessage(
+      flashCard(
+        "error",
         `Cannot submit match: Score is not finished yet. This session plays ${describeRule(rule)}.`
       );
       return;
@@ -234,9 +235,9 @@ export function CourtCard({
     startTransition(async () => {
       const res = await finalizeMatch(activeMatch.id, finalA, finalB);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
-        setSuccessMessage(`Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
+        flashCard("success", `Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
         setScoreA(0);
         setScoreB(0);
         setPendingWinner(null);
@@ -262,12 +263,11 @@ export function CourtCard({
 
   function handleStatusChange(nextStatus: CourtStatus) {
     if (!canChangeStatus || isPending || nextStatus === court.status) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
     startTransition(async () => {
       const res = await toggleCourtStatus(court.id, nextStatus, sessionId);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
         onStatusChange?.(court.id, nextStatus);
       }
@@ -277,26 +277,25 @@ export function CourtCard({
   function startEditingName() {
     setDraftName(cleanCourtName);
     setIsEditingName(true);
-    setErrorMessage(null);
+    clearCardFlash();
   }
 
   function handleSaveName() {
     if (!canRenameCourt || !sessionId || isPending) return;
     const trimmed = draftName.trim();
     if (!trimmed) {
-      setErrorMessage("Court name is required.");
+      flashCard("error", "Court name is required.");
       return;
     }
     if (trimmed === cleanCourtName) {
       setIsEditingName(false);
       return;
     }
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
     startTransition(async () => {
       const res = await updateSessionCourtName(sessionId, slot, trimmed);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
         onNameChange?.(slot, res?.name || trimmed);
         setIsEditingName(false);
@@ -332,25 +331,23 @@ export function CourtCard({
                 autoFocus
                 maxLength={50}
                 aria-label="Court name"
-                className="h-8 w-full min-w-0 max-w-[160px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="h-11 w-full min-w-0 max-w-[160px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <button
                 type="submit"
                 disabled={isPending}
                 aria-label="Save court name"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
               >
                 <Check className="h-4 w-4" />
               </button>
-              <button
-                type="button"
+              <IconButton
+                label="Cancel renaming court"
                 onClick={() => setIsEditingName(false)}
                 disabled={isPending}
-                aria-label="Cancel renaming court"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </form>
           ) : (
             <>
@@ -358,15 +355,9 @@ export function CourtCard({
                 {cleanCourtName}
               </h3>
               {canRenameCourt && (
-                <button
-                  type="button"
-                  onClick={startEditingName}
-                  title={`Rename ${cleanCourtName}`}
-                  aria-label={`Rename ${cleanCourtName}`}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
+                <IconButton label={`Rename ${cleanCourtName}`} onClick={startEditingName}>
+                  <Pencil className="h-4 w-4" />
+                </IconButton>
               )}
               <CourtStateLabel
                 state={isClosed ? court.status : hasPlayersOnCourt ? "in_play" : "open"}
@@ -379,7 +370,7 @@ export function CourtCard({
           <div className="flex items-center">
           <Link
             href={`/courts/${court.id}/monitor`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
             title={`Open the full-screen umpire view for ${cleanCourtName}`}
           >
             <ShieldCheck className="h-4 w-4" />
@@ -456,17 +447,22 @@ export function CourtCard({
       </div>
 
       {/* Messages */}
-      {(errorMessage || successMessage) && (
+      {cardFlash && (
         <div className="px-4 pt-3">
-          {errorMessage ? (
-            <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              {errorMessage}
-            </p>
+          {cardFlash.kind === "error" ? (
+            <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+              <span className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                {cardFlash.text}
+              </span>
+              <IconButton label="Dismiss message" onClick={clearCardFlash} tone="danger">
+                <X className="h-4 w-4" />
+              </IconButton>
+            </div>
           ) : (
             <p role="status" className="flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-              {successMessage}
+              {cardFlash.text}
             </p>
           )}
         </div>
@@ -585,14 +581,22 @@ export function CourtCard({
                 ? `Submit result · ${winner} wins ${Math.max(scoreA, scoreB)}–${Math.min(scoreA, scoreB)}`
                 : `Playing ${describeRule(rule)}`}
             </Button>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               {!isGameOver && (
                 <>
                   <span>Quick win:</span>
-                  <button type="button" onClick={() => handleQuickWin("A")} className="font-semibold text-emerald-700 dark:text-emerald-400 hover:underline underline-offset-2 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickWin("A")}
+                    className="inline-flex min-h-11 items-center rounded-md px-2 font-semibold text-emerald-700 dark:text-emerald-400 hover:underline underline-offset-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
                     Team 1 ({quickWinLabel("A")})
                   </button>
-                  <button type="button" onClick={() => handleQuickWin("B")} className="font-semibold text-sky-700 dark:text-sky-400 hover:underline underline-offset-2 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickWin("B")}
+                    className="inline-flex min-h-11 items-center rounded-md px-2 font-semibold text-sky-700 dark:text-sky-400 hover:underline underline-offset-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
                     Team 2 ({quickWinLabel("B")})
                   </button>
                 </>
@@ -601,7 +605,7 @@ export function CourtCard({
                 type="button"
                 onClick={handleResetScore}
                 disabled={scoreA === 0 && scoreB === 0}
-                className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-emerald-500"
               >
                 <RotateCcw className="h-3 w-3" />
                 Reset
@@ -758,7 +762,7 @@ function CourtStatusControl({
               disabled={disabled}
               aria-pressed={active}
               onClick={() => onSelect(option.value)}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`min-h-11 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                 active
                   ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
