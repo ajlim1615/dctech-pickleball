@@ -6,7 +6,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { CourtCard } from "./CourtCard";
 import { useLiveCourts } from "../hooks/useLiveCourts";
 import { useCourtActions } from "../hooks/useCourtActions";
-import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
+import type { UpNextCard } from "@/features/queue/upNext/types";
 import { UndoToast } from "./UndoToast";
 import { applySessionCourtNames } from "@/lib/utils";
 import type { ActiveCourtView, CourtStatus, QueueEntryWithPlayer } from "@/types";
@@ -67,6 +67,7 @@ interface CourtMatrixProps {
   sessionId?: string;
   waitingQueueCount?: number;
   queue?: QueueEntryWithPlayer[];
+  cards?: UpNextCard[];
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
@@ -83,6 +84,7 @@ export function CourtMatrix({
   userRole = "player",
   waitingQueueCount,
   queue,
+  cards,
   isAdmin,
   readOnly = false,
   targetPoints = 11,
@@ -114,8 +116,7 @@ export function CourtMatrix({
     syncArenaList
   );
 
-  // Admin screens: live Up Next cards, the shared court actions and one Undo toast.
-  const upNextCards = useLiveUpNext(isAdministrator ? sessionId : undefined);
+  // Admin screens: shared court actions and one Undo toast (Up Next cards are passed down from the page).
   const courtActions = useCourtActions(sessionId);
 
   function handleCourtStatusChange(courtId: string, status: CourtStatus) {
@@ -196,7 +197,7 @@ export function CourtMatrix({
               onStatusChange={handleCourtStatusChange}
               onNameChange={handleCourtNameChange}
               queue={queue}
-              cards={isAdministrator && sessionId ? upNextCards : undefined}
+              cards={isAdministrator && sessionId ? cards : undefined}
               freeCourtIds={freeCourtIds}
               actions={isAdministrator && sessionId ? courtActions : undefined}
             />

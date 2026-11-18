@@ -1,18 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toUpNextCards, type UpNextCard, type UpNextCardRow, type UpNextPlayerRow } from "@/features/queue/upNext/types";
 
+export type UpNextTable = "up_next_matches" | "up_next_players";
+
+export type UpNextSubscription = {
+  event: "INSERT" | "UPDATE" | "DELETE";
+  table: UpNextTable;
+  filter?: string;
+};
+
 /**
- * One session's Up Next cards, kept live. Any change to the cards (or who is in
- * them) reloads the set; there are only a handful of rows per session.
+ * Supabase Realtime ignores column filters on DELETE unless REPLICA IDENTITY FULL
+ * is enabled, so INSERT/UPDATE filter by session_id and DELETE listens unfiltered
+ * (narrowed client-side by `deletionConcernsUs`).
+ */
+export function upNextSubscriptions(sessionId: string): UpNextSubscription[] {
+  const filter = `session_id=eq.${sessionId}`;
+  return [
+    { event: "INSERT", table: "up_next_matches", filter },
+    { event: "UPDATE", table: "up_next_matches", filter },
+    { event: "DELETE", table: "up_next_matches" },
+    { event: "INSERT", table: "up_next_players", filter },
+    { event: "UPDATE", table: "up_next_players", filter },
+    { event: "DELETE", table: "up_next_players" },
+  ];
+}
+
+/** True when a realtime DELETE event belongs to one of the cards currently on screen. */
+export function deletionConcernsUs(
+  table: UpNextTable,
+  oldRow: { id?: string; card_id?: string },
+  cardIds: Set<string>
+): boolean {
+  const key = table === "up_next_matches" ? oldRow.id : oldRow.card_id;
+  return Boolean(key && cardIds.has(key));
+}
+
+/**
+ * One session's Up Next cards, kept live. Call once per page and pass `cards` down.
  */
 export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): UpNextCard[] {
   const [cards, setCards] = useState<UpNextCard[]>(initial);
+  const cardIdsRef = useRef<Set<string>>(new Set(initial.map((c) => c.id)));
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      cardIdsRef.current = new Set();
+      setCards([]);
+      return;
+    }
     const supabase = createClient();
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -22,7 +61,10 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
         supabase.from("up_next_matches").select("id, position, per_side, target_court_id, is_auto").eq("session_id", sessionId!),
         supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId!),
       ]);
-      if (!cancelled) setCards(toUpNextCards((rows ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]));
+      if (cancelled) return;
+      const next = toUpNextCards((rows ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]);
+      cardIdsRef.current = new Set(next.map((c) => c.id));
+      setCards(next);
     }
     // A rebuild writes several rows at once; reload once they've all landed.
     const reload = () => {
@@ -31,11 +73,24 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
     };
 
     void load();
-    const channel = supabase
-      .channel(`up_next:${sessionId}:${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "up_next_matches", filter: `session_id=eq.${sessionId}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "up_next_players", filter: `session_id=eq.${sessionId}` }, reload)
-      .subscribe();
+    let channel = supabase.channel(`up_next:${sessionId}:${Math.random().toString(36).slice(2)}`);
+    for (const sub of upNextSubscriptions(sessionId)) {
+      const config = sub.filter
+        ? { event: sub.event, schema: "public" as const, table: sub.table, filter: sub.filter }
+        : { event: sub.event, schema: "public" as const, table: sub.table };
+      channel = channel.on("postgres_changes", config, (payload) => {
+        if (sub.event !== "DELETE") {
+          reload();
+          return;
+        }
+        const old = (payload.old ?? {}) as { id?: string; card_id?: string };
+        const hasKey = sub.table === "up_next_matches" ? Boolean(old.id) : Boolean(old.card_id);
+        if (!hasKey || deletionConcernsUs(sub.table, old, cardIdsRef.current)) {
+          reload();
+        }
+      });
+    }
+    channel.subscribe();
 
     return () => {
       cancelled = true;

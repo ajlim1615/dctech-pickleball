@@ -5,7 +5,6 @@ import { Plus, RefreshCw, Send, X } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { createClient } from "@/lib/supabase/client";
-import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
 import {
   deleteUpNextCard,
   rebuildUpNext,
@@ -28,14 +27,15 @@ export function UpNextPanel({
   sessionId,
   courts,
   queue,
+  cards,
   isAdmin,
 }: {
   sessionId: string;
   courts: ActiveCourtView[];
   queue: QueueEntryWithPlayer[];
+  cards: UpNextCard[];
   isAdmin: boolean;
 }) {
-  const cards = useLiveUpNext(sessionId);
   const [pending, startTransition] = useTransition();
   const { message, flash, clear } = useFlashMessage();
   const [filling, setFilling] = useState<{ card: UpNextCard | null; team: Team } | null>(null);

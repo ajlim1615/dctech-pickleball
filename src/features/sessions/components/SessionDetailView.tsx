@@ -37,6 +37,7 @@ import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
 import { SessionConsoleBar } from "./SessionConsoleBar";
 import { UpNextPanel } from "@/features/queue/components/UpNextPanel";
+import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
 import { RsvpButton } from "./RsvpButton";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
 import {
@@ -247,6 +248,9 @@ export function SessionDetailView({
         : previewCourts(courts || [], displayCourtCount),
     [currentStatus, courts, displayCourtCount]
   );
+
+  // One live Up Next subscription per session page, shared by Courts and Up Next.
+  const upNextCards = useLiveUpNext(currentStatus === "active" ? session.id : undefined);
 
   function openAddPlayers() {
     setSelectedPlayerIds([]);
@@ -1555,6 +1559,7 @@ export function SessionDetailView({
             syncArenaList={currentStatus === "active"}
             sessionId={session.id}
             queue={initialQueue}
+            cards={upNextCards}
             waitingQueueCount={initialQueue.filter((q) => q.status === "waiting").length}
             targetPoints={sessionMeta.targetPoints}
             winByTwo={sessionMeta.winByTwo}
@@ -1567,6 +1572,7 @@ export function SessionDetailView({
                 sessionId={session.id}
                 courts={shownCourts}
                 queue={initialQueue}
+                cards={upNextCards}
                 isAdmin={isAdmin}
               />
             </div>
