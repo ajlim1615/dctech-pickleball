@@ -93,7 +93,7 @@ export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false
     setIsLoadingMatches(true);
     setPlayerMatches([]);
     try {
-      const history = await getPlayerMatchHistory(player.id);
+      const history = await getPlayerMatchHistory(player.id, { limit: 100, includePlacements: true });
       setPlayerMatches(history || []);
     } catch (err) {
       console.error("Error fetching player match history:", err);

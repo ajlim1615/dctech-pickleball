@@ -34,17 +34,15 @@ import { Modal } from "@/components/ui/modal";
 import { signOut, updateUserPassword } from "@/features/auth/api/authActions";
 import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
-import { formatPHTDate } from "@/lib/timezone";
-import { formatMatchDuration } from "@/lib/duration";
+import type { PlayerRatingHistory, Profile } from "@/types";
+import { RatingTrend } from "@/features/players/components/RatingTrend";
 import {
   formatPlacementLabel,
-  formatPlayerMatchScore,
   groupMatchesBySession,
+  normalizePlayerMatches,
   type FormattedPlayerMatch,
   type SessionMatchGroup,
 } from "@/features/players/utils/sessionHistory";
-import type { PlayerRatingHistory, Profile } from "@/types";
-import { RatingTrend } from "@/features/players/components/RatingTrend";
 
 const NO_HISTORY: PlayerRatingHistory[] = [];
 const CROP_CONTAINER_SIZE = 240;
@@ -326,58 +324,10 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
     setTimeout(() => setAvatarNotice(null), 3000);
   }
 
-  const displayMatches = useMemo(() => {
-    return matches.map((item: any) => {
-      if (item.result && item.score) return item;
-
-      const match = item.match || item;
-      const playerTeam = item.team;
-      let isWon = false;
-      if (match.winning_team) {
-        isWon = match.winning_team === playerTeam;
-      } else if (match.team_a_score !== undefined && match.team_b_score !== undefined) {
-        const winningSide =
-          match.team_a_score > match.team_b_score
-            ? "team_a"
-            : match.team_b_score > match.team_a_score
-            ? "team_b"
-            : "tie";
-        isWon = winningSide === playerTeam;
-      }
-      const isTie = match.winning_team === "tie";
-      const isInProgress = match.status === "in_progress";
-
-      const result: FormattedPlayerMatch["result"] = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
-      const courtName =
-        (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
-      const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
-      const sessionId = item.sessionId ?? match.session_id ?? null;
-      const sessionTitle = item.sessionTitle || "Open Play Session";
-      const sessionStatus = item.sessionStatus || "completed";
-      const partner = item.partner;
-      const opponents = item.opponents;
-      const dateSource = match.ended_at || match.started_at || item.created_at;
-      const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
-      const scoreLabel = formatPlayerMatchScore(match.team_a_score, match.team_b_score, result);
-      const duration = !isInProgress ? formatMatchDuration(match.started_at, match.ended_at) : null;
-
-      return {
-        id: item.id || match.id,
-        sessionId,
-        sessionTitle,
-        sessionStatus,
-        result,
-        court: courtName,
-        format: formatLabel,
-        partner,
-        opponents,
-        date: dateLabel,
-        score: scoreLabel,
-        duration,
-        placement: item.sessionPlacement ?? null,
-      };
-    });
-  }, [matches]);
+  const displayMatches: FormattedPlayerMatch[] = useMemo(
+    () => normalizePlayerMatches(matches),
+    [matches]
+  );
 
   const sessionGroups = useMemo(() => groupMatchesBySession(displayMatches), [displayMatches]);
   const [selectedSession, setSelectedSession] = useState<SessionMatchGroup | null>(null);

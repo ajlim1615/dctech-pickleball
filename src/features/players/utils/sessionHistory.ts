@@ -1,4 +1,6 @@
 import { formatMatchScore, isResultOnlyScore } from "@/features/matches/utils/scoring";
+import { formatMatchDuration } from "@/lib/duration";
+import { formatPHTDate } from "@/lib/timezone";
 
 export interface SessionPlacement {
   rank: number;
@@ -114,4 +116,84 @@ export function groupMatchesBySession(matches: FormattedPlayerMatch[]): SessionM
   }
 
   return Array.from(groups.values());
+}
+
+export interface RawPlayerMatchRow {
+  id?: string;
+  team?: string;
+  created_at?: string;
+  sessionId?: string | null;
+  sessionTitle?: string;
+  sessionStatus?: string;
+  sessionPlacement?: SessionPlacement | null;
+  partner?: string;
+  opponents?: string;
+  result?: FormattedPlayerMatch["result"];
+  score?: string;
+  court?: { name?: string } | string | null;
+  format?: string;
+  status?: string;
+  winning_team?: string | null;
+  team_a_score?: number | null;
+  team_b_score?: number | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  session_id?: string | null;
+  match?: RawPlayerMatchRow;
+}
+
+/** Normalizes raw `getPlayerMatchHistory` rows into `FormattedPlayerMatch[]`. */
+export function normalizePlayerMatches(matches: RawPlayerMatchRow[]): FormattedPlayerMatch[] {
+  return matches.map((item) => {
+    if (item.result && item.score) return item as FormattedPlayerMatch;
+
+    const match = item.match || item;
+    const playerTeam = item.team;
+    let isWon = false;
+    if (match.winning_team) {
+      isWon = match.winning_team === playerTeam;
+    } else if (match.team_a_score !== undefined && match.team_a_score !== null && match.team_b_score !== undefined && match.team_b_score !== null) {
+      const winningSide =
+        match.team_a_score > match.team_b_score
+          ? "team_a"
+          : match.team_b_score > match.team_a_score
+          ? "team_b"
+          : "tie";
+      isWon = winningSide === playerTeam;
+    }
+    const isTie = match.winning_team === "tie";
+    const isInProgress = match.status === "in_progress";
+
+    const result: FormattedPlayerMatch["result"] = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
+    const courtName =
+      typeof match.court === "object" && match.court !== null
+        ? match.court.name || "Court"
+        : typeof match.court === "string"
+        ? match.court
+        : "Court";
+    const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
+    const sessionId = item.sessionId ?? match.session_id ?? null;
+    const sessionTitle = item.sessionTitle || "Open Play Session";
+    const sessionStatus = item.sessionStatus || "completed";
+    const dateSource = match.ended_at || match.started_at || item.created_at;
+    const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
+    const scoreLabel = formatPlayerMatchScore(match.team_a_score, match.team_b_score, result);
+    const duration = !isInProgress ? formatMatchDuration(match.started_at, match.ended_at) : null;
+
+    return {
+      id: item.id || match.id || `${sessionTitle}-${dateLabel}`,
+      sessionId,
+      sessionTitle,
+      sessionStatus,
+      result,
+      court: courtName,
+      format: formatLabel,
+      partner: item.partner,
+      opponents: item.opponents,
+      date: dateLabel,
+      score: scoreLabel,
+      duration,
+      placement: item.sessionPlacement ?? null,
+    };
+  });
 }
