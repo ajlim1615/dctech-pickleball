@@ -52,3 +52,9 @@ it("seededRandom is deterministic per seed and stays in [0, 1)", () => {
     expect(v).toBeLessThan(1);
   }
 });
+
+it("buildWindow accepts a custom size (e.g. 8) while defaulting to 6", () => {
+  const line = ["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((i) => e(i));
+  expect(buildWindow(line).map((x) => x.playerId)).toEqual(["1", "2", "3", "4", "5", "6"]);
+  expect(buildWindow(line, 8).map((x) => x.playerId)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+});

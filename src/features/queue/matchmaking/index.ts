@@ -10,6 +10,7 @@ import { winnersLosers } from "./strategies/winnersLosers";
 import { winnersStay } from "./strategies/winnersStay";
 
 export * from "./types";
+export { gamesPlayedCounts } from "./history";
 export { seededRandom, teamStats } from "./scoring";
 export { DEFAULT_SKILL_SPREAD } from "./types";
 
@@ -17,6 +18,7 @@ export interface StrategyCtx {
   window: LineEntry[];
   counts: ReturnType<typeof pairCounts>;
   ratings: Map<string, number>;
+  gamesAhead: Map<string, number>;
 }
 
 export type Strategy = (input: MatchmakingInput, ctx: StrategyCtx) => Decision;

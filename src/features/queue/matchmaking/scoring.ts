@@ -1,4 +1,4 @@
-import { pairCounts, pairKey } from "./history";
+import { gamesAheadByPlayer, pairCounts, pairKey } from "./history";
 import type { StrategyCtx } from "./index";
 import { DEFAULT_RATING, WINDOW_SIZE, type LineEntry, type MatchmakingInput, type Teams } from "./types";
 
@@ -9,11 +9,11 @@ function partnerIn(entry: LineEntry, line: LineEntry[]): LineEntry | undefined {
 }
 
 /**
- * The first WINDOW_SIZE players, plus the first-in-line's partner appended if they sit further
+ * The first `size` players, plus the first-in-line's partner appended if they sit further
  * down. A window member whose partner waits outside the window is dropped (no back-fill).
  */
-export function buildWindow(line: LineEntry[]): LineEntry[] {
-  const window = line.slice(0, WINDOW_SIZE);
+export function buildWindow(line: LineEntry[], size: number = WINDOW_SIZE): LineEntry[] {
+  const window = line.slice(0, size);
   const extra = line.length > 0 ? partnerIn(line[0], line) : undefined;
   const appended = extra && !window.includes(extra) ? extra : undefined;
   const inWindow = new Set(window.map((x) => x.playerId));
@@ -168,5 +168,6 @@ export function buildCtx(input: MatchmakingInput, window: LineEntry[]): Strategy
     window,
     counts: pairCounts(input.history),
     ratings: new Map(input.line.map((x) => [x.playerId, ratingOf(x)])),
+    gamesAhead: gamesAheadByPlayer(window, input.history),
   };
 }

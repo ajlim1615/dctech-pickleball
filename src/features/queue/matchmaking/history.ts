@@ -83,3 +83,88 @@ export function winnersOf(game: PastGame): [string, string] | undefined {
   const team = game.winner === "A" ? game.teamA : game.winner === "B" ? game.teamB : undefined;
   return team && team.length === 2 ? [team[0], team[1]] : undefined;
 }
+
+const MAX_GAMES_AHEAD = 1.5;
+
+function toEpochMs(iso?: string | null): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/** Number of completed games played per player in `history`. */
+export function gamesPlayedCounts(history: PastGame[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const game of history) {
+    for (const id of game.teamA) bump(counts, id);
+    for (const id of game.teamB) bump(counts, id);
+  }
+  return counts;
+}
+
+/**
+ * Signed game-count delta relative to window peers, normalized for arrival time.
+ * Positive = ahead of peers (played more than expected); negative = behind peers.
+ * Brand-new arrivals (0 eligible games) are neutral (0) and excluded from `avgShare`.
+ */
+export function gamesAheadByPlayer(window: LineEntry[], history: PastGame[]): Map<string, number> {
+  const ahead = new Map<string, number>();
+  if (window.length === 0) return ahead;
+
+  const counts = gamesPlayedCounts(history);
+  const earliestGameEndMs = new Map<string, number>();
+  const gameEndTimes: (number | null)[] = [];
+
+  for (const game of history) {
+    const endMs = toEpochMs(game.endedAt);
+    gameEndTimes.push(endMs);
+    if (endMs === null) continue;
+    for (const id of [...game.teamA, ...game.teamB]) {
+      const prev = earliestGameEndMs.get(id);
+      if (prev === undefined || endMs < prev) earliestGameEndMs.set(id, endMs);
+    }
+  }
+
+  const stats: { playerId: string; played: number; eligible: number }[] = [];
+
+  for (const entry of window) {
+    const played = counts.get(entry.playerId) ?? 0;
+    const arrivedMs = toEpochMs(entry.arrivedAt);
+    const firstEndMs = earliestGameEndMs.get(entry.playerId);
+
+    let effectiveArrivedMs: number | null;
+    if (arrivedMs !== null && firstEndMs !== undefined) {
+      effectiveArrivedMs = Math.min(arrivedMs, firstEndMs);
+    } else if (arrivedMs !== null) {
+      effectiveArrivedMs = arrivedMs;
+    } else {
+      effectiveArrivedMs = null;
+    }
+
+    let eligibleRaw: number;
+    if (effectiveArrivedMs === null) {
+      eligibleRaw = history.length;
+    } else {
+      eligibleRaw = 0;
+      for (const endMs of gameEndTimes) {
+        if (endMs !== null && endMs >= effectiveArrivedMs) eligibleRaw += 1;
+      }
+    }
+
+    const eligible = Math.max(eligibleRaw, played);
+    if (eligible === 0) {
+      ahead.set(entry.playerId, 0);
+    } else {
+      stats.push({ playerId: entry.playerId, played, eligible });
+    }
+  }
+
+  if (stats.length === 0) return ahead;
+
+  const avgShare = stats.reduce((sum, s) => sum + s.played / s.eligible, 0) / stats.length;
+  for (const s of stats) {
+    const raw = s.played - avgShare * s.eligible;
+    ahead.set(s.playerId, Math.max(-MAX_GAMES_AHEAD, Math.min(MAX_GAMES_AHEAD, raw)));
+  }
+  return ahead;
+}

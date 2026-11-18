@@ -17,6 +17,7 @@ export interface LineEntry {
   playerId: string;
   rating: number | null;
   pairId?: string | null;
+  arrivedAt?: string | null;
 }
 
 /** A finished (or abandoned) game, used to avoid repeats and to read win/loss streaks. */
@@ -49,3 +50,17 @@ export type Decision = Teams | { hold: "not_enough_players"; needed: number } | 
 export const DEFAULT_RATING = RATING_RULES.start;
 export const DEFAULT_SKILL_SPREAD = 0.75;
 export const WINDOW_SIZE = 6;
+export const ROTATION_WINDOW_SIZE = 8;
+
+const ROTATION_STYLES = new Set<MatchingStyle>([
+  "balanced",
+  "social_mixer",
+  "mixed_doubles",
+  "club_wars",
+  "skill_separated",
+  "skill_courts",
+]);
+
+export function isRotationStyle(style: MatchingStyle): boolean {
+  return ROTATION_STYLES.has(style);
+}
