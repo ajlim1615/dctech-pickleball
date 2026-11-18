@@ -10,6 +10,7 @@ const card = (id: string, over: Partial<UpNextCard> = {}): UpNextCard => ({
   isAuto: true,
   teamA: ["a1", "a2"],
   teamB: ["b1", "b2"],
+  names: {},
   ...over,
 });
 

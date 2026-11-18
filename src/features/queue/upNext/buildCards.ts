@@ -1,10 +1,23 @@
 import { decide, DEFAULT_RATING, DEFAULT_SKILL_SPREAD } from "@/features/queue/matchmaking";
 import type { LineEntry, MatchingStyle, PastGame } from "@/features/queue/matchmaking";
+import type { UpNextCard } from "./types";
 
 /** Styles where the court decides who plays, so each card belongs to one court. */
 export const COURT_BOUND_STYLES: MatchingStyle[] = ["king_queen"];
 
 export type AutoCard = { teamA: string[]; teamB: string[]; targetCourtId: string | null };
+
+/**
+ * How many Auto cards to build: enough to cover `courtCount` courts after counting
+ * only FULL hand-edited cards, so a half-built "+ Add match" card never pushes out an
+ * existing auto card.
+ */
+export function autoCardCount(courtCount: number, cards: UpNextCard[]): number {
+  const fullManual = cards.filter(
+    (c) => !c.isAuto && c.teamA.length === c.perSide && c.teamB.length === c.perSide
+  ).length;
+  return Math.max(0, courtCount - fullManual);
+}
 
 /**
  * The next `count` matches from the waiting line, as the real call-up would pick them.

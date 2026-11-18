@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Plus, RefreshCw, Send, X } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { createClient } from "@/lib/supabase/client";
-import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
 import {
   deleteUpNextCard,
   rebuildUpNext,
@@ -12,7 +13,7 @@ import {
   sendUpNextToCourt,
 } from "@/features/queue/api/upNextActions";
 import { canSendCard } from "@/features/courts/utils/courtRules";
-import { PlayerPickerSheet, playerName } from "./PlayerPickerSheet";
+import { PlayerPickerSheet } from "./PlayerPickerSheet";
 import type { UpNextCard } from "@/features/queue/upNext/types";
 import type { ActiveCourtView, QueueEntryWithPlayer } from "@/types";
 
@@ -26,21 +27,20 @@ export function UpNextPanel({
   sessionId,
   courts,
   queue,
+  cards,
   isAdmin,
 }: {
   sessionId: string;
   courts: ActiveCourtView[];
   queue: QueueEntryWithPlayer[];
+  cards: UpNextCard[];
   isAdmin: boolean;
 }) {
-  const cards = useLiveUpNext(sessionId);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { message, flash, clear } = useFlashMessage();
   const [filling, setFilling] = useState<{ card: UpNextCard | null; team: Team } | null>(null);
 
   const waiting = queue.filter((q) => q.status === "waiting");
-  const nameOf = (id: string) => playerName(queue.find((q) => q.player_id === id)?.player);
   const courtName = (id: string) => courts.find((c) => c.id === id)?.name ?? "court";
   const freeCourtIds = courts.filter((c) => c.status === "available" && !c.current_match_id).map((c) => c.id);
   const carded = new Set(cards.flatMap((c) => [...c.teamA, ...c.teamB]));
@@ -66,19 +66,18 @@ export function UpNextPanel({
   }, [isAdmin, sessionId]);
 
   function run(action: () => Promise<{ success: true } | { error: string }>, done?: string) {
-    setError(null);
-    setNotice(null);
+    clear();
     startTransition(async () => {
       const res = await action();
-      if ("error" in res) setError(res.error);
-      else if (done) setNotice(done);
+      if ("error" in res) flash("error", res.error);
+      else if (done) flash("success", done);
     });
   }
 
   function save(card: UpNextCard | null, teamA: string[], teamB: string[]) {
     run(async () => {
       const res = await saveUpNextCard(sessionId, card?.id ?? null, teamA, teamB, card?.targetCourtId ?? null);
-      if ("success" in res && res.unpaired.length > 0) setNotice("That split a pair; they are no longer paired.");
+      if ("success" in res && res.unpaired.length > 0) flash("success", "That split a pair; they are no longer paired.");
       return res;
     });
   }
@@ -90,39 +89,37 @@ export function UpNextPanel({
   }
 
   const teamList = (card: UpNextCard, team: Team, label: string, tone: string) => (
-    <div className={`rounded-lg border-t-2 ${tone} bg-slate-50 dark:bg-slate-900/60 p-2`}>
+    <div className={`min-w-0 rounded-lg border-t-2 ${tone} bg-slate-50 dark:bg-slate-900/60 p-2`}>
       <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
-      <ul className="space-y-1">
+      <ul className="min-w-0 space-y-1">
         {Array.from({ length: card.perSide }, (_, i) => card[team][i]).map((id, i) =>
           id ? (
-            <li key={id} className="flex items-center justify-between gap-1 text-sm">
-              <span className="truncate font-medium text-slate-900 dark:text-slate-100">{nameOf(id)}</span>
+            <li key={id} className="flex min-h-11 min-w-0 items-center justify-between gap-1 text-sm">
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{card.names[id] ?? "Player"}</span>
               {isAdmin && (
-                <button
-                  type="button"
-                  aria-label={`Take ${nameOf(id)} out of this match`}
+                <IconButton
+                  label={`Take ${card.names[id] ?? "Player"} out of this match`}
                   disabled={pending}
                   onClick={() =>
                     save(card, card.teamA.filter((p) => p !== id), card.teamB.filter((p) => p !== id))
                   }
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </IconButton>
               )}
             </li>
           ) : (
-            <li key={`empty-${i}`}>
+            <li key={`empty-${i}`} className="min-w-0">
               {isAdmin ? (
                 <button
                   type="button"
                   onClick={() => setFilling({ card, team })}
-                  className="h-8 w-full rounded-md border border-dashed border-slate-400 dark:border-slate-600 text-left px-2 text-sm text-slate-500 hover:border-emerald-500 cursor-pointer"
+                  className="min-h-11 w-full truncate rounded-md border border-dashed border-slate-400 dark:border-slate-600 text-left px-2 text-sm text-slate-500 hover:border-emerald-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
                 >
                   + Add player
                 </button>
               ) : (
-                <span className="text-sm text-slate-400">Open spot</span>
+                <span className="flex min-h-11 items-center text-sm text-slate-400">Open spot</span>
               )}
             </li>
           )
@@ -143,7 +140,7 @@ export function UpNextPanel({
               type="button"
               onClick={() => run(() => rebuildUpNext(sessionId), "Rebuilt the auto matches.")}
               disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
             >
               <RefreshCw className="h-4 w-4" /> Rebuild
             </button>
@@ -151,7 +148,7 @@ export function UpNextPanel({
               type="button"
               onClick={() => setFilling({ card: null, team: "teamA" })}
               disabled={pending || waiting.length === 0}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-emerald-500"
             >
               <Plus className="h-4 w-4" /> Add match
             </button>
@@ -159,15 +156,22 @@ export function UpNextPanel({
         )}
       </div>
 
-      {(error || notice) && (
-        <p
-          role={error ? "alert" : "status"}
-          className={`rounded-lg px-3 py-2 text-sm ${
-            error ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+      {message && (
+        <div
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+            message.kind === "error"
+              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           }`}
         >
-          {error ?? notice}
-        </p>
+          <span>{message.text}</span>
+          {message.kind === "error" && (
+            <IconButton label="Dismiss message" onClick={clear} tone="danger">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
+        </div>
       )}
 
       {cards.length === 0 ? (
@@ -187,15 +191,13 @@ export function UpNextPanel({
                   {card.targetCourtId && <span className="ml-2 text-xs font-medium text-slate-500">for {courtName(card.targetCourtId)}</span>}
                 </p>
                 {isAdmin && (
-                  <button
-                    type="button"
-                    aria-label={`Delete Up Next ${card.position}`}
+                  <IconButton
+                    label={`Delete Up Next ${card.position}`}
                     onClick={() => run(() => deleteUpNextCard(sessionId, card.id))}
                     disabled={pending}
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 )}
               </header>
               <div className="grid grid-cols-2 gap-2">

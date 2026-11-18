@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Activity, Sparkles, Filter } from "lucide-react";
+import { Activity, X } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
 import { CourtCard } from "./CourtCard";
 import { useLiveCourts } from "../hooks/useLiveCourts";
 import { useCourtActions } from "../hooks/useCourtActions";
-import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
+import type { UpNextCard } from "@/features/queue/upNext/types";
 import { UndoToast } from "./UndoToast";
 import { applySessionCourtNames } from "@/lib/utils";
 import type { ActiveCourtView, CourtStatus, QueueEntryWithPlayer } from "@/types";
@@ -66,6 +67,7 @@ interface CourtMatrixProps {
   sessionId?: string;
   waitingQueueCount?: number;
   queue?: QueueEntryWithPlayer[];
+  cards?: UpNextCard[];
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
@@ -82,6 +84,7 @@ export function CourtMatrix({
   userRole = "player",
   waitingQueueCount,
   queue,
+  cards,
   isAdmin,
   readOnly = false,
   targetPoints = 11,
@@ -113,8 +116,7 @@ export function CourtMatrix({
     syncArenaList
   );
 
-  // Admin screens: live Up Next cards, the shared court actions and one Undo toast.
-  const upNextCards = useLiveUpNext(isAdministrator ? sessionId : undefined);
+  // Admin screens: shared court actions and one Undo toast (Up Next cards are passed down from the page).
   const courtActions = useCourtActions(sessionId);
 
   function handleCourtStatusChange(courtId: string, status: CourtStatus) {
@@ -147,17 +149,22 @@ export function CourtMatrix({
 
   return (
     <div className="space-y-4">
-      {isAdministrator && (courtActions.error || courtActions.notice) && (
-        <p
-          role={courtActions.error ? "alert" : "status"}
-          className={`rounded-lg px-3 py-2 text-sm ${
-            courtActions.error
+      {isAdministrator && courtActions.message && (
+        <div
+          role={courtActions.message.kind === "error" ? "alert" : "status"}
+          className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+            courtActions.message.kind === "error"
               ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
               : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           }`}
         >
-          {courtActions.error ?? courtActions.notice}
-        </p>
+          <span>{courtActions.message.text}</span>
+          {courtActions.message.kind === "error" && (
+            <IconButton label="Dismiss message" onClick={courtActions.clearMessages} tone="danger">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
+        </div>
       )}
       {isAdministrator && courtActions.lastChange && (
         <UndoToast change={courtActions.lastChange} onUndo={courtActions.undo} onDismiss={courtActions.dismissUndo} />
@@ -190,7 +197,7 @@ export function CourtMatrix({
               onStatusChange={handleCourtStatusChange}
               onNameChange={handleCourtNameChange}
               queue={queue}
-              cards={isAdministrator && sessionId ? upNextCards : undefined}
+              cards={isAdministrator && sessionId ? cards : undefined}
               freeCourtIds={freeCourtIds}
               actions={isAdministrator && sessionId ? courtActions : undefined}
             />

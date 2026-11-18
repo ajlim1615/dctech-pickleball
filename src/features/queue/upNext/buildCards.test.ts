@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { seededRandom } from "@/features/queue/matchmaking";
 import { e, ids } from "@/features/queue/matchmaking/testHelpers";
-import { buildAutoCards, pickReplacement } from "./buildCards";
+import { autoCardCount, buildAutoCards, pickReplacement } from "./buildCards";
+import type { UpNextCard } from "./types";
 
 const base = {
   style: "balanced" as const,
@@ -88,5 +89,33 @@ describe("pickReplacement", () => {
 
   it("returns null on empty line", () => {
     expect(pickReplacement({ style: "fifo", line: [], staying, missingTeam: "team_a", inCards: new Set(), random: Math.random })).toBeNull();
+  });
+});
+
+describe("autoCardCount", () => {
+  const card = (over: Partial<UpNextCard>): UpNextCard => ({
+    id: "c",
+    position: 1,
+    perSide: 2,
+    targetCourtId: null,
+    isAuto: false,
+    teamA: ["a1", "a2"],
+    teamB: ["b1", "b2"],
+    names: {},
+    ...over,
+  });
+
+  it("incomplete manual cards don't count", () => {
+    expect(autoCardCount(2, [card({ teamA: ["p1"], teamB: [] })])).toBe(2);
+    expect(autoCardCount(2, [card({ teamA: ["p1", "p2"], teamB: ["p3"] })])).toBe(2);
+  });
+
+  it("full manual cards count", () => {
+    expect(autoCardCount(2, [card({})])).toBe(1);
+    expect(autoCardCount(2, [card({ isAuto: true })])).toBe(2);
+  });
+
+  it("never negative", () => {
+    expect(autoCardCount(1, [card({ id: "1" }), card({ id: "2" }), card({ id: "3" })])).toBe(0);
   });
 });

@@ -6,7 +6,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
 import { seededRandom, type LineEntry } from "@/features/queue/matchmaking";
 import { loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
-import { buildAutoCards } from "@/features/queue/upNext/buildCards";
+import { autoCardCount, buildAutoCards } from "@/features/queue/upNext/buildCards";
 import { sameAutoCards, toUpNextCards, type UpNextCard, type UpNextCardRow, type UpNextPlayerRow } from "@/features/queue/upNext/types";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -20,9 +20,9 @@ const PER_SIDE = 2 as const;
 async function loadCards(supabase: Supabase, sessionId: string): Promise<UpNextCard[]> {
   const [{ data: cards }, { data: players }] = await Promise.all([
     supabase.from("up_next_matches").select("id, position, per_side, target_court_id, is_auto").eq("session_id", sessionId),
-    supabase.from("up_next_players").select("card_id, player_id, team, slot").eq("session_id", sessionId),
+    supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId),
   ]);
-  return toUpNextCards((cards ?? []) as UpNextCardRow[], (players ?? []) as UpNextPlayerRow[]);
+  return toUpNextCards((cards ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]);
 }
 
 function rpcError(out: unknown, error: { message: string } | null, label: string): string | null {
@@ -81,7 +81,7 @@ export async function refreshUpNext(sessionId: string, options: { reshuffle?: bo
       line,
       history,
       courts,
-      count: Math.max(0, (courtCount ?? courts.length) - manual.length),
+      count: autoCardCount(courtCount ?? courts.length, cards),
       perSide: PER_SIDE,
       exclude: new Set(manual.flatMap((c) => [...c.teamA, ...c.teamB])),
       settings: { skillSpread },

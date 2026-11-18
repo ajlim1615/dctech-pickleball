@@ -14,6 +14,7 @@ import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { gamesPlayedBefore, planResultCorrection } from "@/features/matches/utils/resultCorrection";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
+import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
 
 export async function createMatch(params: {
   sessionId: string;
@@ -198,7 +199,7 @@ export async function getMatchesList(limit = 20) {
     .from("matches")
     .select(`
       *,
-      court:courts!court_id (name, surface_type),
+      ${MATCH_COURT} (name, surface_type),
       players:match_players (
         id,
         team,

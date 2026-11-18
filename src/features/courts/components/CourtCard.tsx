@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
+import { Trophy, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
 import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
 import { canSaveResult, canSendCard, cardForFreeCourt } from "@/features/courts/utils/courtRules";
 import type { UpNextCard } from "@/features/queue/upNext/types";
 import type { CourtActions } from "@/features/courts/hooks/useCourtActions";
+import { CourtHalf } from "./CourtHalf";
 import { CourtPlayerSheet } from "./CourtPlayerSheet";
 import { ChoosePlayersSheet } from "./ChoosePlayersSheet";
 import { PlayerPickerSheet } from "@/features/queue/components/PlayerPickerSheet";
@@ -108,8 +111,7 @@ export function CourtCard({
   const [scoreA, setScoreA] = useState<number>(activeMatch?.team_a_score || 0);
   const [scoreB, setScoreB] = useState<number>(activeMatch?.team_b_score || 0);
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { message: cardFlash, flash: flashCard, clear: clearCardFlash } = useFlashMessage();
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
 
@@ -158,10 +160,7 @@ export function CourtCard({
   const nameOf = (p: Profile) => p.full_name || p.display_name || "Player";
   const teamKey = (t: ScoringTeam) => (t === "A" ? "team_a" : "team_b");
   const readyCard = cards ? cardForFreeCourt(court.id, freeCourtIds ?? [court.id], cards) : null;
-  const cardName = (id: string) => {
-    const p = waiting.find((q) => q.player_id === id)?.player;
-    return p ? nameOf(p) : "Player";
-  };
+  const cardName = (id: string) => readyCard?.names[id] ?? "Player";
 
   // Save every change so other screens (and the no-show check) see the live score,
   // and a refresh doesn't reset it.
@@ -214,16 +213,16 @@ export function CourtCard({
 
   function handleSubmitScore(finalA = scoreA, finalB = scoreB) {
     if (!isAdministrator || isPending) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
 
     if (!hasPlayersOnCourt || !activeMatch) {
-      setErrorMessage("Cannot submit score: No players or active match on this court.");
+      flashCard("error", "Cannot submit score: No players or active match on this court.");
       return;
     }
 
     if (!getWinner(finalA, finalB, rule)) {
-      setErrorMessage(
+      flashCard(
+        "error",
         `Cannot submit match: Score is not finished yet. This session plays ${describeRule(rule)}.`
       );
       return;
@@ -236,9 +235,9 @@ export function CourtCard({
     startTransition(async () => {
       const res = await finalizeMatch(activeMatch.id, finalA, finalB);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
-        setSuccessMessage(`Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
+        flashCard("success", `Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
         setScoreA(0);
         setScoreB(0);
         setPendingWinner(null);
@@ -264,12 +263,11 @@ export function CourtCard({
 
   function handleStatusChange(nextStatus: CourtStatus) {
     if (!canChangeStatus || isPending || nextStatus === court.status) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
     startTransition(async () => {
       const res = await toggleCourtStatus(court.id, nextStatus, sessionId);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
         onStatusChange?.(court.id, nextStatus);
       }
@@ -279,26 +277,25 @@ export function CourtCard({
   function startEditingName() {
     setDraftName(cleanCourtName);
     setIsEditingName(true);
-    setErrorMessage(null);
+    clearCardFlash();
   }
 
   function handleSaveName() {
     if (!canRenameCourt || !sessionId || isPending) return;
     const trimmed = draftName.trim();
     if (!trimmed) {
-      setErrorMessage("Court name is required.");
+      flashCard("error", "Court name is required.");
       return;
     }
     if (trimmed === cleanCourtName) {
       setIsEditingName(false);
       return;
     }
-    setErrorMessage(null);
-    setSuccessMessage(null);
+    clearCardFlash();
     startTransition(async () => {
       const res = await updateSessionCourtName(sessionId, slot, trimmed);
       if (res?.error) {
-        setErrorMessage(res.error);
+        flashCard("error", res.error);
       } else {
         onNameChange?.(slot, res?.name || trimmed);
         setIsEditingName(false);
@@ -334,25 +331,23 @@ export function CourtCard({
                 autoFocus
                 maxLength={50}
                 aria-label="Court name"
-                className="h-8 w-full min-w-0 max-w-[160px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="h-11 w-full min-w-0 max-w-[160px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <button
                 type="submit"
                 disabled={isPending}
                 aria-label="Save court name"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
               >
                 <Check className="h-4 w-4" />
               </button>
-              <button
-                type="button"
+              <IconButton
+                label="Cancel renaming court"
                 onClick={() => setIsEditingName(false)}
                 disabled={isPending}
-                aria-label="Cancel renaming court"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </IconButton>
             </form>
           ) : (
             <>
@@ -360,15 +355,9 @@ export function CourtCard({
                 {cleanCourtName}
               </h3>
               {canRenameCourt && (
-                <button
-                  type="button"
-                  onClick={startEditingName}
-                  title={`Rename ${cleanCourtName}`}
-                  aria-label={`Rename ${cleanCourtName}`}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
+                <IconButton label={`Rename ${cleanCourtName}`} onClick={startEditingName}>
+                  <Pencil className="h-4 w-4" />
+                </IconButton>
               )}
               <CourtStateLabel
                 state={isClosed ? court.status : hasPlayersOnCourt ? "in_play" : "open"}
@@ -381,7 +370,7 @@ export function CourtCard({
           <div className="flex items-center">
           <Link
             href={`/courts/${court.id}/monitor`}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
             title={`Open the full-screen umpire view for ${cleanCourtName}`}
           >
             <ShieldCheck className="h-4 w-4" />
@@ -458,17 +447,22 @@ export function CourtCard({
       </div>
 
       {/* Messages */}
-      {(errorMessage || successMessage) && (
+      {cardFlash && (
         <div className="px-4 pt-3">
-          {errorMessage ? (
-            <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              {errorMessage}
-            </p>
+          {cardFlash.kind === "error" ? (
+            <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
+              <span className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                {cardFlash.text}
+              </span>
+              <IconButton label="Dismiss message" onClick={clearCardFlash} tone="danger">
+                <X className="h-4 w-4" />
+              </IconButton>
+            </div>
           ) : (
             <p role="status" className="flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-              {successMessage}
+              {cardFlash.text}
             </p>
           )}
         </div>
@@ -587,14 +581,22 @@ export function CourtCard({
                 ? `Submit result · ${winner} wins ${Math.max(scoreA, scoreB)}–${Math.min(scoreA, scoreB)}`
                 : `Playing ${describeRule(rule)}`}
             </Button>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               {!isGameOver && (
                 <>
                   <span>Quick win:</span>
-                  <button type="button" onClick={() => handleQuickWin("A")} className="font-semibold text-emerald-700 dark:text-emerald-400 hover:underline underline-offset-2 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickWin("A")}
+                    className="inline-flex min-h-11 items-center rounded-md px-2 font-semibold text-emerald-700 dark:text-emerald-400 hover:underline underline-offset-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
                     Team 1 ({quickWinLabel("A")})
                   </button>
-                  <button type="button" onClick={() => handleQuickWin("B")} className="font-semibold text-sky-700 dark:text-sky-400 hover:underline underline-offset-2 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickWin("B")}
+                    className="inline-flex min-h-11 items-center rounded-md px-2 font-semibold text-sky-700 dark:text-sky-400 hover:underline underline-offset-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
                     Team 2 ({quickWinLabel("B")})
                   </button>
                 </>
@@ -603,7 +605,7 @@ export function CourtCard({
                 type="button"
                 onClick={handleResetScore}
                 disabled={scoreA === 0 && scoreB === 0}
-                className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-emerald-500"
               >
                 <RotateCcw className="h-3 w-3" />
                 Reset
@@ -726,183 +728,6 @@ function CourtStateLabel({ state, startedAt }: { state: CourtState; startedAt?: 
   );
 }
 
-interface CourtHalfProps {
-  side: ScoringTeam;
-  label: string;
-  players: Profile[];
-  score: number;
-  showScore: boolean;
-  isWinner: boolean;
-  closed: boolean;
-  canScore: boolean;
-  onPlus: () => void;
-  onMinus: () => void;
-  plusDisabled: boolean;
-  minusDisabled: boolean;
-  /** Win/loss sessions: the whole half is the "this team won" button. */
-  pickWinner?: () => void;
-  pickDisabled?: boolean;
-  /** Players per side, so a removed player leaves an empty slot. */
-  slots?: number;
-  /** Admin live-court controls: tap a name, remove with the x, fill an empty slot. */
-  onPlayerTap?: (player: Profile) => void;
-  onRemove?: (player: Profile) => void;
-  onAddSlot?: () => void;
-}
-
-function CourtHalf({
-  side,
-  label,
-  players,
-  score,
-  showScore,
-  isWinner,
-  closed,
-  canScore,
-  onPlus,
-  onMinus,
-  plusDisabled,
-  minusDisabled,
-  pickWinner,
-  pickDisabled,
-  slots = 2,
-  onPlayerTap,
-  onRemove,
-  onAddSlot,
-}: CourtHalfProps) {
-  const isA = side === "A";
-  const tone = isA
-    ? {
-        text: "text-emerald-700 dark:text-emerald-400",
-        tint: "bg-emerald-50/70 dark:bg-emerald-950/25",
-        win: "bg-emerald-100 dark:bg-emerald-900/40",
-        ring: "ring-emerald-500",
-      }
-    : {
-        text: "text-sky-700 dark:text-sky-400",
-        tint: "bg-sky-50/70 dark:bg-sky-950/25",
-        win: "bg-sky-100 dark:bg-sky-900/40",
-        ring: "ring-sky-500",
-      };
-
-  const content = (
-    <>
-      {/* Kitchen (non-volley zone) beside the net */}
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute inset-y-0 ${isA ? "right-0 border-l" : "left-0 border-r"} w-[22%] border-dashed border-slate-300 dark:border-slate-600/70 bg-slate-200/30 dark:bg-slate-800/30`}
-      />
-      <div className={`relative flex min-h-36 flex-col gap-2 p-3 ${isA ? "items-start text-left pr-[24%]" : "items-end text-right pl-[24%]"}`}>
-        <span className={`text-xs font-semibold ${tone.text}`}>{label}</span>
-        <ul className="space-y-0.5 min-w-0 max-w-full">
-          {players.length > 0
-            ? players.map((p) => {
-                const name = p.full_name || p.display_name || "Player";
-                return (
-                  <li key={p.id} className={`flex items-center gap-1 ${isA ? "" : "flex-row-reverse"}`}>
-                    {onPlayerTap ? (
-                      <button
-                        type="button"
-                        onClick={() => onPlayerTap(p)}
-                        className="min-h-9 truncate rounded-md px-1 text-left text-sm font-medium text-slate-900 dark:text-slate-100 underline-offset-2 hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
-                      >
-                        {name}
-                      </button>
-                    ) : (
-                      <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{name}</span>
-                    )}
-                    {onRemove && (
-                      <button
-                        type="button"
-                        onClick={() => onRemove(p)}
-                        aria-label={`Take ${name} off the court (back to the front of the line)`}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </li>
-                );
-              })
-            : null}
-          {!closed &&
-            Array.from({ length: Math.max(0, (players.length > 0 || onAddSlot ? slots : 2) - players.length) }, (_, i) =>
-              onAddSlot ? (
-                <li key={`open-${i}`}>
-                  <button
-                    type="button"
-                    onClick={onAddSlot}
-                    className="min-h-9 rounded-md border border-dashed border-slate-400 dark:border-slate-600 px-2 text-sm text-slate-600 dark:text-slate-300 hover:border-emerald-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
-                  >
-                    + Tap to add player
-                  </button>
-                </li>
-              ) : (
-                <li key={`open-${i}`} className="text-sm text-slate-400 dark:text-slate-500">
-                  Open spot
-                </li>
-              )
-            )}
-        </ul>
-        {showScore && (
-          <div className={`mt-auto font-mono tabular-nums text-5xl font-bold leading-none ${tone.text}`}>
-            {score}
-          </div>
-        )}
-        {pickWinner && (
-          <span className={`mt-auto text-sm font-bold ${tone.text}`}>{isWinner ? "Winner" : `${label} won`}</span>
-        )}
-      </div>
-    </>
-  );
-
-  if (pickWinner) {
-    return (
-      <button
-        type="button"
-        onClick={pickWinner}
-        disabled={pickDisabled}
-        aria-pressed={isWinner}
-        className={`relative text-left transition-colors cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${tone.ring} ${
-          isWinner ? tone.win : `${tone.tint} hover:brightness-95 dark:hover:brightness-125`
-        }`}
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <div className={`relative flex flex-col ${isWinner ? tone.win : closed ? "" : tone.tint}`}>
-      {content}
-      {canScore && (
-        <div className={`relative flex gap-2 px-3 pb-3 ${isA ? "justify-start" : "justify-end"}`}>
-          <button
-            type="button"
-            onClick={onMinus}
-            disabled={minusDisabled}
-            aria-label={`Remove a point from ${label}`}
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed active:scale-95 transition-transform focus-visible:outline-2 focus-visible:outline-emerald-500"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onPlus}
-            disabled={plusDisabled}
-            aria-label={`Add a point to ${label}`}
-            className={`flex h-11 w-14 items-center justify-center rounded-lg text-white disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed active:scale-95 transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 ${
-              isA ? "bg-emerald-600 hover:bg-emerald-700" : "bg-sky-600 hover:bg-sky-700"
-            }`}
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const COURT_STATUS_OPTIONS: { value: CourtStatus; label: string }[] = [
   { value: "available", label: "Open" },
   { value: "maintenance", label: "Maintenance" },
@@ -937,7 +762,7 @@ function CourtStatusControl({
               disabled={disabled}
               aria-pressed={active}
               onClick={() => onSelect(option.value)}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`min-h-11 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                 active
                   ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"

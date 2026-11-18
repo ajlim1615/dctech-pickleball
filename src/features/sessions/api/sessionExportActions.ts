@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { buildSessionExport, type SessionExport } from "@/features/sessions/utils/sessionExport";
+import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
 
 /** Admin-only: the after-session spreadsheet (summary, leaderboard, attendance, games). */
 export async function getSessionExport(sessionId: string): Promise<{ data?: SessionExport; error?: string }> {
@@ -18,7 +19,7 @@ export async function getSessionExport(sessionId: string): Promise<{ data?: Sess
       .maybeSingle(),
     supabase
       .from("matches")
-      .select("id, status, team_a_score, team_b_score, winning_team, started_at, ended_at, court:courts!court_id (name), players:match_players (player_id, team)")
+      .select(`id, status, team_a_score, team_b_score, winning_team, started_at, ended_at, ${MATCH_COURT} (name), players:match_players (player_id, team)`)
       .eq("session_id", sessionId),
     supabase.from("session_checkins").select("player_id, status, checkin_time").eq("session_id", sessionId),
     supabase.from("session_rsvps").select("player_id").eq("session_id", sessionId),

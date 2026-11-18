@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { PlayCircle, Square, Users, LayoutGrid } from "lucide-react";
+import { useTransition } from "react";
+import { PlayCircle, Square, Users, LayoutGrid, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { fillOpenCourts } from "@/features/queue/api/queueActions";
 import { formatPHTTime } from "@/lib/timezone";
 import type { ActiveCourtView, Session } from "@/types";
@@ -35,30 +37,25 @@ export function SessionConsoleBar({
   onEnd,
 }: SessionConsoleBarProps) {
   const [isFilling, startFilling] = useTransition();
-  const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const { message: notice, flash, clear } = useFlashMessage();
 
   const inPlay = courts.filter((c) => c.status === "occupied").length;
   const open = courts.filter((c) => c.status === "available" && !c.current_match_id).length;
   const isLive = status === "active";
 
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 4000);
-    return () => clearTimeout(t);
-  }, [notice]);
-
   function handleFill() {
+    clear();
     startFilling(async () => {
       const res = await fillOpenCourts(session.id);
       if (res?.error) {
-        setNotice({ tone: "warn", text: res.error });
+        flash("error", res.error);
       } else {
-        setNotice({
-          tone: "ok",
-          text: `Started ${res.filled} court${res.filled === 1 ? "" : "s"}${
+        flash(
+          "success",
+          `Started ${res.filled} court${res.filled === 1 ? "" : "s"}${
             res.remainingOpen ? ` · ${res.remainingOpen} still open (no Up Next match ready)` : ""
-          }`,
-        });
+          }`
+        );
       }
     });
   }
@@ -95,7 +92,7 @@ export function SessionConsoleBar({
         {/* Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 lg:ml-auto">
           {!isLive && (
-            <Button variant="volt" size="sm" onClick={onStart} disabled={isStarting} className="font-bold h-10 px-4 cursor-pointer">
+            <Button variant="volt" size="sm" onClick={onStart} disabled={isStarting} className="font-bold h-11 px-4 cursor-pointer">
               <PlayCircle className="h-4 w-4 mr-1.5" />
               {isStarting ? "Starting…" : "Start session"}
             </Button>
@@ -103,7 +100,7 @@ export function SessionConsoleBar({
 
           {/* Adding players to the line only works once the session is live. */}
           {isLive && (
-            <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-10 px-3 cursor-pointer">
+            <Button variant="outline" size="sm" onClick={onAddPlayers} aria-label="Add players" className="font-semibold h-11 min-w-11 px-3 cursor-pointer">
               <Users className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Add players</span>
             </Button>
@@ -116,7 +113,7 @@ export function SessionConsoleBar({
                 size="sm"
                 onClick={handleFill}
                 disabled={isFilling || open === 0 || waitingCount < 4}
-                className="font-bold h-10 cursor-pointer disabled:cursor-not-allowed"
+                className="font-bold h-11 cursor-pointer disabled:cursor-not-allowed"
                 title="Start the Up Next matches on every open court"
               >
                 <LayoutGrid className="h-4 w-4 mr-1.5" />
@@ -127,7 +124,7 @@ export function SessionConsoleBar({
                 variant="ghost"
                 size="sm"
                 onClick={onEnd}
-                className="font-semibold h-10 px-2 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+                className="font-semibold h-11 px-2.5 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
               >
                 <Square className="h-3.5 w-3.5 mr-1.5" />
                 End<span className="hidden sm:inline">&nbsp;session</span>
@@ -138,14 +135,19 @@ export function SessionConsoleBar({
       </div>
 
       {notice && (
-        <p
-          role="status"
-          className={`mt-2 text-sm ${
-            notice.tone === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+        <div
+          role={notice.kind === "error" ? "alert" : "status"}
+          className={`mt-2 flex items-center justify-between gap-2 text-sm ${
+            notice.kind === "success" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
           }`}
         >
-          {notice.text}
-        </p>
+          <span>{notice.text}</span>
+          {notice.kind === "error" && (
+            <IconButton label="Dismiss message" onClick={clear} tone="danger">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
+        </div>
       )}
     </div>
   );

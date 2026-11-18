@@ -9,6 +9,7 @@ export interface ModalProps {
   onClose?: () => void;
   children: React.ReactNode;
   className?: string;
+  panelClassName?: string;
   preventBackdropClose?: boolean;
 }
 
@@ -56,6 +57,7 @@ export function Modal({
   onClose,
   children,
   className,
+  panelClassName,
   preventBackdropClose = false,
 }: ModalProps) {
   // True only in the browser (portals need document.body); false during server render.
@@ -129,7 +131,10 @@ export function Modal({
     >
       <div
         ref={wrapperRef}
-        className="w-full flex items-center justify-center select-text [&>*]:cursor-default"
+        className={cn(
+          "w-full flex items-center justify-center select-text [&>*]:cursor-default",
+          panelClassName
+        )}
       >
         {children}
       </div>
