@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, Match, PlayerRatingHistory, Database } from "@/types";
 import { deleteAvatar, saveAvatar } from "@/features/players/server/avatarStorage";
+import { computeSessionLeaderboard } from "@/features/sessions/utils/sessionLeaderboard";
+import type { SessionPlacement } from "@/features/players/utils/sessionHistory";
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const supabase = await createClient();
@@ -62,7 +64,12 @@ export async function updateProfile(userId: string, formData: FormData) {
   return { success: true };
 }
 
-export async function getPlayerMatchHistory(userId: string) {
+export async function getPlayerMatchHistory(
+  userId: string,
+  options: { limit?: number; includePlacements?: boolean } = {}
+) {
+  const limit = options.limit ?? 15;
+  const includePlacements = options.includePlacements ?? false;
   const supabase = await createClient();
 
   // 1. Fetch match_players entries for this user
@@ -71,7 +78,7 @@ export async function getPlayerMatchHistory(userId: string) {
     .select("id, match_id, team, created_at")
     .eq("player_id", userId)
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(Math.max(30, limit * 2));
 
   if (mpError || !playerEntries || playerEntries.length === 0) {
     if (mpError) console.error("Error fetching match_players:", mpError.message);
@@ -127,6 +134,62 @@ export async function getPlayerMatchHistory(userId: string) {
   const sessionMap = new Map((sessionsRes.data || []).map((s) => [s.id, s]));
   const matchMap = new Map((matchesRes.data || []).map((m) => [m.id, m]));
 
+  // Optional: compute this player's leaderboard placement per session
+  const placementBySessionId = new Map<string, SessionPlacement>();
+  if (includePlacements) {
+    const sessionIds = Array.from(
+      new Set((matchesRes.data || []).map((m) => m.session_id).filter((id): id is string => Boolean(id)))
+    );
+    if (sessionIds.length > 0) {
+      const [sessCheckinsRes, sessMatchesRes] = await Promise.all([
+        supabase
+          .from("session_checkins")
+          .select(
+            "session_id, player_id, player:profiles ( id, full_name, display_name, avatar_url, skill_rating, email )"
+          )
+          .in("session_id", sessionIds)
+          .eq("status", "checked_in"),
+        supabase
+          .from("matches")
+          .select(
+            "id, session_id, status, team_a_score, team_b_score, winning_team, players:match_players ( id, team, player:profiles ( id, full_name, display_name, avatar_url, skill_rating, email ) )"
+          )
+          .in("session_id", sessionIds)
+          .eq("status", "completed"),
+      ]);
+
+      const checkinsBySession = new Map<string, unknown[]>();
+      for (const c of sessCheckinsRes.data || []) {
+        const list = checkinsBySession.get(c.session_id) || [];
+        list.push(c);
+        checkinsBySession.set(c.session_id, list);
+      }
+
+      const matchesBySession = new Map<string, unknown[]>();
+      for (const m of sessMatchesRes.data || []) {
+        if (!m.session_id) continue;
+        const list = matchesBySession.get(m.session_id) || [];
+        list.push(m);
+        matchesBySession.set(m.session_id, list);
+      }
+
+      for (const sid of sessionIds) {
+        const board = computeSessionLeaderboard(
+          matchesBySession.get(sid) || [],
+          checkinsBySession.get(sid) || []
+        );
+        const me = board.find((p) => p.id === userId);
+        if (me && me.rank > 0) {
+          placementBySessionId.set(sid, {
+            rank: me.rank,
+            totalPlayers: board.length,
+            tied: me.tied,
+          });
+        }
+      }
+    }
+  }
+
   // Group participants by match_id
   const matchPlayersByMatchId = new Map<
     string,
@@ -169,8 +232,10 @@ export async function getPlayerMatchHistory(userId: string) {
         id: pe.id,
         team: pe.team,
         created_at: pe.created_at || match.created_at,
+        sessionId: match.session_id ?? null,
         sessionTitle,
         sessionStatus,
+        sessionPlacement: match.session_id ? placementBySessionId.get(match.session_id) ?? null : null,
         partner: partnerName,
         opponents: opponentsName,
         match: {
@@ -192,7 +257,7 @@ export async function getPlayerMatchHistory(userId: string) {
     results.push(item);
   }
 
-  return results.slice(0, 15);
+  return results.slice(0, limit);
 }
 
 export async function getPlayerRatingHistory(userId: string): Promise<PlayerRatingHistory[]> {

@@ -36,6 +36,13 @@ import { updateProfile } from "@/features/players/api/playerActions";
 import { formatRating } from "@/lib/utils";
 import { formatPHTDate } from "@/lib/timezone";
 import { formatMatchDuration } from "@/lib/duration";
+import {
+  formatPlacementLabel,
+  formatPlayerMatchScore,
+  groupMatchesBySession,
+  type FormattedPlayerMatch,
+  type SessionMatchGroup,
+} from "@/features/players/utils/sessionHistory";
 import type { PlayerRatingHistory, Profile } from "@/types";
 import { RatingTrend } from "@/features/players/components/RatingTrend";
 
@@ -340,33 +347,40 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
       const isTie = match.winning_team === "tie";
       const isInProgress = match.status === "in_progress";
 
-      const result = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
+      const result: FormattedPlayerMatch["result"] = isInProgress ? "LIVE" : isTie ? "TIE" : isWon ? "WIN" : "LOSS";
       const courtName =
         (match.court as any)?.name || (typeof match.court === "string" ? match.court : "Court");
       const formatLabel = match.format === "doubles" ? "Doubles (2v2)" : "Singles (1v1)";
+      const sessionId = item.sessionId ?? match.session_id ?? null;
       const sessionTitle = item.sessionTitle || "Open Play Session";
+      const sessionStatus = item.sessionStatus || "completed";
       const partner = item.partner;
       const opponents = item.opponents;
       const dateSource = match.ended_at || match.started_at || item.created_at;
       const dateLabel = dateSource ? formatPHTDate(dateSource) : "Recent";
-      const scoreLabel = formatMatchScore(match.team_a_score, match.team_b_score);
+      const scoreLabel = formatPlayerMatchScore(match.team_a_score, match.team_b_score, result);
       const duration = !isInProgress ? formatMatchDuration(match.started_at, match.ended_at) : null;
 
       return {
+        id: item.id || match.id,
+        sessionId,
+        sessionTitle,
+        sessionStatus,
         result,
         court: courtName,
         format: formatLabel,
-        sessionTitle,
         partner,
         opponents,
         date: dateLabel,
-        type: sessionTitle,
         score: scoreLabel,
-        status: match.status,
         duration,
+        placement: item.sessionPlacement ?? null,
       };
     });
   }, [matches]);
+
+  const sessionGroups = useMemo(() => groupMatchesBySession(displayMatches), [displayMatches]);
+  const [selectedSession, setSelectedSession] = useState<SessionMatchGroup | null>(null);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
@@ -859,25 +873,25 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
         <RatingTrend history={ratingHistory} currentRating={Number(profile.skill_rating || 2)} />
       )}
 
-      {/* Match History Table */}
+      {/* Match History Table (Grouped by Session) */}
       <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-sm">
-        <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-row items-center justify-between">
+        <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/60 flex flex-row items-center justify-between gap-2">
           <div>
             <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               Recent Match History
             </CardTitle>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Verified game scores & open-play log
+              Sessions you&apos;ve played in
             </p>
           </div>
-          <Badge variant="outline" className="font-mono text-xs">
-            {displayMatches.length} Matches Logged
+          <Badge variant="outline" className="font-mono text-xs shrink-0">
+            {sessionGroups.length} {sessionGroups.length === 1 ? "Session" : "Sessions"}
           </Badge>
         </CardHeader>
 
         <CardContent className="pt-3 divide-y divide-slate-200 dark:divide-slate-800/60">
-          {displayMatches.length === 0 ? (
+          {sessionGroups.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-400 space-y-3">
               <Trophy className="h-6 w-6 text-slate-400 dark:text-slate-600 mx-auto" />
               <div className="space-y-1">
@@ -904,64 +918,165 @@ export function ProfileView({ profile, matches = [], ratingHistory = NO_HISTORY 
               </div>
             </div>
           ) : (
-            displayMatches.map((m, idx) => (
-              <div key={idx} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold mt-0.5 ${
-                      m.result === "WIN"
-                        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                        : m.result === "LIVE"
-                        ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700"
-                    }`}
-                  >
-                    {m.result}
-                  </div>
-                  <div className="space-y-1">
+            sessionGroups.map((group) => {
+              const placementLabel = formatPlacementLabel(group.placement, group.sessionStatus);
+              return (
+                <div
+                  key={group.key}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                        {m.court} • {m.format}
-                      </span>
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-mono text-slate-600 dark:text-slate-400">
-                        {m.sessionTitle}
-                      </Badge>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums">
-                        {m.date}
-                        {m.duration ? ` • ${m.duration}` : ""}
+                      {placementLabel && (
+                        <Badge
+                          variant={group.placement?.rank === 1 ? "volt" : "secondary"}
+                          className="text-[11px] font-mono font-bold py-0.5 px-2 shrink-0"
+                        >
+                          {placementLabel}
+                        </Badge>
+                      )}
+                      <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                        {group.sessionTitle}
                       </span>
                     </div>
-
-                    <div className="text-xs font-mono text-slate-600 dark:text-slate-400 space-y-0.5">
-                      {m.partner && (
-                        <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-                          <span className="font-semibold text-slate-500 dark:text-slate-400">🤝 Partner:</span>
-                          <span className="font-bold">{m.partner}</span>
-                        </div>
-                      )}
-                      {m.opponents && (
-                        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                          <span className="font-semibold text-slate-400">⚔️ vs:</span>
-                          <span className="font-medium text-slate-700 dark:text-slate-200">{m.opponents}</span>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-2 flex-wrap text-xs font-mono text-slate-500 dark:text-slate-400">
+                      <span>{group.date}</span>
+                      <span>·</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {group.wins}W - {group.losses}L
+                        {group.ties > 0 ? ` - ${group.ties}T` : ""}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        {group.matches.length} {group.matches.length === 1 ? "Match" : "Matches"}
+                      </span>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800/60 font-mono shrink-0 pl-11 sm:pl-0">
-                  <div className="text-base font-black text-slate-900 dark:text-slate-100">
-                    {m.score}
-                  </div>
-                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Verified
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedSession(group)}
+                    className="min-h-11 sm:min-h-9 shrink-0 font-semibold text-xs cursor-pointer"
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5" />
+                    View matches
+                  </Button>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>
+
+      {/* Session Matches Modal */}
+      <Modal isOpen={Boolean(selectedSession)} onClose={() => setSelectedSession(null)}>
+        {selectedSession && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col cursor-default">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3.5 shrink-0">
+              <div className="min-w-0 space-y-1">
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-slate-100 truncate">
+                  {selectedSession.sessionTitle}
+                </h3>
+                <p className="text-xs font-mono text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {formatPlacementLabel(selectedSession.placement, selectedSession.sessionStatus) && (
+                    <>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                        {formatPlacementLabel(selectedSession.placement, selectedSession.sessionStatus)}
+                      </span>
+                      <span>·</span>
+                    </>
+                  )}
+                  <span>{selectedSession.date}</span>
+                  <span>·</span>
+                  <span>
+                    {selectedSession.matches.length}{" "}
+                    {selectedSession.matches.length === 1 ? "Match" : "Matches"} ({selectedSession.wins}W -{" "}
+                    {selectedSession.losses}L{selectedSession.ties > 0 ? ` - ${selectedSession.ties}T` : ""})
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSession(null)}
+                aria-label="Close session matches"
+                className="h-10 w-10 shrink-0 rounded-full border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-200 dark:divide-slate-800/60 overflow-y-auto flex-1 pr-1">
+              {selectedSession.matches.map((m, idx) => (
+                <div key={m.id || idx} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div
+                      className={`flex h-8 w-10 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold mt-0.5 ${
+                        m.result === "WIN"
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                          : m.result === "LIVE"
+                          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700"
+                      }`}
+                    >
+                      {m.result}
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                          {m.court} • {m.format}
+                        </span>
+                        {m.duration && (
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums">
+                            • {m.duration}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs font-mono text-slate-600 dark:text-slate-400 space-y-0.5">
+                        {m.partner && (
+                          <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                            <span className="font-semibold text-slate-500 dark:text-slate-400">🤝 Partner:</span>
+                            <span className="font-bold">{m.partner}</span>
+                          </div>
+                        )}
+                        {m.opponents && (
+                          <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold text-slate-400">⚔️ vs:</span>
+                            <span className="font-medium text-slate-700 dark:text-slate-200">{m.opponents}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="font-mono text-base font-black text-slate-900 dark:text-slate-100 shrink-0 pl-13 sm:pl-0 sm:text-right tabular-nums">
+                    {m.score}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              {selectedSession.sessionId && (
+                <Link
+                  href={`/sessions/${selectedSession.sessionId}`}
+                  className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Open Session
+                </Link>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSelectedSession(null)}
+                className="min-h-11 px-4 text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

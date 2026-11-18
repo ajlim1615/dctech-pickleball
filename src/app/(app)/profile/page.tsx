@@ -28,7 +28,7 @@ export default async function ProfilePage() {
   };
 
   const [matches, ratingHistory] = await Promise.all([
-    getPlayerMatchHistory(authData.user.id),
+    getPlayerMatchHistory(authData.user.id, { limit: 100, includePlacements: true }),
     getPlayerRatingHistory(authData.user.id),
   ]);
 
