@@ -36,6 +36,7 @@ import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
 import { SessionConsoleBar } from "./SessionConsoleBar";
+import { UpNextPanel } from "@/features/queue/components/UpNextPanel";
 import { RsvpButton } from "./RsvpButton";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
 import {
@@ -1560,6 +1561,16 @@ export function SessionDetailView({
             trackScores={sessionMeta.trackScores}
             courtNames={sessionMeta.courtNames}
           />
+          {currentStatus === "active" && (
+            <div className="mt-6">
+              <UpNextPanel
+                sessionId={session.id}
+                courts={shownCourts}
+                queue={initialQueue}
+                isAdmin={isAdmin}
+              />
+            </div>
+          )}
         </div>
 
         <Modal
