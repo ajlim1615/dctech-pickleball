@@ -590,9 +590,34 @@ export interface Database {
         Args: { p_session_id: string; p_cards: Json; p_line_version: string };
         Returns: Json;
       };
-      /** Swaps a no-show for the next waiting player. Returns { replacement_id } or { error: code }. */
+      /**
+       * No-show: the next waiting player (or p_in) comes in, the no-show goes on a break.
+       * p_window_minutes is ignored (kept for older callers). Returns { replacement_id, change_id } or { error }.
+       */
       swap_match_player: {
-        Args: { p_match_id: string; p_out: string; p_window_minutes: number };
+        Args: { p_match_id: string; p_out: string; p_window_minutes?: number | null; p_in?: string | null };
+        Returns: Json;
+      };
+      /** Live-court changes. Each returns { change_id, unpaired? } or { error }; remove may return { abandoned: true }. */
+      replace_match_player: {
+        Args: { p_match_id: string; p_out: string; p_in: string };
+        Returns: Json;
+      };
+      switch_match_teams: {
+        Args: { p_match_id: string; p_player_1: string; p_player_2: string };
+        Returns: Json;
+      };
+      remove_match_player: {
+        Args: { p_match_id: string; p_player: string };
+        Returns: Json;
+      };
+      fill_match_slot: {
+        Args: { p_match_id: string; p_team: MatchTeam; p_player: string };
+        Returns: Json;
+      };
+      /** Puts back a live-court change (latest on that game, within 10 s). */
+      undo_court_change: {
+        Args: { p_change_id: string };
         Returns: Json;
       };
       /**

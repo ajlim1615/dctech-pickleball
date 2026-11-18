@@ -32,6 +32,10 @@ describe("game-state error codes", () => {
     ["not_waiting", "That player isn't waiting in line."],
     ["teams_incomplete", "Fill every slot before starting or saving this game."],
     ["wrong_court", "This match is set for a different court."],
+    ["same_team", "Those two players are already on the same team."],
+    ["slot_full", "That team is already full."],
+    ["undo_stale", "Too late to undo — something else changed on this court."],
+    ["undo_expired", "Undo is only available for 10 seconds."],
   ])("%s has its copy", (code, text) => {
     expect(gameStateErrorMessage(code)).toBe(text);
   });

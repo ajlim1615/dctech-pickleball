@@ -24,6 +24,10 @@ export const GAME_STATE_ERRORS = [
   "not_waiting",
   "teams_incomplete",
   "wrong_court",
+  "same_team",
+  "slot_full",
+  "undo_stale",
+  "undo_expired",
 ] as const;
 
 export type GameStateError = (typeof GAME_STATE_ERRORS)[number];
@@ -47,6 +51,10 @@ const MESSAGES: Record<GameStateError, string> = {
   not_waiting: "That player isn't waiting in line.",
   teams_incomplete: "Fill every slot before starting or saving this game.",
   wrong_court: "This match is set for a different court.",
+  same_team: "Those two players are already on the same team.",
+  slot_full: "That team is already full.",
+  undo_stale: "Too late to undo — something else changed on this court.",
+  undo_expired: "Undo is only available for 10 seconds.",
 };
 
 const FALLBACK = "That couldn't be saved. Nothing was changed; please try again.";

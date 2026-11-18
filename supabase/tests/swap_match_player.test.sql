@@ -30,14 +30,11 @@ begin
   if not exists (select 1 from public.match_players where match_id = m and player_id = p[2]) then raise exception 'FAIL 2b'; end if;
   update public.queue_entries set status = 'waiting' where session_id = s and player_id = p[6];
 
-  -- 3. only before the first point, inside the window
-  update public.matches set team_a_score = 1 where id = m;
+  -- 3. allowed after points and after the old window (no time limit any more)
+  update public.matches set team_a_score = 3, team_b_score = 2, started_at = now() - interval '20 minutes' where id = m;
   r := public.swap_match_player(m, p[3], 5);
-  if r->>'error' is distinct from 'swap_window_closed' then raise exception 'FAIL 3: %', r; end if;
-  update public.matches set team_a_score = 0, started_at = now() - interval '6 minutes' where id = m;
-  r := public.swap_match_player(m, p[3], 5);
-  if r->>'error' is distinct from 'swap_window_closed' then raise exception 'FAIL 3b: %', r; end if;
-  update public.matches set started_at = now() where id = m;
+  if (r->>'replacement_id')::uuid is distinct from p[6] or r->>'change_id' is null then raise exception 'FAIL 3: %', r; end if;
+  update public.matches set team_a_score = 0, team_b_score = 0, started_at = now() where id = m;
 
   -- 4. the player must be in this game
   r := public.swap_match_player(m, outsider, 5);
@@ -51,8 +48,9 @@ begin
     values (s, busy, 'waiting', now() - interval '2 hours');
   insert into public.matches (session_id, court_id, status) values (s, c2, 'in_progress') returning id into other;
   insert into public.match_players (match_id, player_id, team) values (other, busy, 'team_a');
-  r := public.swap_match_player(m, p[3], 5);
-  if (r->>'replacement_id')::uuid is distinct from p[6] then raise exception 'FAIL 7: %', r; end if;
+  -- (only `busy` waits now, so skipping them leaves no one)
+  r := public.swap_match_player(m, p[4], 5);
+  if r->>'error' is distinct from 'no_replacement' then raise exception 'FAIL 7: %', r; end if;
 
   -- 5. the game must be live
   update public.matches set status = 'completed', ended_at = now() where id = m;
