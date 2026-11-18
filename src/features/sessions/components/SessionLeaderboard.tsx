@@ -39,7 +39,7 @@ interface SessionLeaderboardProps {
   sessionId?: string;
 }
 
-type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff" | "schedule_strength";
+type SortField = "rank" | "name" | "rating" | "games" | "won" | "win_rate" | "point_diff";
 type SortOrder = "asc" | "desc";
 
 export function SessionLeaderboard({
@@ -84,7 +84,6 @@ export function SessionLeaderboard({
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showShareModal, setShowShareModal] = useState(false);
   const [showProvisional, setShowProvisional] = useState(false);
-  const [showTieBreakerInfo, setShowTieBreakerInfo] = useState(false);
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -124,9 +123,6 @@ export function SessionLeaderboard({
         break;
       case "point_diff":
         comparison = (a.point_diff || 0) - (b.point_diff || 0);
-        break;
-      case "schedule_strength":
-        comparison = (a.schedule_strength || 0) - (b.schedule_strength || 0);
         break;
       default:
         comparison = 0;
@@ -369,22 +365,12 @@ export function SessionLeaderboard({
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </th>
-                    <th
-                      className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-slate-200 transition-colors text-right"
-                      onClick={() => toggleSort("schedule_strength")}
-                      title="Schedule strength: opponents' win rate excluding games against you"
-                    >
-                      <div className="flex items-center justify-end gap-1">
-                        <span>SOS %</span>
-                        <ArrowUpDown className="h-3 w-3" />
-                      </div>
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {mainSorted.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
                         No checked-in players or match records found for this session.
                       </td>
                     </tr>
@@ -443,9 +429,6 @@ export function SessionLeaderboard({
                                 : player.point_diff
                               : "-"}
                           </td>
-                          <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300 font-medium">
-                            {player.games_played > 0 ? `${(player.schedule_strength ?? 0).toFixed(1)}%` : "-"}
-                          </td>
                         </tr>
                       );
                     })
@@ -454,22 +437,6 @@ export function SessionLeaderboard({
               </table>
             </div>
           </Card>
-
-          {/* Tie-breaker explanation */}
-          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 space-y-1">
-            <button
-              type="button"
-              onClick={() => setShowTieBreakerInfo((v) => !v)}
-              className="underline decoration-dotted hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer text-left"
-            >
-              Same wins, win rate, and point differential? Higher schedule strength ranks first.
-            </button>
-            {showTieBreakerInfo && (
-              <p className="text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5">
-                Based on your opponents’ win rates, excluding games against you. If all their games were against you, their overall win rate is used. Displayed values are rounded; very close strengths can look equal.
-              </p>
-            )}
-          </div>
 
           {/* Provisional players (< 3 completed games) */}
           {hasQualified && provisionalSorted.length > 0 && (
