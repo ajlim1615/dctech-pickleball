@@ -12,8 +12,9 @@ At the same time, neither the Queue list nor the admin court pickers show how ma
 
 1. **Fairer game counts for rotation styles:** Gently prioritize players who have played fewer games relative to how long they have been at the session, without letting latecomers leapfrog on-time players or starving anyone in line.
 2. **Transparent queue & picker metadata:** Show each waiting player's session games played (`3 games`) and live ticking wait time (`MM:SS` / `H:MM:SS`) on the Queue list and inside admin pickers (`PlayerPickerSheet`, `ChoosePlayersSheet`).
-3. **Completed match durations in Match History:** Display how long each completed game lasted (`12m 34s`) across all four Match History views.
-4. **Zero database migrations:** Derive everything from existing columns (`queue_entries.joined_at`, `session_checkins.checkin_time`, `matches.started_at`, `matches.ended_at`, and `match_players`).
+3. **Plain-English player explanation:** Explain right in the Queue UI (and `/guide`) *how* and *why* matching works — why `#1` always plays, why wait time and games played are shown, and how late arrivals stay fair.
+4. **Completed match durations in Match History:** Display how long each completed game lasted (`12m 34s`) across all four Match History views.
+5. **Zero database migrations:** Derive everything from existing columns (`queue_entries.joined_at`, `session_checkins.checkin_time`, `matches.started_at`, `matches.ended_at`, and `match_players`).
 
 ## Non-goals
 
@@ -127,6 +128,16 @@ Create two small, focused utilities:
 - **`ChoosePlayersSheet`:**
   - Accepts optional `gamesPlayed?: Record<string, number>`.
   - Candidate rows show player name on top (`truncate font-semibold`) and a compact muted subline underneath (`3 games · 06:15` + `· paired` when paired), keeping `min-h-11` and clean truncation on `375 px` phones.
+
+#### Player-facing "How matching works" explainer (`SessionQueueLiveBoard.tsx`, `WaitCard.tsx`, `guideData.ts`)
+- **Queue board (`SessionQueueLiveBoard.tsx`):** Add a compact collapsible `"How matching works"` disclosure button (`min-h-11`, `aria-expanded`) in the Queue section header so players don't see permanent clutter, but anyone curious can tap once to read a plain-English 3-bullet summary tailored to the session's active matching style:
+  - *Rotation styles (`Balanced`, `Social Mixer`, `Skill Separated`, `Skill Courts`, `Mixed Doubles`, `Club Wars`):*
+    1. **#1 in line always plays next** — waiting longest guarantees your spot.
+    2. **Fair game pace:** Among the top 8 waiting, players who have played fewer games since arriving get a gentle nudge so faster vs. slower games stay even.
+    3. **Late arrivals stay fair:** Joining later starts neutral (it won't jump you ahead of players who arrived earlier), while ratings and fresh partners are still balanced.
+  - *Non-rotation styles (`FIFO`, `King/Queen`, `Winners Stay`, `Winners/Losers`):* concise 1–2 sentence explanation of that style's exact rule (no fair-pace boost).
+- **"Why the wait?" (`WaitCard.tsx`):** Add a 1-line note showing the viewer's own session game count (`You've played X games this session`) alongside their wait estimate (and bump its `h-9` toggle button to `min-h-11`).
+- **Player Guide (`/guide`, `src/features/guide/data/guideData.ts`):** Update the matching-style descriptions and FAQ entry so `/guide` explains wait timers, fair game pace from arrival, and why game counts can still differ for late arrivals or breaks.
 
 #### Match History duration (all 4 views)
 All four views already receive `started_at` and `ended_at` from Supabase (`getSessionMatches`, `getMatchesList`, and `playerActions.ts`):
