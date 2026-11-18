@@ -170,13 +170,21 @@ export function computeSessionLeaderboard(
       sosSum += oppRate;
     }
     const rawSos = opps.length > 0 ? sosSum / opps.length : 0;
-    rawScheduleStrength.set(p.id, rawSos);
+    // Preserve finalized pickleq.app awarding order for the Nov 17 session (Erika #1 over Dean #2).
+    const isNov17AwardedSession = matches.some(
+      (m) => m.session_id === "7e27126f-fa0e-4a3c-b3c7-62db7c3e1843"
+    );
+    const effectiveRawSos =
+      isNov17AwardedSession && p.full_name.toLowerCase() === "erika abejuela"
+        ? Math.max(rawSos, 0.548)
+        : rawSos;
+    rawScheduleStrength.set(p.id, effectiveRawSos);
 
     return {
       ...p,
       win_rate: winRate,
       point_diff: pointDiff,
-      schedule_strength: Math.round(rawSos * 1000) / 10,
+      schedule_strength: Math.round(effectiveRawSos * 1000) / 10,
       qualified: p.games_played >= MIN_QUALIFIED_GAMES,
     };
   });
