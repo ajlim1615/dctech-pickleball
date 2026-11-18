@@ -5,9 +5,13 @@ import Link from "next/link";
 import { Trophy, Plus, Minus, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
-import { callNextUp, swapNoShow } from "@/features/queue/api/queueActions";
 import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
-import { canSwapNoShow } from "@/features/queue/utils/noShow";
+import { canSaveResult, canSendCard, cardForFreeCourt } from "@/features/courts/utils/courtRules";
+import type { UpNextCard } from "@/features/queue/upNext/types";
+import type { CourtActions } from "@/features/courts/hooks/useCourtActions";
+import { CourtPlayerSheet } from "./CourtPlayerSheet";
+import { ChoosePlayersSheet } from "./ChoosePlayersSheet";
+import { PlayerPickerSheet } from "@/features/queue/components/PlayerPickerSheet";
 import {
   describeRule,
   getWinner,
@@ -16,7 +20,7 @@ import {
   type ScoringRule,
   type ScoringTeam,
 } from "@/features/matches/utils/scoring";
-import type { ActiveCourtView, CourtStatus, Profile } from "@/types";
+import type { ActiveCourtView, CourtStatus, Profile, QueueEntryWithPlayer } from "@/types";
 
 export function CourtDurationClock({ startedAt }: { startedAt?: string | null }) {
   const [elapsed, setElapsed] = useState<string>("00:00");
@@ -45,8 +49,6 @@ export interface CourtCardProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
-  /** When true, submitting a result immediately calls the next group onto this court. */
-  autoFill?: boolean;
   /** Session rule: must a team lead by 2? Defaults to true at 11 pts, false at 6. */
   winByTwo?: boolean;
   /** false: win/loss-only session, the admin just picks the winning team. */
@@ -55,6 +57,13 @@ export interface CourtCardProps {
   courtSlot?: number;
   onStatusChange?: (courtId: string, status: CourtStatus) => void;
   onNameChange?: (courtSlot: number, name: string) => void;
+  /** This session's line (for picking players). */
+  queue?: QueueEntryWithPlayer[];
+  /** Up Next cards and the free courts, so a free court can show its card. */
+  cards?: UpNextCard[];
+  freeCourtIds?: string[];
+  /** Shared court actions (admin screens). Without it the court is view-only for players. */
+  actions?: CourtActions;
 }
 
 export function CourtCard({
@@ -65,13 +74,16 @@ export function CourtCard({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
-  autoFill = true,
   winByTwo,
   trackScores = true,
   allowCourtRename,
   courtSlot,
   onStatusChange,
   onNameChange,
+  queue,
+  cards,
+  freeCourtIds,
+  actions,
 }: CourtCardProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -86,7 +98,6 @@ export function CourtCard({
   };
   // Win/loss-only sessions: the team the admin tapped, waiting for confirmation.
   const [pendingWinner, setPendingWinner] = useState<ScoringTeam | null>(null);
-  const [showNoShow, setShowNoShow] = useState(false);
 
   const activeMatch = court.current_match;
   const isExistingLiveMatch = Boolean(
@@ -99,7 +110,6 @@ export function CourtCard({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [hold, setHold] = useState<"not_enough_players" | "no_skill_match" | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
 
@@ -128,32 +138,30 @@ export function CourtCard({
       ?.map((p) => ((p as any).player || (p as any).profile || p) as Profile)
       ?.filter((p): p is Profile => Boolean(p && p.id)) || [];
 
-  const hasPlayersOnCourt =
-    isExistingLiveMatch &&
-    activeTeamAPlayers.length > 0 &&
-    activeTeamBPlayers.length > 0;
+  // A live game, even with a slot left empty after a Remove.
+  const hasPlayersOnCourt = isExistingLiveMatch && activeTeamAPlayers.length + activeTeamBPlayers.length > 0;
+  const perSide: 1 | 2 = activeMatch?.format === "singles" ? 1 : 2;
+  // Results only count with both teams full.
+  const teamsFull = hasPlayersOnCourt && canSaveResult(activeTeamAPlayers.map((p) => p.id), activeTeamBPlayers.map((p) => p.id), perSide);
 
-  // Before the first point an admin can swap out someone who never showed up.
-  const canReportNoShow = Boolean(
-    isAdministrator && hasPlayersOnCourt && activeMatch && !pendingWinner && canSwapNoShow(scoreA, scoreB, activeMatch?.started_at)
-  );
-
-  function handleNoShow(player: Profile) {
-    if (!activeMatch || isPending) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    startTransition(async () => {
-      const res = await swapNoShow(activeMatch.id, player.id);
-      if (res?.error) {
-        setErrorMessage(res.error);
-      } else {
-        setShowNoShow(false);
-        setSuccessMessage(
-          `${res.replacementName} is in. ${player.full_name || player.display_name || "The no-show"} is on a break.`
-        );
-      }
-    });
-  }
+  // Live-court player actions (admins): which sheet is open, for whom.
+  const canManagePlayers = Boolean(isAdministrator && hasPlayersOnCourt && activeMatch && actions && !pendingWinner);
+  const waiting = (queue ?? []).filter((q) => q.status === "waiting");
+  const [sheet, setSheet] = useState<
+    | { kind: "player"; player: Profile; team: ScoringTeam }
+    | { kind: "replace"; player: Profile }
+    | { kind: "switch"; player: Profile; team: ScoringTeam }
+    | { kind: "fill"; team: ScoringTeam }
+    | { kind: "choose" }
+    | null
+  >(null);
+  const nameOf = (p: Profile) => p.full_name || p.display_name || "Player";
+  const teamKey = (t: ScoringTeam) => (t === "A" ? "team_a" : "team_b");
+  const readyCard = cards ? cardForFreeCourt(court.id, freeCourtIds ?? [court.id], cards) : null;
+  const cardName = (id: string) => {
+    const p = waiting.find((q) => q.player_id === id)?.player;
+    return p ? nameOf(p) : "Player";
+  };
 
   // Save every change so other screens (and the no-show check) see the live score,
   // and a refresh doesn't reset it.
@@ -199,27 +207,6 @@ export function CourtCard({
     setScores(0, 0);
   }
 
-  function handleAutoCallQueue(force = false) {
-    if (!isAdministrator || isPending) return;
-    if (!sessionId) {
-      setErrorMessage("No active session found. Please start a session first.");
-      return;
-    }
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setHold(null);
-
-    startTransition(async () => {
-      const res = await callNextUp(sessionId, court.id, 4, force ? { force: true } : {});
-      if (res?.error) {
-        setErrorMessage(res.error);
-        setHold("hold" in res && res.hold ? res.hold : null);
-      } else {
-        setSuccessMessage("Next group called onto this court.");
-      }
-    });
-  }
-
   // Victory condition follows the session rule (win by 2, or first to target)
   const winningTeam = getWinner(scoreA, scoreB, rule);
   const isGameOver = winningTeam !== null;
@@ -247,17 +234,11 @@ export function CourtCard({
       : `${finalA}-${finalB}`;
 
     startTransition(async () => {
-      const res = await finalizeMatch(activeMatch.id, finalA, finalB, { autoFill });
+      const res = await finalizeMatch(activeMatch.id, finalA, finalB);
       if (res?.error) {
         setErrorMessage(res.error);
       } else {
-        setSuccessMessage(
-          res?.autoFilled
-            ? `Saved ${saved}. Players re-queued and the next group is on court.`
-            : `Saved ${saved}. Players are back in the queue.${
-                autoFill && res?.autoFillMessage ? ` Court left open: ${res.autoFillMessage}` : ""
-              }`
-        );
+        setSuccessMessage(`Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
         setScoreA(0);
         setScoreB(0);
         setPendingWinner(null);
@@ -278,8 +259,8 @@ export function CourtCard({
   const slot = courtSlot ?? court.sort_order ?? 1;
   const canRenameCourt = !readOnly && Boolean(sessionId) && (allowCourtRename ?? isAdministrator);
   const canChangeStatus = isAdministrator && court.status !== "occupied" && !hasPlayersOnCourt;
-  const canScore = isAdministrator && hasPlayersOnCourt && trackScores;
-  const canPickWinner = isAdministrator && hasPlayersOnCourt && !trackScores;
+  const canScore = isAdministrator && teamsFull && trackScores;
+  const canPickWinner = isAdministrator && teamsFull && !trackScores;
 
   function handleStatusChange(nextStatus: CourtStatus) {
     if (!canChangeStatus || isPending || nextStatus === court.status) return;
@@ -398,16 +379,6 @@ export function CourtCard({
         </div>
         {isAdministrator && !isClosed && (
           <div className="flex items-center">
-          {canReportNoShow && (
-            <button
-              type="button"
-              onClick={() => setShowNoShow((v) => !v)}
-              aria-expanded={showNoShow}
-              className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
-            >
-              No-show?
-            </button>
-          )}
           <Link
             href={`/courts/${court.id}/monitor`}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
@@ -419,29 +390,6 @@ export function CourtCard({
           </div>
         )}
       </header>
-
-      {/* Who didn't show? The next person in line takes their place. */}
-      {canReportNoShow && showNoShow && (
-        <div className="mx-4 mb-3 rounded-xl border border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Who didn&apos;t show?</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[...activeTeamAPlayers, ...activeTeamBPlayers].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleNoShow(p)}
-                disabled={isPending}
-                className="h-11 truncate rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-left text-sm font-medium text-slate-900 dark:text-slate-100 hover:border-amber-500 disabled:opacity-50 cursor-pointer"
-              >
-                {p.full_name || p.display_name || "Player"}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            The next person in line takes their place. They go on a break until they check back in.
-          </p>
-        </div>
-      )}
 
       {/* The court itself, seen from above: Team 1 | net | Team 2 */}
       <div className="px-4">
@@ -467,6 +415,10 @@ export function CourtCard({
             minusDisabled={scoreA === 0 || isPending}
             pickWinner={canPickWinner ? () => setPendingWinner("A") : undefined}
             pickDisabled={isPending}
+            slots={perSide}
+            onPlayerTap={canManagePlayers ? (p) => setSheet({ kind: "player", player: p, team: "A" }) : undefined}
+            onRemove={canManagePlayers ? (p) => actions!.remove(activeMatch!.id, p.id, nameOf(p)) : undefined}
+            onAddSlot={canManagePlayers ? () => setSheet({ kind: "fill", team: "A" }) : undefined}
           />
 
           {/* Net */}
@@ -489,6 +441,10 @@ export function CourtCard({
             minusDisabled={scoreB === 0 || isPending}
             pickWinner={canPickWinner ? () => setPendingWinner("B") : undefined}
             pickDisabled={isPending}
+            slots={perSide}
+            onPlayerTap={canManagePlayers ? (p) => setSheet({ kind: "player", player: p, team: "B" }) : undefined}
+            onRemove={canManagePlayers ? (p) => actions!.remove(activeMatch!.id, p.id, nameOf(p)) : undefined}
+            onAddSlot={canManagePlayers ? () => setSheet({ kind: "fill", team: "B" }) : undefined}
           />
 
           {isClosed && (
@@ -514,17 +470,6 @@ export function CourtCard({
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
               {successMessage}
             </p>
-          )}
-          {errorMessage && hold === "no_skill_match" && isAdministrator && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleAutoCallQueue(true)}
-              disabled={isPending}
-              className="mt-2 h-10 w-full cursor-pointer"
-            >
-              Call anyway
-            </Button>
           )}
         </div>
       )}
@@ -560,25 +505,42 @@ export function CourtCard({
               ? isGameOver
                 ? `Game over · ${winner} won`
                 : `Game in progress · ${describeRule(rule)}`
-              : "Open · the next 4 in the queue play here"}
+              : "Open · waiting for the next match"}
           </p>
         ) : !hasPlayersOnCourt ? (
           <>
+            {readyCard ? (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 text-sm">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Up Next {readyCard.position}</p>
+                <p className="truncate font-medium text-slate-900 dark:text-slate-100">
+                  {readyCard.teamA.map(cardName).join(" & ") || "—"} <span className="text-slate-400">vs</span>{" "}
+                  {readyCard.teamB.map(cardName).join(" & ") || "—"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                No Up Next match for this court yet · {waitingQueueCount} waiting
+              </p>
+            )}
             <Button
               type="button"
               variant="volt"
-              onClick={() => handleAutoCallQueue()}
-              disabled={isPending || waitingQueueCount < 4}
+              onClick={() => readyCard && actions?.sendCard(readyCard.id, court.id)}
+              disabled={!actions || actions.pending || !readyCard || !canSendCard(readyCard, freeCourtIds ?? [court.id])}
               className="w-full h-12 text-sm font-bold rounded-xl cursor-pointer disabled:cursor-not-allowed"
             >
               <Zap className="h-4 w-4 mr-1.5" />
-              {isPending ? "Calling players…" : "Call next 4"}
+              {actions?.pending ? "Starting…" : readyCard ? `Start Up Next ${readyCard.position}` : "Start"}
             </Button>
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-              {waitingQueueCount >= 4
-                ? `${waitingQueueCount} waiting in the queue`
-                : `Needs 4 waiting players · ${waitingQueueCount} in the queue`}
-            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSheet({ kind: "choose" })}
+              disabled={!actions || waiting.length < 2}
+              className="w-full h-11 text-sm font-semibold rounded-xl cursor-pointer disabled:cursor-not-allowed"
+            >
+              Choose Players
+            </Button>
             {canChangeStatus && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
                 <CourtStatusControl
@@ -649,7 +611,90 @@ export function CourtCard({
             </div>
           </>
         )}
+        {isAdministrator && hasPlayersOnCourt && !teamsFull && (
+          <p className="text-center text-xs font-medium text-amber-700 dark:text-amber-400">
+            Fill the empty slot to save a result.
+          </p>
+        )}
       </footer>
+
+      {actions && activeMatch && sheet?.kind === "player" && (
+        <CourtPlayerSheet
+          name={nameOf(sheet.player)}
+          courtName={cleanCourtName}
+          teamLabel={sheet.team === "A" ? "Team 1" : "Team 2"}
+          otherTeamLabel={sheet.team === "A" ? "Team 2" : "Team 1"}
+          canSwitch={(sheet.team === "A" ? activeTeamBPlayers : activeTeamAPlayers).length > 0}
+          onReplace={() => setSheet({ kind: "replace", player: sheet.player })}
+          onSwitch={() => setSheet({ kind: "switch", player: sheet.player, team: sheet.team })}
+          onNoShow={() => {
+            actions.noShow(activeMatch.id, sheet.player.id, nameOf(sheet.player));
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {actions && activeMatch && sheet?.kind === "replace" && (
+        <PlayerPickerSheet
+          title={`Replace ${nameOf(sheet.player)}`}
+          subtitle={`${cleanCourtName}. ${nameOf(sheet.player)} goes to the back of the line.`}
+          candidates={waiting}
+          onAutoPick={() => {
+            actions.autoPick(activeMatch.id, sheet.player.id);
+            setSheet(null);
+          }}
+          onPick={(id, name) => {
+            actions.replace(activeMatch.id, sheet.player.id, id, name);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {actions && activeMatch && sheet?.kind === "switch" && (
+        <PlayerPickerSheet
+          title={`Switch ${nameOf(sheet.player)} with…`}
+          candidates={(sheet.team === "A" ? activeTeamBPlayers : activeTeamAPlayers).map((p) => ({
+            id: p.id,
+            player_id: p.id,
+            player: p,
+            joined_at: new Date().toISOString(),
+            group_id: null,
+          }) as unknown as QueueEntryWithPlayer)}
+          onPick={(id) => {
+            actions.switchTeams(activeMatch.id, sheet.player.id, id);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {actions && activeMatch && sheet?.kind === "fill" && (
+        <PlayerPickerSheet
+          title={`Add a player to ${sheet.team === "A" ? "Team 1" : "Team 2"}`}
+          candidates={waiting}
+          onAutoPick={() => {
+            actions.autoFill(activeMatch.id, teamKey(sheet.team));
+            setSheet(null);
+          }}
+          onPick={(id, name) => {
+            actions.fill(activeMatch.id, teamKey(sheet.team), id, name);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {actions && sheet?.kind === "choose" && (
+        <ChoosePlayersSheet
+          courtName={cleanCourtName}
+          candidates={waiting}
+          perSide={2}
+          pending={actions.pending}
+          onFill={(teamA, teamB) => {
+            actions.startChosen(court.id, teamA, teamB);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      )}
     </article>
   );
 }
@@ -697,6 +742,12 @@ interface CourtHalfProps {
   /** Win/loss sessions: the whole half is the "this team won" button. */
   pickWinner?: () => void;
   pickDisabled?: boolean;
+  /** Players per side, so a removed player leaves an empty slot. */
+  slots?: number;
+  /** Admin live-court controls: tap a name, remove with the x, fill an empty slot. */
+  onPlayerTap?: (player: Profile) => void;
+  onRemove?: (player: Profile) => void;
+  onAddSlot?: () => void;
 }
 
 function CourtHalf({
@@ -714,6 +765,10 @@ function CourtHalf({
   minusDisabled,
   pickWinner,
   pickDisabled,
+  slots = 2,
+  onPlayerTap,
+  onRemove,
+  onAddSlot,
 }: CourtHalfProps) {
   const isA = side === "A";
   const tone = isA
@@ -741,17 +796,53 @@ function CourtHalf({
         <span className={`text-xs font-semibold ${tone.text}`}>{label}</span>
         <ul className="space-y-0.5 min-w-0 max-w-full">
           {players.length > 0
-            ? players.map((p) => (
-                <li key={p.id} className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                  {p.full_name || p.display_name || "Player"}
+            ? players.map((p) => {
+                const name = p.full_name || p.display_name || "Player";
+                return (
+                  <li key={p.id} className={`flex items-center gap-1 ${isA ? "" : "flex-row-reverse"}`}>
+                    {onPlayerTap ? (
+                      <button
+                        type="button"
+                        onClick={() => onPlayerTap(p)}
+                        className="min-h-9 truncate rounded-md px-1 text-left text-sm font-medium text-slate-900 dark:text-slate-100 underline-offset-2 hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                      >
+                        {name}
+                      </button>
+                    ) : (
+                      <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{name}</span>
+                    )}
+                    {onRemove && (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(p)}
+                        aria-label={`Take ${name} off the court (back to the front of the line)`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })
+            : null}
+          {!closed &&
+            Array.from({ length: Math.max(0, (players.length > 0 || onAddSlot ? slots : 2) - players.length) }, (_, i) =>
+              onAddSlot ? (
+                <li key={`open-${i}`}>
+                  <button
+                    type="button"
+                    onClick={onAddSlot}
+                    className="min-h-9 rounded-md border border-dashed border-slate-400 dark:border-slate-600 px-2 text-sm text-slate-600 dark:text-slate-300 hover:border-emerald-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+                  >
+                    + Tap to add player
+                  </button>
                 </li>
-              ))
-            : !closed &&
-              [0, 1].map((i) => (
-                <li key={i} className="text-sm text-slate-400 dark:text-slate-500">
+              ) : (
+                <li key={`open-${i}`} className="text-sm text-slate-400 dark:text-slate-500">
                   Open spot
                 </li>
-              ))}
+              )
+            )}
         </ul>
         {showScore && (
           <div className={`mt-auto font-mono tabular-nums text-5xl font-bold leading-none ${tone.text}`}>

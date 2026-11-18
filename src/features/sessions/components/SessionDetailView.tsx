@@ -35,7 +35,8 @@ import { SessionLeaderboard } from "./SessionLeaderboard";
 import { formatPHTDate, formatPHTTime } from "@/lib/timezone";
 import { SessionQueueLiveBoard } from "./SessionQueueLiveBoard";
 import { FinalStandingsModal } from "./FinalStandingsModal";
-import { SessionConsoleBar, useAutoFillPreference } from "./SessionConsoleBar";
+import { SessionConsoleBar } from "./SessionConsoleBar";
+import { UpNextPanel } from "@/features/queue/components/UpNextPanel";
 import { RsvpButton } from "./RsvpButton";
 import { canRsvp } from "@/features/sessions/utils/rsvp";
 import {
@@ -246,7 +247,6 @@ export function SessionDetailView({
         : previewCourts(courts || [], displayCourtCount),
     [currentStatus, courts, displayCourtCount]
   );
-  const [autoFill, setAutoFill] = useAutoFillPreference();
 
   function openAddPlayers() {
     setSelectedPlayerIds([]);
@@ -1488,8 +1488,6 @@ export function SessionDetailView({
           courts={shownCourts}
           waitingCount={initialQueue.filter((q) => q.status === "waiting").length}
           checkedInCount={checkins.length}
-          autoFill={autoFill}
-          onAutoFillChange={setAutoFill}
           onStart={openStartConfirm}
           isStarting={statusLoading}
           onAddPlayers={openAddPlayers}
@@ -1559,11 +1557,20 @@ export function SessionDetailView({
             queue={initialQueue}
             waitingQueueCount={initialQueue.filter((q) => q.status === "waiting").length}
             targetPoints={sessionMeta.targetPoints}
-            autoFill={autoFill}
             winByTwo={sessionMeta.winByTwo}
             trackScores={sessionMeta.trackScores}
             courtNames={sessionMeta.courtNames}
           />
+          {currentStatus === "active" && (
+            <div className="mt-6">
+              <UpNextPanel
+                sessionId={session.id}
+                courts={shownCourts}
+                queue={initialQueue}
+                isAdmin={isAdmin}
+              />
+            </div>
+          )}
         </div>
 
         <Modal

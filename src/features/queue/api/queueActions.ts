@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { LINE_STATUSES } from "@/features/queue/constants/queueStatuses";
 import { insertQueueEntries, staggeredJoinTimes } from "@/features/queue/server/insertQueueEntries";
@@ -11,7 +10,6 @@ import { isGuestProfile } from "@/features/admin/utils/playerDirectory";
 import { GUEST_RANKED_MESSAGE, canEnterSession } from "@/features/sessions/utils/guestRules";
 import { holdMessage, loadOpenCourtIds, loadSessionHistory, reservedAbove } from "@/features/queue/api/matchmakingData";
 import { isRootSystemAdmin, requireAdminUser } from "@/lib/security/authGuard";
-import { NO_SHOW_WINDOW_MINUTES } from "@/features/queue/utils/noShow";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { withLineRetry } from "@/features/queue/utils/lineRetry";
 import type { Decision } from "@/features/queue/matchmaking";
@@ -29,6 +27,9 @@ import {
   type QueueLimits,
 } from "@/features/queue/utils/queueLimits";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
+import { afterLineChange } from "@/features/queue/server/afterLineChange";
+import { getUpNext, refreshUpNext, sendUpNextToCourt } from "@/features/queue/api/upNextActions";
+import { markNoShow } from "@/features/courts/api/courtPlayerActions";
 
 type HoldKind = Extract<Decision, { hold: unknown }>["hold"];
 
@@ -206,9 +207,7 @@ export async function joinQueue(params: {
     details: { partnerId: params.partnerId ?? null, guestName: params.guestName ?? null },
   });
 
-  revalidatePath(`/sessions/${params.sessionId}`);
-  revalidatePath("/sessions");
-  revalidatePath("/");
+  await afterLineChange(params.sessionId, ["/sessions"]);
   return { success: true };
 }
 
@@ -305,8 +304,7 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
     details: { count: toAdd.length },
   });
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true, count: added.inserted };
 }
 
@@ -343,8 +341,7 @@ export async function leaveQueue(sessionId: string) {
     });
   }
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true };
 }
 
@@ -407,9 +404,7 @@ export async function adminRemovePlayerFromQueue(
     });
   }
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/sessions");
-  revalidatePath("/");
+  await afterLineChange(sessionId, ["/sessions"]);
   return { success: true };
 }
 
@@ -474,8 +469,7 @@ export async function bumpPlayerInQueue(sessionId: string, queueEntryId: string,
     details: { positions: -(targetIndex - currentIndex) },
   });
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true };
 }
 
@@ -521,8 +515,7 @@ export async function swapQueuePlayers(sessionId: string, entryId1: string, entr
     details: { kind: "places" },
   });
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true };
 }
 
@@ -579,8 +572,7 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
     details: { kind: "substitute", out: replaced?.player_id ?? null, in: newPlayerId },
   });
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true };
 }
 
@@ -692,7 +684,7 @@ export async function callNextUp(
   }
   const { matchId, teamA, teamB } = result;
 
-  // Logged as the signed-in admin who called the group (or whose saved result auto-filled the court).
+  // Logged as the signed-in admin who called the group.
   recordSessionEvent(async () => {
     const { data: { user: caller } } = await supabase.auth.getUser();
     if (!caller) return null;
@@ -709,46 +701,46 @@ export async function callNextUp(
     };
   });
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath(`/courts/${courtId}/monitor`);
-  revalidatePath("/");
+  await afterLineChange(sessionId, [`/courts/${courtId}/monitor`]);
   return { success: true, count: teamA.length + teamB.length, matchId };
 }
 
 /**
- * Calls the next group from the queue onto every open court, one court at a time,
- * until courts or waiting players run out.
+ * "Fill all courts": starts the Up Next cards in order on every open court (a card
+ * bound to a court only on that court), until courts or cards run out.
  */
 export async function fillOpenCourts(sessionId: string) {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
 
   const supabase = await createClient();
-  const { data: openCourts } = await supabase
-    .from("courts")
-    .select("id")
-    .eq("status", "available")
-    .is("current_match_id", null)
-    .order("sort_order", { ascending: true });
+  const [{ data: openCourts }, cards] = await Promise.all([
+    supabase
+      .from("courts")
+      .select("id")
+      .eq("status", "available")
+      .is("current_match_id", null)
+      .order("sort_order", { ascending: true }),
+    getUpNext(sessionId),
+  ]);
+  if (!openCourts || openCourts.length === 0) return { error: "No open courts right now." };
 
-  if (!openCourts || openCourts.length === 0) {
-    return { error: "No open courts right now." };
-  }
-
+  const freeIds = openCourts.map((c) => c.id);
+  const ready = cards.filter((c) => c.teamA.length === c.perSide && c.teamB.length === c.perSide);
   let filled = 0;
   let lastError: string | undefined;
-  for (const court of openCourts) {
-    const res = await callNextUp(sessionId, court.id, 4);
-    if (res?.error) {
-      lastError = res.error;
-      if (res.hold) continue; // this court is waiting on players saved for another; later courts may still start
-      break;
-    }
-    filled++;
+  for (const courtId of freeIds) {
+    const card = ready.find((c) => c.targetCourtId === courtId) ?? ready.find((c) => c.targetCourtId === null);
+    if (!card) continue;
+    ready.splice(ready.indexOf(card), 1);
+    const res = await sendUpNextToCourt(sessionId, card.id, courtId, { refresh: false });
+    if ("error" in res) lastError = res.error;
+    else filled++;
   }
 
-  if (filled === 0) return { error: lastError || "No courts could be filled." };
-  return { success: true, filled, remainingOpen: openCourts.length - filled };
+  await refreshUpNext(sessionId);
+  if (filled === 0) return { error: lastError || "No Up Next match is ready to start." };
+  return { success: true, filled, remainingOpen: freeIds.length - filled };
 }
 
 /** The signed-in player's breaks and leaves used in this session (one break, one rejoin). */
@@ -824,63 +816,23 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
     recordSessionEvent(breakEvent);
   }
 
-  revalidatePath(`/sessions/${sessionId}`);
-  revalidatePath("/");
+  await afterLineChange(sessionId);
   return { success: true };
 }
 
-/**
- * Swaps a called player who didn't turn up for the next person in line, before the
- * first point. The no-show goes on a break at the back of the line. The swap itself
- * is one database transaction (swap_match_player).
- */
+/** No-show: the next person in line comes in; the no-show goes on a break. Kept for existing callers. */
 export async function swapNoShow(matchId: string, noShowPlayerId: string) {
-  const auth = await requireAdminUser();
-  if (auth.error) return { error: auth.error };
-
+  const res = await markNoShow(matchId, noShowPlayerId);
+  if ("error" in res) return { error: res.error };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("swap_match_player", {
-    p_match_id: matchId,
-    p_out: noShowPlayerId,
-    p_window_minutes: NO_SHOW_WINDOW_MINUTES,
-  });
-  if (error) {
-    console.error("swap_match_player failed:", error.message);
-    return { error: gameStateErrorMessage(undefined) };
-  }
-  const out = data as { replacement_id?: string; error?: string } | null;
-  if (!out?.replacement_id) return { error: gameStateErrorMessage(out?.error) };
-  const replacementId = out.replacement_id;
-
-  const [{ data: match }, { data: replacementProfile }] = await Promise.all([
-    supabase.from("matches").select("session_id, court_id").eq("id", matchId).maybeSingle(),
-    supabase.from("profiles").select("full_name, display_name").eq("id", replacementId).maybeSingle(),
-  ]);
-
-  const actorId = auth.context!.userId;
-  if (match) {
-    recordSessionEvent(async () => {
-      const { data: swapCourt } = match.court_id
-        ? await supabase.from("courts").select("name").eq("id", match.court_id).maybeSingle()
-        : { data: null };
-      return {
-        sessionId: match.session_id,
-        type: "no_show_swapped",
-        actorId,
-        actorRole: "admin",
-        subjectIds: [noShowPlayerId, replacementId],
-        courtId: match.court_id,
-        matchId,
-        details: { courtName: swapCourt?.name ?? null, out: noShowPlayerId, in: replacementId },
-      };
-    });
-    revalidatePath(`/sessions/${match.session_id}`);
-    if (match.court_id) revalidatePath(`/courts/${match.court_id}/monitor`);
-  }
-  revalidatePath("/");
-
+  const { data: replacementProfile } = await supabase
+    .from("profiles")
+    .select("full_name, display_name")
+    .eq("id", res.replacementId ?? "")
+    .maybeSingle();
   return {
     success: true as const,
+    changeId: res.changeId,
     replacementName: replacementProfile?.full_name || replacementProfile?.display_name || "The next player",
   };
 }

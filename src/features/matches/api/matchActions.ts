@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Match, MatchFormat, WinningTeam } from "@/types";
-import { callNextUp } from "@/features/queue/api/queueActions";
+import { afterLineChange } from "@/features/queue/server/afterLineChange";
 import { describeRule, getWinner } from "@/features/matches/utils/scoring";
 import { parseSessionMetadata } from "@/lib/utils";
 import {
@@ -79,10 +79,8 @@ import { recordSessionEvent } from "@/features/activity/server/logEvent";
 export async function finalizeMatch(
   matchId: string,
   teamAScore: number,
-  teamBScore: number,
-  options: { autoFill?: boolean } = {}
+  teamBScore: number
 ) {
-  const { autoFill = true } = options;
   const validation = FinalizeMatchSchema.safeParse({ matchId, teamAScore, teamBScore });
   if (!validation.success) {
     return { error: validation.error.issues[0]?.message || "Invalid match score parameters." };
@@ -181,32 +179,17 @@ export async function finalizeMatch(
     },
   }));
 
-  // finish_match already put everyone who just played at the back of the line; the
-  // freed court now pulls the next group so the admin doesn't have to.
+  // finish_match already put everyone who just played at the back of the line. The
+  // freed court waits for an admin to tap Start; nothing starts by itself.
   const sessionId = matchRecord?.session_id;
   const courtId = matchRecord?.court_id;
-  const sessionInfo = (matchRecord as { sessions?: { status?: string } | null } | null)?.sessions;
-  const isSessionActive = sessionInfo?.status === "active";
-  let autoFilled = false;
-  let autoFillMessage: string | undefined;
 
-  if (sessionId && isSessionActive && autoFill && courtId) {
-    const next = await callNextUp(sessionId, courtId, 4);
-    autoFilled = Boolean(next?.success);
-    autoFillMessage = next?.error;
-  }
-
-  revalidatePath("/");
   revalidatePath("/matches");
   revalidatePath("/rankings");
   revalidatePath("/profile");
-  if (sessionId) revalidatePath(`/sessions/${sessionId}`);
-  return { success: true, autoFilled, autoFillMessage } as {
-    success?: boolean;
-    error?: string;
-    autoFilled?: boolean;
-    autoFillMessage?: string;
-  };
+  if (sessionId) await afterLineChange(sessionId, courtId ? [`/courts/${courtId}/monitor`] : []);
+  else revalidatePath("/");
+  return { success: true } as { success?: boolean; error?: string };
 }
 
 export async function getMatchesList(limit = 20) {

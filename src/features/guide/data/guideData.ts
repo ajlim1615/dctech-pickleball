@@ -391,7 +391,7 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
       {
         label: "Live Queue Tools & No-Show Swaps",
         detail:
-          "Bulk-add checked-in players, bump positions, swap two queued players, swap out a no-show player for the next in line, auto-fill open courts, or reset the queue.",
+          "Bulk-add checked-in players, bump positions, swap two queued players, replace, remove or switch players on a live court (with Undo), edit the Up Next matches, start them on open courts, or reset the queue. Saving a result never starts the next game by itself.",
       },
       {
         label: "Result Correction & Activity Audit",

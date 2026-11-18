@@ -4,6 +4,9 @@ import { useState, useMemo, useEffect } from "react";
 import { Activity, Sparkles, Filter } from "lucide-react";
 import { CourtCard } from "./CourtCard";
 import { useLiveCourts } from "../hooks/useLiveCourts";
+import { useCourtActions } from "../hooks/useCourtActions";
+import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
+import { UndoToast } from "./UndoToast";
 import { applySessionCourtNames } from "@/lib/utils";
 import type { ActiveCourtView, CourtStatus, QueueEntryWithPlayer } from "@/types";
 
@@ -66,7 +69,6 @@ interface CourtMatrixProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   targetPoints?: number;
-  autoFill?: boolean;
   winByTwo?: boolean;
   trackScores?: boolean;
   allowCourtRename?: boolean;
@@ -83,7 +85,6 @@ export function CourtMatrix({
   isAdmin,
   readOnly = false,
   targetPoints = 11,
-  autoFill = true,
   winByTwo,
   trackScores,
   allowCourtRename,
@@ -112,6 +113,10 @@ export function CourtMatrix({
     syncArenaList
   );
 
+  // Admin screens: live Up Next cards, the shared court actions and one Undo toast.
+  const upNextCards = useLiveUpNext(isAdministrator ? sessionId : undefined);
+  const courtActions = useCourtActions(sessionId);
+
   function handleCourtStatusChange(courtId: string, status: CourtStatus) {
     setCourts((prev) =>
       prev.map((c) => (c.id === courtId ? { ...c, status } : c))
@@ -136,9 +141,27 @@ export function CourtMatrix({
 
   const occupiedCount = courtsToDisplay.filter((c) => c.status === "occupied").length;
   const availableCount = courtsToDisplay.filter((c) => c.status === "available").length;
+  const freeCourtIds = courtsToDisplay
+    .filter((c) => c.status === "available" && !c.current_match_id)
+    .map((c) => c.id);
 
   return (
     <div className="space-y-4">
+      {isAdministrator && (courtActions.error || courtActions.notice) && (
+        <p
+          role={courtActions.error ? "alert" : "status"}
+          className={`rounded-lg px-3 py-2 text-sm ${
+            courtActions.error
+              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+          }`}
+        >
+          {courtActions.error ?? courtActions.notice}
+        </p>
+      )}
+      {isAdministrator && courtActions.lastChange && (
+        <UndoToast change={courtActions.lastChange} onUndo={courtActions.undo} onDismiss={courtActions.dismissUndo} />
+      )}
       {/* Grid of Courts */}
       {courtsToDisplay.length === 0 ? (
         <div className="rounded-[1.75rem] border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/40 p-12 text-center space-y-3 font-mono text-xs text-slate-500 dark:text-slate-400 shadow-sm">
@@ -160,13 +183,16 @@ export function CourtMatrix({
               isAdmin={isAdministrator}
               readOnly={readOnly}
               targetPoints={targetPoints}
-              autoFill={autoFill}
               winByTwo={winByTwo}
               trackScores={trackScores}
               allowCourtRename={allowCourtRename}
               courtSlot={court.sort_order ?? index + 1}
               onStatusChange={handleCourtStatusChange}
               onNameChange={handleCourtNameChange}
+              queue={queue}
+              cards={isAdministrator && sessionId ? upNextCards : undefined}
+              freeCourtIds={freeCourtIds}
+              actions={isAdministrator && sessionId ? courtActions : undefined}
             />
           ))}
         </div>

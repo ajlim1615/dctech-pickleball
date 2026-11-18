@@ -61,3 +61,15 @@ describe("eventsAffecting", () => {
     expect(eventsAffecting(events, "mark").map((e) => e.id)).toEqual(["8", "7", "6", "5", "4"]);
   });
 });
+
+describe("eventsAffecting live-court changes", () => {
+  const base = { id: "e", session_id: "s", actor_role: "admin" as const, court_id: null, match_id: null, details: {}, created_at: "2026-11-18T10:00:00.000Z" };
+  it("counts replace, remove and undo, not switches", () => {
+    const events = (["court_player_replaced", "court_player_removed", "court_change_undone", "court_teams_switched", "court_slot_filled"] as const).map(
+      (type, i) => ({ ...base, id: `e${i}`, type, subject_ids: ["me"] })
+    );
+    expect(eventsAffecting(events, "me").map((e) => e.type).sort()).toEqual(
+      ["court_change_undone", "court_player_removed", "court_player_replaced"]
+    );
+  });
+});

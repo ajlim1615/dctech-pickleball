@@ -76,3 +76,18 @@ describe("describeEvent", () => {
     expect(describeEvent(e, names)).toContain("A player");
   });
 });
+
+describe("live-court and Up Next events", () => {
+  const admin = { actor_role: "admin" as const, actor_name: "Ana" };
+  it.each([
+    [{ type: "court_player_replaced", subject_ids: ["rico", "joy"], details: { courtName: "Court 1", out: "rico", in: "joy" } }, "Ana put Joy Ramos in for Rico Tan on Court 1"],
+    [{ type: "court_player_removed", subject_ids: ["rico"], details: { courtName: "Court 1", out: "rico" } }, "Ana took Rico Tan off Court 1"],
+    [{ type: "court_teams_switched", subject_ids: ["rico", "joy"], details: { courtName: "Court 2" } }, "Ana switched Rico Tan and Joy Ramos on Court 2"],
+    [{ type: "court_slot_filled", subject_ids: ["joy"], details: { courtName: "Court 2", in: "joy" } }, "Ana added Joy Ramos to Court 2"],
+    [{ type: "court_change_undone", subject_ids: [], details: { courtName: "Court 2" } }, "Ana undid a change on Court 2"],
+    [{ type: "up_next_edited", subject_ids: [], details: {} }, "Ana changed Up Next"],
+  ] as const)("%o", (partial, text) => {
+    const e = { ...ev({ ...(partial as unknown as Partial<SessionEvent>), actor_role: admin.actor_role }), actor_name: admin.actor_name };
+    expect(describeEvent(e, names)).toBe(text);
+  });
+});

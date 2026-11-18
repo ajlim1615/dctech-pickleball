@@ -35,7 +35,13 @@ export type SessionEventType =
   | "result_corrected"
   | "no_show_swapped"
   | "court_closed"
-  | "court_reopened";
+  | "court_reopened"
+  | "court_player_replaced"
+  | "court_player_removed"
+  | "court_teams_switched"
+  | "court_slot_filled"
+  | "court_change_undone"
+  | "up_next_edited";
 export type SessionEventActorRole = "self" | "admin" | "system";
 export type MatchTeam = "team_a" | "team_b";
 
@@ -321,6 +327,52 @@ export interface Database {
         };
         Relationships: [];
       };
+      /** A planned match ("Up Next card"). Written only by the up-next procedures. */
+      up_next_matches: {
+        Row: {
+          id: string;
+          session_id: string;
+          position: number;
+          per_side: number;
+          /** Set for court-bound styles (King/Queen); null = any free court. */
+          target_court_id: string | null;
+          /** true = built by matchmaking; false = edited by an admin and kept as is. */
+          is_auto: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          position: number;
+          per_side?: number;
+          target_court_id?: string | null;
+          is_auto?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["up_next_matches"]["Insert"]>;
+        Relationships: [];
+      };
+      /** Who is in an Up Next card. A player is in at most one card per session. */
+      up_next_players: {
+        Row: {
+          card_id: string;
+          session_id: string;
+          player_id: string;
+          team: MatchTeam;
+          slot: number;
+        };
+        Insert: {
+          card_id: string;
+          session_id: string;
+          player_id: string;
+          team: MatchTeam;
+          slot: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["up_next_players"]["Insert"]>;
+        Relationships: [];
+      };
       matches: {
         Row: {
           id: string;
@@ -513,12 +565,65 @@ export interface Database {
           p_team_a: string[];
           p_team_b: string[];
           p_from_queue: boolean;
+          /** Start this Up Next card: its teams are used and the card is removed. */
+          p_up_next_id?: string | null;
         };
         Returns: Json;
       };
-      /** Swaps a no-show for the next waiting player. Returns { replacement_id } or { error: code }. */
+      /** Changes whenever the waiting line or a hand-edited card changes. */
+      up_next_line_version: {
+        Args: { p_session_id: string };
+        Returns: string;
+      };
+      /** Creates (p_card_id null) or edits one card; it becomes hand-edited. Returns { card_id, unpaired } or { error }. */
+      save_up_next_card: {
+        Args: {
+          p_session_id: string;
+          p_card_id: string | null;
+          p_team_a: string[];
+          p_team_b: string[];
+          p_per_side: number;
+          p_target_court_id?: string | null;
+        };
+        Returns: Json;
+      };
+      delete_up_next_card: {
+        Args: { p_card_id: string };
+        Returns: Json;
+      };
+      /** Replaces the auto cards; { error: 'line_changed' } if the line moved since p_line_version was read. */
+      replace_auto_up_next: {
+        Args: { p_session_id: string; p_cards: Json; p_line_version: string };
+        Returns: Json;
+      };
+      /**
+       * No-show: the next waiting player (or p_in) comes in, the no-show goes on a break.
+       * p_window_minutes is ignored (kept for older callers). Returns { replacement_id, change_id } or { error }.
+       */
       swap_match_player: {
-        Args: { p_match_id: string; p_out: string; p_window_minutes: number };
+        Args: { p_match_id: string; p_out: string; p_window_minutes?: number | null; p_in?: string | null };
+        Returns: Json;
+      };
+      /** Live-court changes. Each returns { change_id, unpaired? } or { error }; remove may return { abandoned: true }. */
+      replace_match_player: {
+        Args: { p_match_id: string; p_out: string; p_in: string };
+        Returns: Json;
+      };
+      switch_match_teams: {
+        Args: { p_match_id: string; p_player_1: string; p_player_2: string };
+        Returns: Json;
+      };
+      remove_match_player: {
+        Args: { p_match_id: string; p_player: string };
+        Returns: Json;
+      };
+      fill_match_slot: {
+        Args: { p_match_id: string; p_team: MatchTeam; p_player: string };
+        Returns: Json;
+      };
+      /** Puts back a live-court change (latest on that game, within 10 s). */
+      undo_court_change: {
+        Args: { p_change_id: string };
         Returns: Json;
       };
       /**
