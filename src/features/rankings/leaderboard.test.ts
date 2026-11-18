@@ -24,8 +24,8 @@ describe("buildLeaderboard", () => {
     expect(res.map((p) => p.rank)).toEqual([1, 2]);
   });
 
-  it("needs 5 ranked games to be ranked", () => {
-    const [p] = buildLeaderboard([prof("a", "A", 3)], [tot("a", 4, 4)]);
+  it("needs 3 ranked games to be ranked", () => {
+    const [p] = buildLeaderboard([prof("a", "A", 3)], [tot("a", 2, 2)]);
     expect(p.qualified).toBe(false);
     expect(p.rank).toBeNull();
     expect(p.gamesToQualify).toBe(1);
@@ -86,7 +86,7 @@ describe("buildLeaderboard", () => {
   it("lists new players after ranked ones by games desc then name", () => {
     const res = buildLeaderboard(
       [prof("n1", "zed", 5), prof("n2", "amy", 5), prof("n3", "bob", 5), prof("r", "R", 1.5)],
-      [tot("n1", 3, 1), tot("n2", 3, 1), tot("n3", 4, 1), tot("r", 5, 0)],
+      [tot("n1", 1, 1), tot("n2", 1, 1), tot("n3", 2, 1), tot("r", 3, 0)],
     );
     expect(res.map((p) => p.id)).toEqual(["r", "n3", "n2", "n1"]);
     expect(res.map((p) => p.rank)).toEqual([1, null, null, null]);
