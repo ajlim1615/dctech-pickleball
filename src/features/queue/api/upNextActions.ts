@@ -6,7 +6,7 @@ import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
 import { seededRandom, type LineEntry } from "@/features/queue/matchmaking";
 import { loadOpenCourtIds, loadSessionHistory } from "@/features/queue/api/matchmakingData";
-import { buildAutoCards } from "@/features/queue/upNext/buildCards";
+import { autoCardCount, buildAutoCards } from "@/features/queue/upNext/buildCards";
 import { sameAutoCards, toUpNextCards, type UpNextCard, type UpNextCardRow, type UpNextPlayerRow } from "@/features/queue/upNext/types";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
@@ -81,7 +81,7 @@ export async function refreshUpNext(sessionId: string, options: { reshuffle?: bo
       line,
       history,
       courts,
-      count: Math.max(0, (courtCount ?? courts.length) - manual.length),
+      count: autoCardCount(courtCount ?? courts.length, cards),
       perSide: PER_SIDE,
       exclude: new Set(manual.flatMap((c) => [...c.teamA, ...c.teamB])),
       settings: { skillSpread },
