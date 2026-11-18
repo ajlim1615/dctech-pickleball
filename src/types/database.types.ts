@@ -321,6 +321,52 @@ export interface Database {
         };
         Relationships: [];
       };
+      /** A planned match ("Up Next card"). Written only by the up-next procedures. */
+      up_next_matches: {
+        Row: {
+          id: string;
+          session_id: string;
+          position: number;
+          per_side: number;
+          /** Set for court-bound styles (King/Queen); null = any free court. */
+          target_court_id: string | null;
+          /** true = built by matchmaking; false = edited by an admin and kept as is. */
+          is_auto: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          position: number;
+          per_side?: number;
+          target_court_id?: string | null;
+          is_auto?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["up_next_matches"]["Insert"]>;
+        Relationships: [];
+      };
+      /** Who is in an Up Next card. A player is in at most one card per session. */
+      up_next_players: {
+        Row: {
+          card_id: string;
+          session_id: string;
+          player_id: string;
+          team: MatchTeam;
+          slot: number;
+        };
+        Insert: {
+          card_id: string;
+          session_id: string;
+          player_id: string;
+          team: MatchTeam;
+          slot: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["up_next_players"]["Insert"]>;
+        Relationships: [];
+      };
       matches: {
         Row: {
           id: string;
