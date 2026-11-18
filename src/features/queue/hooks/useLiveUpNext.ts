@@ -40,6 +40,24 @@ export function deletionConcernsUs(
 }
 
 /**
+ * Resolves a live Up Next fetch into cards, or `null` when stale, cancelled, or
+ * failed so transient errors and out-of-order loads never wipe visible cards.
+ */
+export function resolveUpNextLoad(input: {
+  seq: number;
+  latestSeq: number;
+  cancelled: boolean;
+  rowsError: unknown;
+  playersError: unknown;
+  rows: UpNextCardRow[] | null;
+  players: UpNextPlayerRow[] | null;
+}): UpNextCard[] | null {
+  if (input.cancelled || input.seq !== input.latestSeq) return null;
+  if (input.rowsError || input.playersError) return null;
+  return toUpNextCards(input.rows ?? [], input.players ?? []);
+}
+
+/**
  * One session's Up Next cards, kept live. Call once per page and pass `cards` down.
  */
 export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): UpNextCard[] {
@@ -53,15 +71,28 @@ export function useLiveUpNext(sessionId?: string, initial: UpNextCard[] = []): U
     }
     const supabase = createClient();
     let cancelled = false;
+    let loadSeq = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     async function load() {
-      const [{ data: rows }, { data: players }] = await Promise.all([
+      const seq = ++loadSeq;
+      const [{ data: rows, error: rowsError }, { data: players, error: playersError }] = await Promise.all([
         supabase.from("up_next_matches").select("id, position, per_side, target_court_id, is_auto").eq("session_id", sessionId!),
         supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId!),
       ]);
-      if (cancelled) return;
-      const next = toUpNextCards((rows ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]);
+      if (rowsError || playersError) {
+        console.error("useLiveUpNext load failed:", rowsError?.message ?? playersError?.message);
+      }
+      const next = resolveUpNextLoad({
+        seq,
+        latestSeq: loadSeq,
+        cancelled,
+        rowsError,
+        playersError,
+        rows: rows as UpNextCardRow[] | null,
+        players: players as unknown as UpNextPlayerRow[] | null,
+      });
+      if (!next) return;
       cardIdsRef.current = new Set(next.map((c) => c.id));
       setCards(next);
     }
