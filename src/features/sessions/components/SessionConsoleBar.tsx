@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { PlayCircle, Square, Users, LayoutGrid } from "lucide-react";
+import { useTransition } from "react";
+import { PlayCircle, Square, Users, LayoutGrid, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { fillOpenCourts } from "@/features/queue/api/queueActions";
 import { formatPHTTime } from "@/lib/timezone";
 import type { ActiveCourtView, Session } from "@/types";
@@ -35,30 +37,25 @@ export function SessionConsoleBar({
   onEnd,
 }: SessionConsoleBarProps) {
   const [isFilling, startFilling] = useTransition();
-  const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const { message: notice, flash, clear } = useFlashMessage();
 
   const inPlay = courts.filter((c) => c.status === "occupied").length;
   const open = courts.filter((c) => c.status === "available" && !c.current_match_id).length;
   const isLive = status === "active";
 
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 4000);
-    return () => clearTimeout(t);
-  }, [notice]);
-
   function handleFill() {
+    clear();
     startFilling(async () => {
       const res = await fillOpenCourts(session.id);
       if (res?.error) {
-        setNotice({ tone: "warn", text: res.error });
+        flash("error", res.error);
       } else {
-        setNotice({
-          tone: "ok",
-          text: `Started ${res.filled} court${res.filled === 1 ? "" : "s"}${
+        flash(
+          "success",
+          `Started ${res.filled} court${res.filled === 1 ? "" : "s"}${
             res.remainingOpen ? ` · ${res.remainingOpen} still open (no Up Next match ready)` : ""
-          }`,
-        });
+          }`
+        );
       }
     });
   }
@@ -138,14 +135,19 @@ export function SessionConsoleBar({
       </div>
 
       {notice && (
-        <p
-          role="status"
-          className={`mt-2 text-sm ${
-            notice.tone === "ok" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
+        <div
+          role={notice.kind === "error" ? "alert" : "status"}
+          className={`mt-2 flex items-center justify-between gap-2 text-sm ${
+            notice.kind === "success" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"
           }`}
         >
-          {notice.text}
-        </p>
+          <span>{notice.text}</span>
+          {notice.kind === "error" && (
+            <IconButton label="Dismiss message" onClick={clear} tone="danger">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
+        </div>
       )}
     </div>
   );

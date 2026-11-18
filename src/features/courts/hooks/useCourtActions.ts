@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import {
   autoFillSlot,
   autoPickReplacement,
@@ -25,43 +26,36 @@ export type LastCourtChange = { matchId: string; changeId: string; message: stri
  */
 export function useCourtActions(sessionId?: string) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { message, flash, clear } = useFlashMessage();
   const [lastChange, setLastChange] = useState<LastCourtChange | null>(null);
 
-  function run(matchId: string, message: string, action: () => Promise<CourtChangeResult>) {
-    setError(null);
-    setNotice(null);
+  function run(matchId: string, text: string, action: () => Promise<CourtChangeResult>) {
+    clear();
     startTransition(async () => {
       const res = await action();
       if ("error" in res) {
-        setError(res.error);
+        flash("error", res.error);
         return;
       }
-      setNotice(res.unpaired.length > 0 ? `${message} They are no longer paired.` : message);
-      setLastChange(res.changeId ? { matchId, changeId: res.changeId, message, at: Date.now() } : null);
+      flash("success", res.unpaired.length > 0 ? `${text} They are no longer paired.` : text);
+      setLastChange(res.changeId ? { matchId, changeId: res.changeId, message: text, at: Date.now() } : null);
     });
   }
 
-  function start(action: () => Promise<{ success: true } | { error: string }>, message: string) {
-    setError(null);
-    setNotice(null);
+  function start(action: () => Promise<{ success: true } | { error: string }>, text: string) {
+    clear();
     startTransition(async () => {
       const res = await action();
-      if ("error" in res) setError(res.error);
-      else setNotice(message);
+      if ("error" in res) flash("error", res.error);
+      else flash("success", text);
     });
   }
 
   return {
     pending,
-    error,
-    notice,
+    message,
     lastChange,
-    clearMessages: () => {
-      setError(null);
-      setNotice(null);
-    },
+    clearMessages: clear,
     dismissUndo: () => setLastChange(null),
     replace: (matchId: string, outId: string, inId: string, name: string) =>
       run(matchId, `${name} is in.`, () => replacePlayer(matchId, outId, inId)),

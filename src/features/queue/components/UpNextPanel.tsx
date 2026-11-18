@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Plus, RefreshCw, Send, X } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
+import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { createClient } from "@/lib/supabase/client";
 import { useLiveUpNext } from "@/features/queue/hooks/useLiveUpNext";
 import {
@@ -35,8 +37,7 @@ export function UpNextPanel({
 }) {
   const cards = useLiveUpNext(sessionId);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { message, flash, clear } = useFlashMessage();
   const [filling, setFilling] = useState<{ card: UpNextCard | null; team: Team } | null>(null);
 
   const waiting = queue.filter((q) => q.status === "waiting");
@@ -66,19 +67,18 @@ export function UpNextPanel({
   }, [isAdmin, sessionId]);
 
   function run(action: () => Promise<{ success: true } | { error: string }>, done?: string) {
-    setError(null);
-    setNotice(null);
+    clear();
     startTransition(async () => {
       const res = await action();
-      if ("error" in res) setError(res.error);
-      else if (done) setNotice(done);
+      if ("error" in res) flash("error", res.error);
+      else if (done) flash("success", done);
     });
   }
 
   function save(card: UpNextCard | null, teamA: string[], teamB: string[]) {
     run(async () => {
       const res = await saveUpNextCard(sessionId, card?.id ?? null, teamA, teamB, card?.targetCourtId ?? null);
-      if ("success" in res && res.unpaired.length > 0) setNotice("That split a pair; they are no longer paired.");
+      if ("success" in res && res.unpaired.length > 0) flash("success", "That split a pair; they are no longer paired.");
       return res;
     });
   }
@@ -159,15 +159,22 @@ export function UpNextPanel({
         )}
       </div>
 
-      {(error || notice) && (
-        <p
-          role={error ? "alert" : "status"}
-          className={`rounded-lg px-3 py-2 text-sm ${
-            error ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+      {message && (
+        <div
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+            message.kind === "error"
+              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           }`}
         >
-          {error ?? notice}
-        </p>
+          <span>{message.text}</span>
+          {message.kind === "error" && (
+            <IconButton label="Dismiss message" onClick={clear} tone="danger">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
+        </div>
       )}
 
       {cards.length === 0 ? (

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
 import { gameStateErrorMessage } from "@/features/matches/utils/gameStateErrors";
+import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
 import { recordSessionEvent } from "@/features/activity/server/logEvent";
 import { afterLineChange } from "@/features/queue/server/afterLineChange";
 import { pickReplacement } from "@/features/queue/upNext/buildCards";
@@ -18,7 +19,15 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 type MatchInfo = { sessionId: string; courtId: string | null; courtName: string | null };
 
 async function matchInfo(supabase: Supabase, matchId: string): Promise<MatchInfo | null> {
-  const { data } = await supabase.from("matches").select("session_id, court_id, court:courts ( name )").eq("id", matchId).maybeSingle();
+  const { data, error } = await supabase
+    .from("matches")
+    .select(`session_id, court_id, ${MATCH_COURT} ( name )`)
+    .eq("id", matchId)
+    .maybeSingle();
+  if (error) {
+    console.error("matchInfo failed:", error.message);
+    return null;
+  }
   if (!data?.session_id) return null;
   return {
     sessionId: data.session_id,

@@ -12,6 +12,7 @@ import { loadQueueLimits } from "@/features/queue/server/queueLimitsData";
 import { REJOIN_USED_MESSAGE, canRejoin } from "@/features/queue/utils/queueLimits";
 import { pickArrived, planStartingLine } from "@/features/queue/startingLine";
 import { queueClosedReason } from "@/features/queue/utils/queueOpen";
+import { MATCH_COURT } from "@/features/matches/utils/queryShapes";
 import type { Session, SessionCheckin, SessionStatus } from "@/types";
 
 export async function getSessions(): Promise<Session[]> {
@@ -75,7 +76,7 @@ export async function getSessionMatches(sessionId: string) {
     .from("matches")
     .select(`
       *,
-      court:courts!court_id (id, name, surface_type),
+      ${MATCH_COURT} (id, name, surface_type),
       players:match_players (
         id,
         team,
