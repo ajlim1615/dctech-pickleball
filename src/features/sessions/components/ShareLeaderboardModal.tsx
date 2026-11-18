@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { formatPHTDate } from "@/lib/timezone";
-import type { SessionRankedPlayer } from "../utils/sessionLeaderboard";
+import { MIN_QUALIFIED_GAMES, type SessionRankedPlayer } from "../utils/sessionLeaderboard";
 
 interface ShareLeaderboardModalProps {
   isOpen?: boolean;
@@ -499,11 +499,17 @@ export function ShareLeaderboardModal({
 
   const totalPlayers = rankings.length;
   const activePlayers = rankings.filter((p) => p.games_played > 0);
-  const topPlayers = (activePlayers.length > 0 ? activePlayers : rankings).slice(0, 5);
-  const remainingCount = Math.max(
-    0,
-    (activePlayers.length > 0 ? activePlayers.length : rankings.length) - 5
+  const qualifiedPlayers = activePlayers.filter(
+    (p) => p.qualified ?? p.games_played >= MIN_QUALIFIED_GAMES
   );
+  const pool =
+    qualifiedPlayers.length > 0
+      ? qualifiedPlayers
+      : activePlayers.length > 0
+      ? activePlayers
+      : rankings;
+  const topPlayers = pool.slice(0, 5);
+  const remainingCount = Math.max(0, totalPlayers - topPlayers.length);
 
   const derivedGames = Math.ceil(
     rankings.reduce((sum, p) => sum + (p.games_played || 0), 0) / 4
