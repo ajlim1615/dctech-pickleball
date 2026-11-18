@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Trophy, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { useSharedNow } from "@/components/ui/wait-timer";
+import { courtTimerTone, elapsedSeconds, formatClockDuration, type CourtTimerTone } from "@/lib/duration";
 import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
 import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
@@ -25,23 +27,30 @@ import {
 } from "@/features/matches/utils/scoring";
 import type { ActiveCourtView, CourtStatus, Profile, QueueEntryWithPlayer } from "@/types";
 
+const TIMER_TONE_CLASSES: Record<CourtTimerTone, string> = {
+  green: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
+  amber: "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300",
+  red: "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300",
+};
+
 export function CourtDurationClock({ startedAt }: { startedAt?: string | null }) {
-  const [elapsed, setElapsed] = useState<string>("00:00");
-
-  useEffect(() => {
-    const startTime = startedAt ? new Date(startedAt).getTime() : Date.now();
-    const tick = () => {
-      const diffSecs = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
-      const mins = Math.floor(diffSecs / 60).toString().padStart(2, "0");
-      const secs = (diffSecs % 60).toString().padStart(2, "0");
-      setElapsed(`${mins}:${secs}`);
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [startedAt]);
-
-  return <span className="font-mono tabular-nums font-medium">{elapsed}</span>;
+  const now = useSharedNow();
+  if (now === null || !startedAt) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 text-xs font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-300">
+        00:00
+      </span>
+    );
+  }
+  const secs = elapsedSeconds(startedAt, now);
+  const tone = courtTimerTone(secs);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-mono tabular-nums font-semibold ${TIMER_TONE_CLASSES[tone]}`}
+    >
+      {formatClockDuration(startedAt, now)}
+    </span>
+  );
 }
 
 export interface CourtCardProps {
@@ -714,9 +723,11 @@ type CourtState = "in_play" | "open" | ActiveCourtView["status"];
 function CourtStateLabel({ state, startedAt }: { state: CourtState; startedAt?: string | null }) {
   if (state === "in_play") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-        In play
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+          In play
+        </span>
         <CourtDurationClock startedAt={startedAt} />
       </span>
     );

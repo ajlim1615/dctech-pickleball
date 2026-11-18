@@ -33,6 +33,11 @@ function getServerSnapshot(): null {
   return null;
 }
 
+/** Subscribe to the shared 1-second client clock; returns `null` during SSR. */
+export function useSharedNow(): number | null {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
 /**
  * Leaf 1-second ticking elapsed timer backed by a single shared clock.
  * Renders null on SSR so hydration never mismatches and parent lists don't re-render.
@@ -46,7 +51,7 @@ export function WaitTimer({
   prefix?: string;
   className?: string;
 }) {
-  const now = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const now = useSharedNow();
   if (now === null) return null;
 
   return (

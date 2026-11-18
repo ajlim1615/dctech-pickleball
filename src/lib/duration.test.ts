@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClockDuration, formatMatchDuration } from "./duration";
+import { courtTimerTone, elapsedSeconds, formatClockDuration, formatMatchDuration } from "./duration";
 
 describe("formatClockDuration", () => {
   const base = Date.parse("2026-11-18T12:00:00.000Z");
@@ -54,5 +54,31 @@ describe("formatMatchDuration", () => {
 
   it("handles Supabase timezone offsets (+00:00 vs Z)", () => {
     expect(formatMatchDuration("2026-11-18T12:00:00+00:00", "2026-11-18T12:11:05.500Z")).toBe("11m 5s");
+  });
+});
+
+describe("courtTimerTone", () => {
+  it("is green for 0:00 through 5:59 (< 360s)", () => {
+    expect(courtTimerTone(0)).toBe("green");
+    expect(courtTimerTone(300)).toBe("green");
+    expect(courtTimerTone(359)).toBe("green");
+  });
+
+  it("is amber for 6:00 through 9:59 (360s–599s)", () => {
+    expect(courtTimerTone(360)).toBe("amber");
+    expect(courtTimerTone(480)).toBe("amber");
+    expect(courtTimerTone(599)).toBe("amber");
+  });
+
+  it("is red at 10:00+ (>= 600s)", () => {
+    expect(courtTimerTone(600)).toBe("red");
+    expect(courtTimerTone(900)).toBe("red");
+  });
+
+  it("elapsedSeconds clamps negative skew and missing input to 0", () => {
+    const now = Date.parse("2026-11-18T12:00:00.000Z");
+    expect(elapsedSeconds(null, now)).toBe(0);
+    expect(elapsedSeconds("2026-11-18T12:01:00.000Z", now)).toBe(0);
+    expect(elapsedSeconds("2026-11-18T11:54:00.000Z", now)).toBe(360);
   });
 });
