@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BookOpen, Check, Moon, PlayCircle, Sunrise, Users } from "lucide-react";
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { NO_SHOW_WINDOW_MINUTES } from "@/features/queue/utils/noShow";
+import { SELF_BREAKS_ENABLED } from "@/features/queue/utils/queueLimits";
 
 /** A button name, written the way it appears on screen. */
 function Btn({ children }: { children: ReactNode }) {
@@ -72,7 +73,18 @@ const PHASES: { id: string; label: string; when: string; icon: typeof Sunrise; s
         detail: (
           <>
             <Btn>Start Up Next</Btn> or <Btn>Choose Players</Btn> on an open court, or <Btn>Fill open courts</Btn> for all of them.
-            When a game is saved the court frees up and shows the next Up Next match. Tap Start when you're ready.
+            When a game is saved the court frees up and shows the next Up Next match. Tap Start when you&apos;re ready.
+            To change an Up Next match, tap a player&apos;s name on its card and pick who takes their spot.
+          </>
+        ),
+      },
+      {
+        id: "courts",
+        title: <>Add or remove a court</>,
+        detail: (
+          <>
+            <Btn>Add court</Btn> asks for the court&apos;s name. To remove one, tap the <Btn>×</Btn> on its card; it only
+            shows while no game is on that court, and the last court can&apos;t be removed.
           </>
         ),
       },
@@ -88,11 +100,12 @@ const PHASES: { id: string; label: string; when: string; icon: typeof Sunrise; s
       },
       {
         id: "noshow",
-        title: <>Someone didn&apos;t show</>,
+        title: <>Someone didn&apos;t show, or needs swapping</>,
         detail: (
           <>
-            Within {NO_SHOW_WINDOW_MINUTES} minutes and before the first point, tap <Btn>No-show?</Btn> on the court and
-            pick them. The next person in line takes their place.
+            Tap their name on the court: <Btn>Replace player</Btn>, <Btn>Switch teams</Btn> or{" "}
+            <Btn>Mark as no-show</Btn>. A no-show works within {NO_SHOW_WINDOW_MINUTES} minutes and before the first
+            point; the next person in line takes their place.
           </>
         ),
       },
@@ -109,8 +122,8 @@ const PHASES: { id: string; label: string; when: string; icon: typeof Sunrise; s
         title: <>End the session</>,
         detail: (
           <>
-            Record any game still on court first: <Btn>End session</Btn> doesn&apos;t save games in progress. It frees
-            the courts, clears the line and shows the final standings.
+            Record every game still on court first: <Btn>End session</Btn> stays greyed out while a game is in play.
+            Then it frees the courts, clears the line and shows the final standings.
           </>
         ),
       },
@@ -144,9 +157,13 @@ const PICKING = [
   "Partners who joined together stay together, but only when the session allows partners.",
 ];
 
+// Follows the live switches, so the guide never describes a button players don't have.
 const PLAYER_RULES = [
-  "One break per session. Their place in line is kept.",
-  "If they leave, they can rejoin once, at the back. After that, an admin has to add them.",
+  SELF_BREAKS_ENABLED
+    ? "One break per session. Their place in line is kept."
+    : "Breaks are paused: players can't take one themselves. An admin can still put someone on a break.",
+  "Check out takes a player out of the line. They can check back in once, at the back. After that, an admin has to add them.",
+  "Players in a game can't check out (or be checked out) until it's finished.",
   `Ratings move after every ranked game. A player is ranked after ${RATING_RULES.qualifyGames} ranked games.`,
 ];
 

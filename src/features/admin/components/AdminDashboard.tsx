@@ -472,14 +472,44 @@ export function AdminDashboard({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-      {/* Admin Header */}
-      <header className="space-y-1">
+    // Extra bottom space so the last row never ends up under the floating Chat button.
+    <div className="mx-auto max-w-5xl px-4 pt-8 pb-28 space-y-8">
+      {/* Header and tabs on a solid panel, so the background art never runs through the labels */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md px-4 pt-5 sm:px-6 shadow-2xs">
+      <header className="space-y-1 pb-4">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Admin</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Schedule and run open play, manage players, and look up the rules.
         </p>
       </header>
+
+      {/* Tabs */}
+      <div role="tablist" className="-mx-4 sm:-mx-6 px-2 sm:px-4 flex gap-1 border-t border-slate-100 dark:border-slate-800 text-sm overflow-x-auto scrollbar-none whitespace-nowrap">
+        {([
+          { id: "sessions", label: "Sessions", icon: Calendar },
+          { id: "venues", label: "Venues", icon: MapPin },
+          { id: "players", label: "Players", icon: Users },
+          { id: "guide", label: "Rules & guide", icon: BookOpen },
+          { id: "activity", label: "Activity", icon: History },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`px-4 py-3 font-semibold border-b-2 transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 ${
+              activeTab === id
+                ? "border-emerald-500 text-slate-900 dark:text-slate-100"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+      </div>
 
       {/* Action Notification */}
       {actionMessage &&
@@ -494,33 +524,6 @@ export function AdminDashboard({
             <span>{actionMessage}</span>
           </div>
         ))}
-
-      {/* Tabs */}
-      <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-800 text-sm overflow-x-auto scrollbar-none whitespace-nowrap">
-        {([
-          { id: "sessions", label: "Sessions", icon: Calendar },
-          { id: "venues", label: "Venues", icon: MapPin },
-          { id: "players", label: "Players", icon: Users },
-          { id: "guide", label: "Rules & guide", icon: BookOpen },
-          { id: "activity", label: "Activity", icon: History },
-        ] as const).map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === id}
-            onClick={() => setActiveTab(id)}
-            className={`-mb-px px-4 py-2.5 font-semibold border-b-2 transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 ${
-              activeTab === id
-                ? "border-emerald-500 text-slate-900 dark:text-slate-100"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-      </div>
 
       {/* Tab 1: Sessions & Rented Courts */}
       {activeTab === "sessions" && (
@@ -1060,13 +1063,19 @@ export function AdminDashboard({
                   )
                 ) : (
                   <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60">
-                    {upcoming.map((s) => (
+                    {upcoming.map((s) => {
+                      // Start stands out only on the session's day (or if it's overdue);
+                      // on other days it's a quiet button, so it isn't mistaken for the next step.
+                      const startsOn = getPHTTodayString(new Date(s.start_time));
+                      const isStartDay = startsOn <= getPHTTodayString();
+                      return (
                       <SessionRow key={s.id} session={s} rsvpCount={rsvpCounts[s.id]}>
                         <Button
-                          variant="volt"
+                          variant={isStartDay ? "volt" : "outline"}
                           size="sm"
                           onClick={() => handleStartSession(s)}
-                          className="h-10 px-4 font-bold cursor-pointer"
+                          title={isStartDay ? "Start the session" : `This session is on ${formatPHTDate(s.start_time)}. You can still start it early.`}
+                          className={`h-10 px-4 cursor-pointer ${isStartDay ? "font-bold" : "font-semibold"}`}
                         >
                           Start
                         </Button>
@@ -1089,7 +1098,8 @@ export function AdminDashboard({
                           Cancel
                         </Button>
                       </SessionRow>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
 

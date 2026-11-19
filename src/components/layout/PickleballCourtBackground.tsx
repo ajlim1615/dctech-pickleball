@@ -552,8 +552,9 @@ export function PickleballCourtBackground() {
   }, [isAuthScreen]);
 
   const rallyAvatars = cast.rally;
-  // Sign-in screens: keep the court faint so the form card stays the focus.
-  const quiet = isAuthScreen && !spotlight;
+  // Sign-in screens and the admin's work pages: keep the court faint so forms,
+  // lists and tabs stay readable. The spotlight button still shows it in full.
+  const quiet = (isAuthScreen || pathname.startsWith("/admin")) && !spotlight;
 
   return (
     <>
