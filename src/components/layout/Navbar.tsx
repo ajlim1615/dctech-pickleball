@@ -17,6 +17,7 @@ import Image from "next/image";
 import { cn, formatRating } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { BackgroundSpotlightButton } from "@/components/layout/PickleballCourtBackground";
 import { createClient } from "@/lib/supabase/client";
 import { signOut } from "@/features/auth/api/authActions";
 import { formatPHTClock } from "@/lib/timezone";
@@ -155,6 +156,8 @@ export function Navbar() {
         {/* Top-Right Tools & User Menu */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {!isLoginPage && userProfile && <LiveNavbarClock />}
+
+          <BackgroundSpotlightButton />
 
           <ThemeToggle />
 

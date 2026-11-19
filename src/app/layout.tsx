@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
 import { NavigationProgressBar } from "@/components/layout/NavigationProgressBar";
+import { PickleballCourtBackground } from "@/components/layout/PickleballCourtBackground";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -66,6 +67,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <NavigationProgressBar />
           </Suspense>
+          <PickleballCourtBackground />
           <Navbar />
           <main className="flex-1 pb-20 lg:pb-0">{children}</main>
           <MobileBottomNav />
