@@ -64,6 +64,17 @@ describe("Security & Defense Layer Tests", () => {
       const valid = SignInSchema.safeParse({ email: "player@dctechmicro.com", password: "Password123!" });
       expect(valid.success).toBe(true);
 
+      const ajlimAlias = SignInSchema.safeParse({ email: "  AJLIM ", password: "Password123!" });
+      expect(ajlimAlias.success).toBe(true);
+      if (ajlimAlias.success) expect(ajlimAlias.data.email).toBe("ajlim@dctechmicro.com");
+
+      const adminAlias = SignInSchema.safeParse({ email: "admin", password: "Password123!" });
+      expect(adminAlias.success).toBe(true);
+      if (adminAlias.success) expect(adminAlias.data.email).toBe("admin@dctechmicro.com");
+
+      const otherUsername = SignInSchema.safeParse({ email: "otheruser", password: "Password123!" });
+      expect(otherUsername.success).toBe(false);
+
       const invalidEmail = SignInSchema.safeParse({ email: "invalid-email", password: "Password123!" });
       expect(invalidEmail.success).toBe(false);
     });

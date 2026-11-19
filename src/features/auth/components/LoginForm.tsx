@@ -84,9 +84,12 @@ export function LoginForm() {
               Company Email (@dctechmicro.com)
             </label>
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               name="email"
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
               required
               placeholder="username@dctechmicro.com"

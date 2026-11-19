@@ -28,12 +28,22 @@ export const MatchingStyleEnum = z.enum([
   "fifo",
 ]);
 
+const LOGIN_ALIASES: Record<string, string> = {
+  ajlim: "ajlim@dctechmicro.com",
+  admin: "admin@dctechmicro.com",
+};
+
+export function resolveLoginIdentifier(raw: string): string {
+  const normalized = raw.toLowerCase().trim();
+  return LOGIN_ALIASES[normalized] ?? normalized;
+}
+
 // Auth schemas
 export const SignInSchema = z.object({
   email: z
     .string()
-    .email("Invalid email address format.")
-    .transform((val) => val.toLowerCase().trim()),
+    .transform((val) => resolveLoginIdentifier(val))
+    .pipe(z.string().email("Invalid email address format.")),
   password: z.string().min(1, "Password is required.").max(128, "Password too long."),
 });
 
