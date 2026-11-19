@@ -55,6 +55,7 @@ export interface Database {
           sender_id: string;
           sender_name: string;
           body: string;
+          is_unsent: boolean;
           created_at: string;
         };
         Insert: {
@@ -63,6 +64,7 @@ export interface Database {
           sender_id: string;
           sender_name: string;
           body: string;
+          is_unsent?: boolean;
           created_at?: string;
         };
         Update: {
@@ -71,6 +73,7 @@ export interface Database {
           sender_id?: string;
           sender_name?: string;
           body?: string;
+          is_unsent?: boolean;
           created_at?: string;
         };
         Relationships: [];

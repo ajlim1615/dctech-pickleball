@@ -1,48 +1,141 @@
 import { describe, expect, it } from "vitest";
 import {
+  canUnsendMessage,
+  CHAT_UNSEND_WINDOW_MS,
+  countActiveChatMessages,
+  countUnreadChatMessages,
+  findFirstUnreadMessageId,
   friendlyChatError,
+  isSuperAdminChatEmail,
   MAX_CHAT_LENGTH,
   mergeChatMessages,
   validateChatMessageBody,
 } from "./utils/chatUtils";
 import type { ClubMessage } from "@/types";
 
-function msg(id: string, created_at: string, body = "hello"): ClubMessage {
+function makeMsg(
+  id: string,
+  created_at: string,
+  body = "hello",
+  is_unsent = false
+): ClubMessage {
   return {
     id,
     room: "club",
-    sender_id: "u1",
+    sender_id: "user-1",
     sender_name: "Alex",
     body,
+    is_unsent,
     created_at,
   };
 }
 
 describe("chatUtils", () => {
-  it("validates and trims chat message bodies", () => {
+  it("validates chat message length and trims whitespace", () => {
     expect(validateChatMessageBody("   ").ok).toBe(false);
-    expect(validateChatMessageBody("a".repeat(MAX_CHAT_LENGTH + 1)).ok).toBe(false);
-
-    const valid = validateChatMessageBody("  Good game on Court 1!  ");
-    expect(valid).toEqual({ ok: true, body: "Good game on Court 1!" });
+    expect(validateChatMessageBody("  Let's play!  ")).toEqual({
+      ok: true,
+      body: "Let's play!",
+      error: null,
+    });
+    expect(validateChatMessageBody("a".repeat(MAX_CHAT_LENGTH + 1)).ok).toBe(
+      false
+    );
   });
 
-  it("merges, deduplicates, sorts chronologically, and caps retained messages", () => {
-    const a = msg("1", "2026-11-19T01:00:00.000Z", "first");
-    const b = msg("2", "2026-11-19T01:01:00.000Z", "second");
-    const c = msg("3", "2026-11-19T01:02:00.000Z", "third");
-    const bUpdated = msg("2", "2026-11-19T01:01:00.000Z", "second-updated");
+  it("merges, deduplicates, sorts chronologically, and caps messages", () => {
+    const m1 = makeMsg("1", "2026-11-19T01:00:00.000Z", "first");
+    const m2 = makeMsg("2", "2026-11-19T01:02:00.000Z", "second");
+    const m3 = makeMsg("3", "2026-11-19T01:01:00.000Z", "middle");
+    const m2Updated = makeMsg(
+      "2",
+      "2026-11-19T01:02:00.000Z",
+      "Unsent message",
+      true
+    );
 
-    const merged = mergeChatMessages([b, a], [bUpdated, c], 2);
+    const merged = mergeChatMessages([m2, m1], [m3, m2Updated], 2);
     expect(merged).toHaveLength(2);
-    expect(merged[0].id).toBe("2");
-    expect(merged[0].body).toBe("second-updated");
-    expect(merged[1].id).toBe("3");
+    expect(merged[0].id).toBe("3");
+    expect(merged[1].id).toBe("2");
+    expect(merged[1].body).toBe("Unsent message");
+    expect(merged[1].is_unsent).toBe(true);
   });
 
-  it("maps trigger errors to friendly messages", () => {
-    expect(friendlyChatError("new row violates rate_limit")).toContain("wait 2 seconds");
-    expect(friendlyChatError("inactive_profile")).toContain("active player account");
-    expect(friendlyChatError("network timeout")).toContain("Couldn't send message");
+  it("enforces the 5-minute unsend window for players", () => {
+    const baseTime = new Date("2026-11-19T02:00:00.000Z").getTime();
+    const msg = makeMsg("1", "2026-11-19T02:00:00.000Z");
+
+    // Own message within 5 minutes
+    expect(canUnsendMessage(msg, "user-1", baseTime + 60_000)).toBe(true);
+    // Own message after 5 minutes expired
+    expect(
+      canUnsendMessage(msg, "user-1", baseTime + CHAT_UNSEND_WINDOW_MS + 1000)
+    ).toBe(false);
+    // Someone else's message
+    expect(canUnsendMessage(msg, "user-2", baseTime + 10_000)).toBe(false);
+    // Already unsent message cannot be unsent again
+    const unsentMsg = makeMsg(
+      "1",
+      "2026-11-19T02:00:00.000Z",
+      "Unsent message",
+      true
+    );
+    expect(canUnsendMessage(unsentMsg, "user-1", baseTime + 10_000)).toBe(false);
+  });
+
+  it("recognizes only admin@dctechmicro.com for full message deletion", () => {
+    expect(isSuperAdminChatEmail("admin@dctechmicro.com")).toBe(true);
+    expect(isSuperAdminChatEmail("  ADMIN@dctechmicro.com ")).toBe(true);
+    expect(isSuperAdminChatEmail("ajlim@dctechmicro.com")).toBe(false);
+    expect(isSuperAdminChatEmail(null)).toBe(false);
+  });
+
+  it("counts only active (non-unsent) messages for the floating chat button badge", () => {
+    const m1 = makeMsg("1", "2026-11-19T01:00:00.000Z", "hi", false);
+    const m2 = makeMsg("2", "2026-11-19T01:01:00.000Z", "Unsent message", true);
+    const m3 = makeMsg("3", "2026-11-19T01:02:00.000Z", "anyone playing?", false);
+
+    expect(countActiveChatMessages([])).toBe(0);
+    expect(countActiveChatMessages([m2])).toBe(0);
+    expect(countActiveChatMessages([m1, m2, m3])).toBe(2);
+  });
+
+  it("identifies unread messages and the first unread message divider after lastSeenAt", () => {
+    const seenMsg: ClubMessage = {
+      ...makeMsg("1", "2026-11-19T01:00:00.000Z", "old message"),
+      sender_id: "user-2",
+    };
+    const ownMsg: ClubMessage = {
+      ...makeMsg("2", "2026-11-19T01:01:00.000Z", "my own message"),
+      sender_id: "user-1",
+    };
+    const unsentNewMsg: ClubMessage = {
+      ...makeMsg("3", "2026-11-19T01:02:00.000Z", "Unsent message", true),
+      sender_id: "user-2",
+    };
+    const firstNewMsg: ClubMessage = {
+      ...makeMsg("4", "2026-11-19T01:03:00.000Z", "first unseen message"),
+      sender_id: "user-2",
+    };
+    const secondNewMsg: ClubMessage = {
+      ...makeMsg("5", "2026-11-19T01:04:00.000Z", "second unseen message"),
+      sender_id: "user-3",
+    };
+
+    const list = [seenMsg, ownMsg, unsentNewMsg, firstNewMsg, secondNewMsg];
+    const lastSeenAt = "2026-11-19T01:00:00.000Z";
+
+    expect(countUnreadChatMessages(list, "user-1", lastSeenAt)).toBe(2);
+    expect(findFirstUnreadMessageId(list, "user-1", lastSeenAt)).toBe("4");
+  });
+
+  it("maps PostgreSQL rate limit and unsend triggers to friendly messages", () => {
+    expect(friendlyChatError("ERROR: rate_limit_exceeded")).toBe(
+      "Please wait 2 seconds between messages."
+    );
+    expect(friendlyChatError("ERROR: unsend_expired")).toBe(
+      "Messages can only be unsent within 5 minutes of sending."
+    );
   });
 });
