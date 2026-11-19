@@ -97,8 +97,10 @@ export function useClientUserProfile(enabled = true): ClientUserProfile | null {
     if (!authSubscriptionAttached) {
       authSubscriptionAttached = true;
       const supabase = createClient();
-      supabase.auth.onAuthStateChange(() => {
-        void fetchSharedProfile(true);
+      supabase.auth.onAuthStateChange((event) => {
+        if (event !== "INITIAL_SESSION") {
+          void fetchSharedProfile(true);
+        }
       });
     }
   }, [enabled]);

@@ -36,8 +36,8 @@ export function PlayerPickerSheet({
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return [...candidates]
-      .sort((a, b) => (a.joined_at < b.joined_at ? -1 : 1))
+    return candidates
+      .toSorted((a, b) => (a.joined_at < b.joined_at ? -1 : 1))
       .filter((c) => !q || playerName(c.player).toLowerCase().includes(q));
   }, [candidates, query]);
 

@@ -86,6 +86,8 @@ export function LoginForm() {
             <input
               type="email"
               name="email"
+              autoComplete="username"
+              spellCheck={false}
               required
               placeholder="username@dctechmicro.com"
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
@@ -103,6 +105,7 @@ export function LoginForm() {
             <input
               type="password"
               name="password"
+              autoComplete="current-password"
               required
               placeholder="••••••••••••"
               minLength={6}

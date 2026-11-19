@@ -20,7 +20,7 @@ export function buildMatchTeams(
   const hasInitial = Boolean(initial && Object.keys(initial).length > 0);
   // Assign fallback game numbers from oldest to newest when no authoritative match list was passed.
   let nextNumber = 1;
-  const chronological = [...events].reverse();
+  const chronological = events.toReversed();
   for (const e of chronological) {
     if (!e.match_id) continue;
     const d = (e.details ?? {}) as Details;

@@ -45,7 +45,7 @@ export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false
         )
       : rankings;
 
-    return [...filtered].sort((a, b) => {
+    return filtered.toSorted((a, b) => {
       let comparison = 0;
       switch (sortField) {
         case "rank":

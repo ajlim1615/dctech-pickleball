@@ -430,7 +430,7 @@ export function SessionDetailView({
   const isFirstStart = currentStatus === "scheduled";
   const hereChoices = useMemo(() => {
     const q = hereSearch.trim().toLowerCase();
-    const sorted = rsvps.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = rsvps.toSorted((a, b) => a.name.localeCompare(b.name));
     return q ? sorted.filter((r) => r.name.toLowerCase().includes(q)) : sorted;
   }, [rsvps, hereSearch]);
 

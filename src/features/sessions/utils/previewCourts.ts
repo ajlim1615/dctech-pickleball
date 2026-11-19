@@ -7,7 +7,7 @@ import type { ActiveCourtView } from "@/types";
  * arena only switches to this count when the session starts.
  */
 export function previewCourts(arena: ActiveCourtView[], count: number): ActiveCourtView[] {
-  const sorted = [...arena].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const sorted = arena.toSorted((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const now = new Date(0).toISOString();
   return Array.from({ length: Math.max(0, count) }, (_, i) => {
     const real = sorted[i];

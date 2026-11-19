@@ -8,7 +8,7 @@ type Team = "team_a" | "team_b";
  * their own bound card.
  */
 export function cardForFreeCourt(courtId: string, freeCourtIds: string[], cards: UpNextCard[]): UpNextCard | null {
-  const ordered = [...cards].sort((a, b) => a.position - b.position);
+  const ordered = cards.toSorted((a, b) => a.position - b.position);
   const bound = ordered.find((c) => c.targetCourtId === courtId);
   if (bound) return bound;
 

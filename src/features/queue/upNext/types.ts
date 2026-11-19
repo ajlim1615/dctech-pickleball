@@ -42,9 +42,9 @@ function profileName(player: UpNextPlayerRow["player"]): string {
 
 /** Joins card rows and player rows into cards, in position order. */
 export function toUpNextCards(cards: UpNextCardRow[], players: UpNextPlayerRow[]): UpNextCard[] {
-  const bySlot = [...players].sort((a, b) => a.slot - b.slot);
-  return [...cards]
-    .sort((a, b) => a.position - b.position)
+  const bySlot = players.toSorted((a, b) => a.slot - b.slot);
+  return cards
+    .toSorted((a, b) => a.position - b.position)
     .map((c) => {
       const cardPlayers = bySlot.filter((p) => p.card_id === c.id);
       const names: Record<string, string> = {};

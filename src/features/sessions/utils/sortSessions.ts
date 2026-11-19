@@ -17,7 +17,7 @@ const STATUS_PRIORITY: Record<SessionStatus, number> = {
 export function sortSessionsForDisplay<T extends Pick<Session, "status" | "start_time">>(
   sessions: T[]
 ): T[] {
-  return [...sessions].sort((a, b) => {
+  return sessions.toSorted((a, b) => {
     const rankDiff = (STATUS_PRIORITY[a.status] ?? 9) - (STATUS_PRIORITY[b.status] ?? 9);
     if (rankDiff !== 0) return rankDiff;
     const aMs = Date.parse(a.start_time) || 0;

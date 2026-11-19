@@ -106,7 +106,7 @@ export function PlayerDirectory({
       games: (a, b) => (a.games_played || 0) - (b.games_played || 0),
     };
     const sign = sort.dir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => sign * compare[sort.key](a, b) || byName(a, b));
+    return filtered.toSorted((a, b) => sign * compare[sort.key](a, b) || byName(a, b));
   }, [roster, filter, search, sort]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));

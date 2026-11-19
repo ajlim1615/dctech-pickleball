@@ -28,6 +28,6 @@ export function input(style: MatchingStyle, line: LineEntry[], history: PastGame
 /** Normalises team and member order so decisions compare regardless of how they were split. */
 export function sorted(decision: Decision): Decision {
   if (!("teamA" in decision)) return decision;
-  const teams = [[...decision.teamA].sort(), [...decision.teamB].sort()].sort((a, b) => a[0].localeCompare(b[0]));
+  const teams = [decision.teamA.toSorted(), decision.teamB.toSorted()].sort((a, b) => a[0].localeCompare(b[0]));
   return { teamA: teams[0], teamB: teams[1] } as Teams;
 }

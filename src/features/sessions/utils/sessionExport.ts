@@ -90,7 +90,7 @@ export function buildSessionExport(input: ExportInput): SessionExport {
 
   // Rating before the first game and after the last game, from this session's history.
   const ratingSpan = new Map<string, { before: number; after: number }>();
-  for (const h of [...input.ratingHistory].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) {
+  for (const h of input.ratingHistory.toSorted((a, b) => a.recorded_at.localeCompare(b.recorded_at))) {
     if (!h.match_id) continue;
     const span = ratingSpan.get(h.player_id);
     if (span) span.after = Number(h.new_rating);

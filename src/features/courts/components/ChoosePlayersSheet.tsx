@@ -31,7 +31,7 @@ export function ChoosePlayersSheet({
   const nameOf = (id: string) => playerName(candidates.find((c) => c.player_id === id)?.player);
   const full = state.teamA.length === perSide && state.teamB.length === perSide;
   const picked = new Set([...state.teamA, ...state.teamB]);
-  const ordered = [...candidates].sort((a, b) => (a.joined_at < b.joined_at ? -1 : 1));
+  const ordered = candidates.toSorted((a, b) => (a.joined_at < b.joined_at ? -1 : 1));
 
   const team = (key: "teamA" | "teamB", label: string, active: boolean, tone: string) => (
     <div className={`min-w-0 rounded-xl border p-2 ${active ? tone : "border-slate-200 dark:border-slate-800"}`}>

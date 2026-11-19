@@ -33,7 +33,7 @@ const FILTERS: { id: string; label: string; types: SessionEventType[] | null }[]
 
 /** Admin-only audit trail: every session event with who did it. */
 export function AdminAuditView({ sessions, names }: { sessions: Session[]; names: Record<string, string> }) {
-  const sorted = [...sessions].sort((a, b) => b.start_time.localeCompare(a.start_time));
+  const sorted = sessions.toSorted((a, b) => b.start_time.localeCompare(a.start_time));
   // Open on the live session, else the latest one that has already started; upcoming
   // sessions have no activity yet, so with none of either show all sessions.
   const now = new Date().toISOString();

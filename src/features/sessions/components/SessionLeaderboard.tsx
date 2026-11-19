@@ -112,7 +112,7 @@ export function SessionLeaderboard({
     (r.full_name || r.display_name || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = filtered.toSorted((a, b) => {
     let comparison = 0;
     switch (sortField) {
       case "rank":
