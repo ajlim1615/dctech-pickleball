@@ -3,6 +3,7 @@ import type { Database } from "./database.types";
 export * from "./database.types";
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+export type ClubMessage = Database["public"]["Tables"]["club_messages"]["Row"];
 export type Court = Database["public"]["Tables"]["courts"]["Row"];
 export type Session = Database["public"]["Tables"]["sessions"]["Row"];
 export type Venue = Database["public"]["Tables"]["venues"]["Row"];

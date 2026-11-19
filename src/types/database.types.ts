@@ -48,6 +48,33 @@ export type MatchTeam = "team_a" | "team_b";
 export interface Database {
   public: {
     Tables: {
+      club_messages: {
+        Row: {
+          id: string;
+          room: string;
+          sender_id: string;
+          sender_name: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room?: string;
+          sender_id: string;
+          sender_name: string;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room?: string;
+          sender_id?: string;
+          sender_name?: string;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

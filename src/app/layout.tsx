@@ -7,6 +7,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/layout/PWAInstallBanner";
 import { NavigationProgressBar } from "@/components/layout/NavigationProgressBar";
 import { PickleballCourtBackground } from "@/components/layout/PickleballCourtBackground";
+import { FloatingChatbox } from "@/features/chat/components/FloatingChatbox";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -71,6 +72,7 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-1 pb-20 lg:pb-0">{children}</main>
           <MobileBottomNav />
+          <FloatingChatbox />
           <PWAInstallBanner />
           <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-[#070a10] py-6 text-center text-xs text-slate-600 dark:text-slate-400">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">

@@ -15,7 +15,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: "unauthorized" }, { status: 401 });
   }
 
-  const { error } = await createAdminClient().from("sessions").select("id").limit(1);
+  const admin = createAdminClient();
+  const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const [{ error }] = await Promise.all([
+    admin.from("sessions").select("id").limit(1),
+    admin.from("club_messages").delete().lt("created_at", cutoff),
+  ]);
   return NextResponse.json(
     { status: error ? "error" : "ok", checkedAt: new Date().toISOString() },
     { status: error ? 503 : 200, headers: { "Cache-Control": "no-store" } }
