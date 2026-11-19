@@ -23,6 +23,12 @@ export async function requireAuthenticatedUser(): Promise<{ error?: string; cont
   }
 
   const profile = authData.profile as Profile;
+  // A deactivated account keeps its session until it expires, so every guarded
+  // action (including ones that then write with the service key) must refuse it.
+  if (!profile.is_active) {
+    return { error: "This account has been deactivated. Ask an admin to turn it back on." };
+  }
+
   const rawRole: string = profile.role;
   const role: AuthContext["role"] =
     rawRole === "admin" || rawRole === "staff" ? rawRole : "player";

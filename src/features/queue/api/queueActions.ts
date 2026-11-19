@@ -357,13 +357,9 @@ export async function adminRemovePlayerFromQueue(
     return { error: "Authentication required." };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  // Shared guard: also refuses deactivated admins (these actions write with the service key).
+  const adminCheck = await requireAdminUser();
+  if (adminCheck.error) {
     return { error: "Only administrators can remove players from the queue." };
   }
 
@@ -416,13 +412,9 @@ export async function bumpPlayerInQueue(sessionId: string, queueEntryId: string,
     return { error: "Authentication required." };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  // Shared guard: also refuses deactivated admins (these actions write with the service key).
+  const adminCheck = await requireAdminUser();
+  if (adminCheck.error) {
     return { error: "Permission denied: Only administrators can reorder queue positions." };
   }
 
@@ -481,13 +473,9 @@ export async function swapQueuePlayers(sessionId: string, entryId1: string, entr
     return { error: "Authentication required." };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  // Shared guard: also refuses deactivated admins (these actions write with the service key).
+  const adminCheck = await requireAdminUser();
+  if (adminCheck.error) {
     return { error: "Permission denied: Only administrators can swap player spots." };
   }
 
@@ -527,13 +515,9 @@ export async function substituteQueuePlayer(sessionId: string, queueEntryId: str
     return { error: "Authentication required." };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  // Shared guard: also refuses deactivated admins (these actions write with the service key).
+  const adminCheck = await requireAdminUser();
+  if (adminCheck.error) {
     return { error: "Permission denied: Only administrators can substitute players." };
   }
 

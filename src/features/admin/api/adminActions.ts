@@ -518,6 +518,21 @@ export async function togglePlayerActiveStatus(userId: string, isActive: boolean
 
   if (error) return { error: error.message };
 
+  // is_active alone doesn't stop someone signing in, so also block (or unblock) the
+  // sign-in account. A ban stops new sign-ins and token refreshes; the session they
+  // already hold is refused by requireAuthenticatedUser and the database's is_admin().
+  const { error: banError } = await createAdminClient().auth.admin.updateUserById(userId, {
+    ban_duration: isActive ? "none" : "876000h",
+  });
+  if (banError && !/not.?found|user_not_found/i.test(banError.message)) {
+    console.error("togglePlayerActiveStatus ban error:", banError.message);
+    return {
+      error: isActive
+        ? `The account was turned on, but signing in is still blocked: ${banError.message}`
+        : `The account was turned off, but signing in couldn't be blocked: ${banError.message}`,
+    };
+  }
+
   revalidatePath("/admin");
   revalidatePath("/rankings");
   revalidatePath("/profile");
