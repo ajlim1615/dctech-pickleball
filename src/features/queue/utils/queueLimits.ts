@@ -3,6 +3,14 @@
  * actions only ("self" session events); anything an admin does never uses them up.
  */
 
+/**
+ * Players taking a break themselves (the "Take a break" button). Paused for now because
+ * it was being misused; set back to true to bring the button and the server path back.
+ * Admins can still put a player on a break either way.
+ */
+export const SELF_BREAKS_ENABLED = false;
+export const SELF_BREAKS_PAUSED_MESSAGE = "Breaks are paused for now. Ask an admin if you need to step away.";
+
 /** Breaks a player may take themselves per session. */
 export const BREAKS_PER_SESSION = 1;
 /** Times a player may come back into the line after leaving it themselves. */

@@ -1,7 +1,6 @@
 "use client";
 
-import { Minus, Plus, X } from "lucide-react";
-import { IconButton } from "@/components/ui/icon-button";
+import { Minus, Plus } from "lucide-react";
 import type { ScoringTeam } from "@/features/matches/utils/scoring";
 import type { Profile } from "@/types";
 
@@ -23,9 +22,8 @@ export interface CourtHalfProps {
   pickDisabled?: boolean;
   /** Players per side, so a removed player leaves an empty slot. */
   slots?: number;
-  /** Admin live-court controls: tap a name, remove with the x, fill an empty slot. */
+  /** Admin live-court controls: tap a name, fill an empty slot. */
   onPlayerTap?: (player: Profile) => void;
-  onRemove?: (player: Profile) => void;
   onAddSlot?: () => void;
 }
 
@@ -46,7 +44,6 @@ export function CourtHalf({
   pickDisabled,
   slots = 2,
   onPlayerTap,
-  onRemove,
   onAddSlot,
 }: CourtHalfProps) {
   const isA = side === "A";
@@ -73,6 +70,9 @@ export function CourtHalf({
       />
       <div
         className={`relative flex min-h-36 w-full min-w-0 flex-col gap-2 p-2.5 sm:p-3 ${
+          // Win/loss: taps fall through to the "won" button behind, except on the name buttons.
+          pickWinner ? "pointer-events-none [&_button]:pointer-events-auto" : ""
+        } ${
           isA ? "items-start text-left pr-[12%] sm:pr-[24%]" : "items-end text-right pl-[12%] sm:pl-[24%]"
         }`}
       >
@@ -97,14 +97,6 @@ export function CourtHalf({
                       <span className={`min-w-0 flex-1 truncate text-sm font-medium text-slate-900 dark:text-slate-100 ${isA ? "text-left" : "text-right"}`}>
                         {name}
                       </span>
-                    )}
-                    {onRemove && (
-                      <IconButton
-                        label={`Take ${name} off the court (back to the front of the line)`}
-                        onClick={() => onRemove(p)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </IconButton>
                     )}
                   </li>
                 );
@@ -142,18 +134,23 @@ export function CourtHalf({
   );
 
   if (pickWinner) {
+    // The whole half picks the winner, but the player names are buttons too and a
+    // button can't sit inside a button. So the "won" button fills the half from
+    // behind and the names sit on top of it.
     return (
-      <button
-        type="button"
-        onClick={pickWinner}
-        disabled={pickDisabled}
-        aria-pressed={isWinner}
-        className={`relative min-w-0 text-left transition-colors cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${tone.ring} ${
-          isWinner ? tone.win : `${tone.tint} hover:brightness-95 dark:hover:brightness-125`
-        }`}
-      >
+      <div className={`relative min-w-0 transition-colors ${isWinner ? tone.win : tone.tint}`}>
+        <button
+          type="button"
+          onClick={pickWinner}
+          disabled={pickDisabled}
+          aria-pressed={isWinner}
+          aria-label={`${label} won`}
+          className={`absolute inset-0 h-full w-full cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset ${tone.ring} ${
+            isWinner ? "" : "hover:bg-slate-900/5 dark:hover:bg-white/5"
+          }`}
+        />
         {content}
-      </button>
+      </div>
     );
   }
 

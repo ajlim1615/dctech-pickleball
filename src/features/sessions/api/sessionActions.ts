@@ -307,6 +307,23 @@ export async function updateSessionStatus(
     .maybeSingle();
   const isFirstStart = status === "active" && before?.status === "scheduled";
 
+  if (status === "completed") {
+    // Ending a session waits for every game on court to be finished first.
+    const { count: liveGames } = await supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", sessionId)
+      .eq("status", "in_progress");
+    if ((liveGames ?? 0) > 0) {
+      return {
+        error:
+          liveGames === 1
+            ? "A game is still in play. Record its result before ending the session."
+            : `${liveGames} games are still in play. Record their results before ending the session.`,
+      };
+    }
+  }
+
   if (status === "completed" || status === "cancelled") {
     // One transaction: this session's unfinished games are abandoned (not scored),
     // only their courts are freed, and its line is emptied.

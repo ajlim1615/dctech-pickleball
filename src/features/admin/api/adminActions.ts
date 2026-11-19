@@ -397,11 +397,75 @@ export async function setRentedCourtCount(count: number, surfaceType?: string) {
   return { success: true, courts: updatedCourts || [] };
 }
 
-export async function updateSessionCourtCount(sessionId: string, count: number) {
+/**
+ * Removes one court from a live session. Refused while a game is on it, and the
+ * last court can't go. The courts after it move up a slot, and so do their names.
+ */
+export async function removeSessionCourt(sessionId: string, courtId: string) {
+  const auth = await requireAdminUser();
+  if (auth.error) return { error: auth.error };
+  const supabase = await createClient();
+
+  const [{ data: session }, { data: courts }, { count: liveGames }] = await Promise.all([
+    supabase.from("sessions").select("status, description").eq("id", sessionId).maybeSingle(),
+    supabase.from("courts").select("id, name, status, current_match_id, sort_order").order("sort_order", { ascending: true }),
+    supabase.from("matches").select("id", { count: "exact", head: true }).eq("court_id", courtId).eq("status", "in_progress"),
+  ]);
+  if (!session) return { error: "Session not found." };
+  if (session.status !== "active") return { error: "Courts can only be removed while the session is live." };
+  const all = courts ?? [];
+  const index = all.findIndex((c) => c.id === courtId);
+  if (index === -1) return { error: "That court is already gone." };
+  const target = all[index];
+  if (target.status === "occupied" || target.current_match_id || (liveGames ?? 0) > 0) {
+    return { error: `${target.name} has a game in play. Finish it first.` };
+  }
+  if (all.length <= 1) return { error: "A session needs at least one court." };
+
+  // Past games on a removed court are kept; matches.court_id is set null.
+  const { error: delError } = await supabase.from("courts").delete().eq("id", courtId);
+  if (delError) return { error: delError.message };
+
+  // Close the gap: every court after it moves up one slot, keeping its session name.
+  const oldNames = parseSessionMetadata(session.description).courtNames ?? {};
+  const remaining = all.filter((c) => c.id !== courtId);
+  const newNames: Record<string, string> = {};
+  for (let i = 0; i < remaining.length; i++) {
+    const oldSlot = String(all.indexOf(remaining[i]) + 1);
+    const name = oldNames[String(remaining[i].sort_order ?? oldSlot)] ?? oldNames[oldSlot];
+    if (name) newNames[String(i + 1)] = name;
+  }
+  const moves = remaining
+    .map((c, i) => ({ id: c.id, from: c.sort_order, to: i + 1 }))
+    .filter((m) => m.from !== m.to);
+  for (const m of moves) {
+    const { error } = await supabase.from("courts").update({ sort_order: m.to }).eq("id", m.id);
+    if (error) console.error("removeSessionCourt reorder failed:", error.message);
+  }
+
+  let description = setSessionCourtCount(session.description, remaining.length);
+  description = setSessionCourtNames(description, newNames);
+  const { error } = await supabase
+    .from("sessions")
+    .update({ description, updated_at: new Date().toISOString() })
+    .eq("id", sessionId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/sessions");
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/");
+  return { success: true, courtCount: remaining.length };
+}
+
+/** `newCourtName` names the court being added (it takes the last slot). */
+export async function updateSessionCourtCount(sessionId: string, count: number, newCourtName?: string) {
   const auth = await requireAdminUser();
   if (auth.error) return { error: auth.error };
 
   const clamped = Math.min(12, Math.max(1, Math.round(count)));
+  const cleanCourtName = newCourtName === undefined ? null : sanitizeString(newCourtName);
+  if (newCourtName !== undefined && !cleanCourtName) return { error: "Court name is required." };
   const supabase = await createClient();
 
   const { data: existing, error: fetchError } = await supabase
@@ -420,7 +484,11 @@ export async function updateSessionCourtCount(sessionId: string, count: number) 
     }
   }
 
-  const nextDescription = setSessionCourtCount(existing.description, clamped);
+  let nextDescription = setSessionCourtCount(existing.description, clamped);
+  if (cleanCourtName) {
+    const names = parseSessionMetadata(nextDescription).courtNames;
+    nextDescription = setSessionCourtNames(nextDescription, { ...names, [String(clamped)]: cleanCourtName });
+  }
   const { error } = await supabase
     .from("sessions")
     .update({ description: nextDescription, updated_at: new Date().toISOString() })

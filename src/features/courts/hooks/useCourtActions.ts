@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useFlashMessage } from "@/hooks/useFlashMessage";
 import {
   autoFillSlot,
@@ -29,23 +29,40 @@ export function useCourtActions(sessionId?: string) {
   const { message, flash, clear } = useFlashMessage();
   const [lastChange, setLastChange] = useState<LastCourtChange | null>(null);
 
+  // One court change at a time. `pending` only disables buttons after the next render,
+  // so a fast second tap could still get in; this lock stops it straight away.
+  const busy = useRef(false);
+
   function run(matchId: string, text: string, action: () => Promise<CourtChangeResult>) {
+    if (busy.current) return;
+    busy.current = true;
     clear();
     startTransition(async () => {
-      const res = await action();
-      if ("error" in res) {
-        flash("error", res.error);
-        return;
+      try {
+        const res = await action();
+        if ("error" in res) {
+          flash("error", res.error);
+          return;
+        }
+        flash("success", res.unpaired.length > 0 ? `${text} They are no longer paired.` : text);
+        setLastChange(res.changeId ? { matchId, changeId: res.changeId, message: text, at: Date.now() } : null);
+      } finally {
+        busy.current = false;
       }
-      flash("success", res.unpaired.length > 0 ? `${text} They are no longer paired.` : text);
-      setLastChange(res.changeId ? { matchId, changeId: res.changeId, message: text, at: Date.now() } : null);
     });
   }
 
   function start(action: () => Promise<{ success: true } | { error: string }>, text: string) {
+    if (busy.current) return;
+    busy.current = true;
     clear();
     startTransition(async () => {
-      const res = await action();
+      let res: { success: true } | { error: string };
+      try {
+        res = await action();
+      } finally {
+        busy.current = false;
+      }
       if ("error" in res) flash("error", res.error);
       else flash("success", text);
     });

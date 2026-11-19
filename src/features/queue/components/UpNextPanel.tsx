@@ -6,7 +6,6 @@ import { IconButton } from "@/components/ui/icon-button";
 import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { createClient } from "@/lib/supabase/client";
 import {
-  deleteUpNextCard,
   rebuildUpNext,
   refreshUpNext,
   saveUpNextCard,
@@ -20,8 +19,8 @@ import type { ActiveCourtView, QueueEntryWithPlayer } from "@/types";
 type Team = "teamA" | "teamB";
 
 /**
- * The next matches, as cards. Admins edit them (remove a player, fill a slot, add or
- * delete a card, rebuild) and send them to a court; everyone else sees them read-only.
+ * The next matches, as cards. Admins tap a name to swap that player, fill an open slot,
+ * add a match, rebuild, and send a card to a court; everyone else sees them read-only.
  */
 export function UpNextPanel({
   sessionId,
@@ -41,6 +40,9 @@ export function UpNextPanel({
   const [pending, startTransition] = useTransition();
   const { message, flash, clear } = useFlashMessage();
   const [filling, setFilling] = useState<{ card: UpNextCard | null; team: Team } | null>(null);
+  // Tapping a name on a card: pick who takes that player's spot.
+  const [swapping, setSwapping] = useState<{ card: UpNextCard; playerId: string } | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const waiting = queue.filter((q) => q.status === "waiting");
   const courtName = (id: string) => courts.find((c) => c.id === id)?.name ?? "court";
@@ -67,12 +69,28 @@ export function UpNextPanel({
     };
   }, [isAdmin, sessionId]);
 
-  function run(action: () => Promise<{ success: true } | { error: string }>, done?: string) {
+  // One change at a time; the ref stops a fast second tap before the buttons grey out.
+  const busy = useRef(false);
+  const [working, setWorking] = useState<"send" | "rebuild" | null>(null);
+
+  function run(
+    action: () => Promise<{ success: true } | { error: string }>,
+    done?: string,
+    kind: "send" | "rebuild" | null = null
+  ) {
+    if (busy.current) return;
+    busy.current = true;
+    setWorking(kind);
     clear();
     startTransition(async () => {
-      const res = await action();
-      if ("error" in res) flash("error", res.error);
-      else if (done) flash("success", done);
+      try {
+        const res = await action();
+        if ("error" in res) flash("error", res.error);
+        else if (done) flash("success", done);
+      } finally {
+        busy.current = false;
+        setWorking(null);
+      }
     });
   }
 
@@ -87,7 +105,8 @@ export function UpNextPanel({
   function send(card: UpNextCard) {
     const courtId = card.targetCourtId ?? freeCourtIds[0];
     if (!courtId) return;
-    run(() => sendUpNextToCourt(sessionId, card.id, courtId), `Started on ${courtName(courtId)}.`);
+    setSendingId(card.id);
+    run(() => sendUpNextToCourt(sessionId, card.id, courtId), `Started on ${courtName(courtId)}.`, "send");
   }
 
   const teamList = (card: UpNextCard, team: Team, label: string, tone: string) => (
@@ -96,18 +115,19 @@ export function UpNextPanel({
       <ul className="min-w-0 space-y-1">
         {Array.from({ length: card.perSide }, (_, i) => card[team][i]).map((id, i) =>
           id ? (
-            <li key={id} className="flex min-h-11 min-w-0 items-center justify-between gap-1 text-sm">
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{card.names[id] ?? "Player"}</span>
-              {isAdmin && (
-                <IconButton
-                  label={`Take ${card.names[id] ?? "Player"} out of this match`}
+            <li key={id} className="flex min-h-11 min-w-0 items-center text-sm">
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => setSwapping({ card, playerId: id })}
                   disabled={pending}
-                  onClick={() =>
-                    save(card, card.teamA.filter((p) => p !== id), card.teamB.filter((p) => p !== id))
-                  }
+                  title={`Swap ${card.names[id] ?? "this player"} for someone in line`}
+                  className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 -mx-1 text-left font-medium text-slate-900 dark:text-slate-100 underline-offset-2 hover:underline cursor-pointer disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-emerald-500"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </IconButton>
+                  {card.names[id] ?? "Player"}
+                </button>
+              ) : (
+                <span className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{card.names[id] ?? "Player"}</span>
               )}
             </li>
           ) : (
@@ -116,6 +136,7 @@ export function UpNextPanel({
                 <button
                   type="button"
                   onClick={() => setFilling({ card, team })}
+                  disabled={pending}
                   className="min-h-11 w-full truncate rounded-md border border-dashed border-slate-400 dark:border-slate-600 text-left px-2 text-sm text-slate-500 hover:border-emerald-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
                 >
                   + Add player
@@ -140,11 +161,12 @@ export function UpNextPanel({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => run(() => rebuildUpNext(sessionId), "Rebuilt the auto matches.")}
+              onClick={() => run(() => rebuildUpNext(sessionId), "Rebuilt the auto matches.", "rebuild")}
               disabled={pending}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-emerald-500"
             >
-              <RefreshCw className="h-4 w-4" /> Rebuild
+              <RefreshCw className={`h-4 w-4 ${working === "rebuild" ? "animate-spin motion-reduce:animate-none" : ""}`} />
+              {working === "rebuild" ? "Rebuilding…" : "Rebuild"}
             </button>
             <button
               type="button"
@@ -192,15 +214,6 @@ export function UpNextPanel({
                   )}
                   {card.targetCourtId && <span className="ml-2 text-xs font-medium text-slate-500">for {courtName(card.targetCourtId)}</span>}
                 </p>
-                {isAdmin && (
-                  <IconButton
-                    label={`Delete Up Next ${card.position}`}
-                    onClick={() => run(() => deleteUpNextCard(sessionId, card.id))}
-                    disabled={pending}
-                  >
-                    <X className="h-4 w-4" />
-                  </IconButton>
-                )}
               </header>
               <div className="grid grid-cols-2 gap-2">
                 {teamList(card, "teamA", "Team 1", "border-emerald-500")}
@@ -214,7 +227,9 @@ export function UpNextPanel({
                   className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   <Send className="h-4 w-4" />
-                  {canSendCard(card, freeCourtIds)
+                  {working === "send" && sendingId === card.id
+                    ? "Starting…"
+                    : canSendCard(card, freeCourtIds)
                     ? `Send to ${courtName(card.targetCourtId ?? freeCourtIds[0])}`
                     : card.teamA.length + card.teamB.length < card.perSide * 2
                       ? "Fill every slot to send"
@@ -240,6 +255,22 @@ export function UpNextPanel({
             setFilling(null);
           }}
           onClose={() => setFilling(null)}
+        />
+      )}
+
+      {swapping && (
+        <PlayerPickerSheet
+          title={`Swap ${swapping.card.names[swapping.playerId] ?? "player"}`}
+          subtitle={`Up Next ${swapping.card.position}. They stay in line; the player you pick takes their spot.`}
+          candidates={waiting.filter((q) => !carded.has(q.player_id))}
+          gamesPlayed={gamesPlayed}
+          onPick={(id) => {
+            const { card, playerId } = swapping;
+            const swap = (ids: string[]) => ids.map((p) => (p === playerId ? id : p));
+            save(card, swap(card.teamA), swap(card.teamB));
+            setSwapping(null);
+          }}
+          onClose={() => setSwapping(null)}
         />
       )}
     </section>

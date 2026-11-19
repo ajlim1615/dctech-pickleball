@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,11 +24,11 @@ import {
   UserMinus,
   Pencil,
   Plus,
-  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PlayerAvatar } from "@/components/ui/PlayerAvatar";
 import { Modal } from "@/components/ui/modal";
 import { CourtMatrix } from "@/features/courts/components/CourtMatrix";
 import { SessionLeaderboard } from "./SessionLeaderboard";
@@ -240,6 +240,8 @@ export function SessionDetailView({
   const [walkInIsGuest, setWalkInIsGuest] = useState(!sessionMeta.isRanked);
   const [walkInAutoQueue, setWalkInAutoQueue] = useState(true);
   const [isCreatingWalkIn, setIsCreatingWalkIn] = useState(false);
+  // Blocks a second submit of Queue Selected / Create walk-in before the button greys out.
+  const submitLock = useRef(false);
   const [displayTitle, setDisplayTitle] = useState(session.title);
   const [displayDescription, setDisplayDescription] = useState(sessionMeta.cleanDescription);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
@@ -255,6 +257,7 @@ export function SessionDetailView({
   const [pendingCourtCount, setPendingCourtCount] = useState<number | null>(null);
   const [savingCourtCount, setSavingCourtCount] = useState(false);
   const [courtCountError, setCourtCountError] = useState<string | null>(null);
+  const [newCourtName, setNewCourtName] = useState("");
 
   useEffect(() => {
     setDisplayCourtCount(
@@ -266,9 +269,14 @@ export function SessionDetailView({
 
   async function handleConfirmCourtCount() {
     if (!isAdmin || pendingCourtCount === null || savingCourtCount) return;
+    const name = newCourtName.trim();
+    if (!name) {
+      setCourtCountError("Court name is required.");
+      return;
+    }
     setSavingCourtCount(true);
     setCourtCountError(null);
-    const res = await updateSessionCourtCount(session.id, pendingCourtCount);
+    const res = await updateSessionCourtCount(session.id, pendingCourtCount, name);
     setSavingCourtCount(false);
     if (res?.error) {
       setCourtCountError(res.error);
@@ -345,8 +353,10 @@ export function SessionDetailView({
   }, [checkins, searchCheckin]);
 
   const eligibleEmployees = useMemo(() => {
+    // Deactivated accounts can't play, so they never show in the pickers.
     return employees.filter(
       (e) =>
+        e.is_active !== false &&
         e.email?.toLowerCase() !== "admin@dctechmicro.com" &&
         (!sessionMeta.isRanked || !isGuestProfile(e))
     );
@@ -386,41 +396,52 @@ export function SessionDetailView({
   }
 
   async function handleBulkQueueSubmit() {
-    if (!session.id || selectedPlayerIds.length === 0) return;
+    if (!session.id || selectedPlayerIds.length === 0 || submitLock.current) return;
+    submitLock.current = true;
     setIsBulkAdding(true);
-    const res = await bulkAddPlayersToQueue(session.id, selectedPlayerIds);
-    if (res?.error) {
-      alert(`Error queueing players: ${res.error}`);
-    } else {
-      setSelectedPlayerIds([]);
-      setShowBulkModal(false);
+    try {
+      const res = await bulkAddPlayersToQueue(session.id, selectedPlayerIds);
+      if (res?.error) {
+        alert(`Error queueing players: ${res.error}`);
+      } else {
+        setSelectedPlayerIds([]);
+        setShowBulkModal(false);
+      }
+    } finally {
+      submitLock.current = false;
+      setIsBulkAdding(false);
     }
-    setIsBulkAdding(false);
   }
 
   async function handleCreateWalkIn(e: React.FormEvent) {
     e.preventDefault();
-    if (!walkInName.trim()) return;
+    // A double tap (or Enter twice) would otherwise register the same walk-in twice.
+    if (!walkInName.trim() || submitLock.current) return;
+    submitLock.current = true;
     setIsCreatingWalkIn(true);
-    const isGuestWalkIn = !sessionMeta.isRanked && walkInIsGuest;
-    const res = await createWalkInPlayer({
-      fullName: walkInName.trim(),
-      email: !isGuestWalkIn && walkInEmail.trim() ? walkInEmail.trim() : undefined,
-      isGuest: isGuestWalkIn,
-      skillRating: walkInRating,
-      sessionId: session.id,
-    });
-    if (res?.error || !res?.player) {
-      alert(`Error creating walk-in player: ${res?.error || "Unknown error"}`);
-    } else {
-      if (walkInAutoQueue) {
-        await bulkAddPlayersToQueue(session.id, [res.player.id]);
+    try {
+      const isGuestWalkIn = !sessionMeta.isRanked && walkInIsGuest;
+      const res = await createWalkInPlayer({
+        fullName: walkInName.trim(),
+        email: !isGuestWalkIn && walkInEmail.trim() ? walkInEmail.trim() : undefined,
+        isGuest: isGuestWalkIn,
+        skillRating: walkInRating,
+        sessionId: session.id,
+      });
+      if (res?.error || !res?.player) {
+        alert(`Error creating walk-in player: ${res?.error || "Unknown error"}`);
+      } else {
+        if (walkInAutoQueue) {
+          await bulkAddPlayersToQueue(session.id, [res.player.id]);
+        }
+        setWalkInName("");
+        setWalkInEmail("");
+        setShowBulkModal(false);
       }
-      setWalkInName("");
-      setWalkInEmail("");
-      setShowBulkModal(false);
+    } finally {
+      submitLock.current = false;
+      setIsCreatingWalkIn(false);
     }
-    setIsCreatingWalkIn(false);
   }
 
   // "Who's here?" at the start: only ticked players go into the line. Nobody is
@@ -1070,36 +1091,31 @@ export function SessionDetailView({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                // One column: the dialog is too narrow for name + rating + Check Out twice side by side.
+                <div className="grid grid-cols-1 gap-2">
                   {filteredCheckins.map((c, i) => {
                     const playerName = c.player?.full_name || c.player?.display_name || "Employee";
                     const isCurrentUser = currentUserId && (c.player_id === currentUserId || c.player?.id === currentUserId);
-                    const initials = playerName.slice(0, 2).toUpperCase();
 
                     return (
                       <div
                         key={c.id || i}
-                        className={`flex items-center justify-between p-2.5 rounded-2xl border transition-all ${
+                        className={`flex items-center justify-between gap-2 p-2.5 rounded-2xl border transition-all ${
                           isCurrentUser
                             ? "border-emerald-500/50 bg-emerald-50/50 dark:bg-emerald-950/40 shadow-xs"
                             : "border-slate-200 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/40 hover:border-slate-300 dark:hover:border-slate-700"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-8 w-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
-                            {initials}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1">
-                              <span>{playerName}</span>
+                        <div className="flex flex-1 items-center gap-2.5 min-w-0">
+                          <PlayerAvatar name={playerName} avatarUrl={c.player?.avatar_url} size="md" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1 min-w-0">
+                              <span className="truncate" title={playerName}>{playerName}</span>
                               {isCurrentUser && (
-                                <Badge variant="volt" className="text-[9px] font-mono py-0 px-1">
+                                <Badge variant="volt" className="shrink-0 text-[9px] font-mono py-0 px-1">
                                   YOU
                                 </Badge>
                               )}
-                            </div>
-                            <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                              {c.player?.email || "Checked In"}
                             </div>
                           </div>
                         </div>
@@ -1278,7 +1294,6 @@ export function SessionDetailView({
                       const isQueued = currentlyQueuedIds.has(emp.id);
                       const isSelected = selectedPlayerIds.includes(emp.id);
                       const playerName = emp.full_name || emp.display_name || "Employee";
-                      const initials = playerName.slice(0, 2).toUpperCase();
 
                       return (
                         <div
@@ -1308,16 +1323,11 @@ export function SessionDetailView({
                               {isQueued && <Check className="h-3 w-3" />}
                             </div>
 
-                            <div className="h-9 w-9 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
-                              {initials}
-                            </div>
+                            <PlayerAvatar name={playerName} avatarUrl={emp.avatar_url} size="md" />
 
                             <div className="min-w-0">
-                              <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              <div className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                                 {playerName}
-                              </div>
-                              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                                {emp.email}
                               </div>
                             </div>
                           </div>
@@ -1589,24 +1599,10 @@ export function SessionDetailView({
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={displayCourtCount <= 1 || savingCourtCount}
-                  onClick={() => {
-                    setCourtCountError(null);
-                    setPendingCourtCount(displayCourtCount - 1);
-                  }}
-                  aria-label="Remove a court"
-                  className="h-8 px-2.5 cursor-pointer"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                  <span className="text-xs">Remove</span>
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
                   disabled={displayCourtCount >= 12 || savingCourtCount}
                   onClick={() => {
                     setCourtCountError(null);
+                    setNewCourtName("");
                     setPendingCourtCount(displayCourtCount + 1);
                   }}
                   aria-label="Add a court"
@@ -1658,22 +1654,36 @@ export function SessionDetailView({
           }}
         >
           <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-2xl cursor-default">
-            <div className="space-y-1.5">
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                {pendingCourtCount !== null && pendingCourtCount > displayCourtCount
-                  ? `Add Court ${pendingCourtCount}?`
-                  : `Remove Court ${displayCourtCount}?`}
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {pendingCourtCount !== null && pendingCourtCount > displayCourtCount
-                  ? currentStatus === "active"
-                    ? `This will add Court ${pendingCourtCount} to the live arena right away (total: ${pendingCourtCount} courts).`
-                    : `This will add Court ${pendingCourtCount} to this scheduled session (total: ${pendingCourtCount} courts).`
-                  : currentStatus === "active"
-                    ? `This will remove Court ${displayCourtCount} from the live arena (total: ${pendingCourtCount ?? displayCourtCount - 1} courts). If a game is in progress on that court, it cannot be removed.`
-                    : `This will remove Court ${displayCourtCount} from this scheduled session (total: ${pendingCourtCount ?? displayCourtCount - 1} courts).`}
-              </p>
-            </div>
+            <form
+              id="add-court-form"
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleConfirmCourtCount();
+              }}
+            >
+              <div className="space-y-1.5">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Add a court</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {currentStatus === "active"
+                    ? `It joins the live arena right away (total: ${pendingCourtCount ?? displayCourtCount + 1} courts).`
+                    : `It's added to this scheduled session (total: ${pendingCourtCount ?? displayCourtCount + 1} courts).`}
+                </p>
+              </div>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Court name</span>
+                <input
+                  type="text"
+                  value={newCourtName}
+                  onChange={(e) => setNewCourtName(e.target.value)}
+                  placeholder={`e.g. Court ${pendingCourtCount ?? displayCourtCount + 1}`}
+                  maxLength={40}
+                  autoFocus
+                  disabled={savingCourtCount}
+                  className="h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </label>
+            </form>
             {courtCountError && (
               <p role="alert" className="rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
                 {courtCountError}
@@ -1693,21 +1703,12 @@ export function SessionDetailView({
                 Cancel
               </Button>
               <Button
-                type="button"
-                variant={
-                  pendingCourtCount !== null && pendingCourtCount < displayCourtCount
-                    ? "destructive"
-                    : "default"
-                }
-                onClick={handleConfirmCourtCount}
-                disabled={savingCourtCount}
+                type="submit"
+                form="add-court-form"
+                disabled={savingCourtCount || !newCourtName.trim()}
                 className="cursor-pointer"
               >
-                {savingCourtCount
-                  ? "Updating…"
-                  : pendingCourtCount !== null && pendingCourtCount > displayCourtCount
-                    ? "Add court"
-                    : "Remove court"}
+                {savingCourtCount ? "Adding…" : "Add court"}
               </Button>
             </div>
           </div>
@@ -1735,6 +1736,12 @@ export function SessionDetailView({
             activity={{ events, names: activityNames, avgGameMinutes }}
             gamesPlayed={gamesPlayed}
             arrivedAtByPlayer={arrivedAtByPlayer}
+            onCheckOut={
+              currentUserId && isCheckedIn
+                ? () => handleCheckOutPlayer(currentUserId, "yourself")
+                : undefined
+            }
+            checkingOut={checkingOutPlayerId === currentUserId}
           />
         </div>
       </div>

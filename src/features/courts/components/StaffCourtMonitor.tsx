@@ -58,6 +58,8 @@ export function StaffCourtMonitor({
 }: StaffCourtMonitorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Deactivated accounts can't play, so the player pickers leave them out.
+  const activeEmployees = employees.filter((e) => e.is_active !== false);
 
   const currentMatch = court?.current_match;
   const isCurrentlyInPlay = Boolean(currentMatch && currentMatch.status === "in_progress");
@@ -573,7 +575,7 @@ export function StaffCourtMonitor({
                     className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
                   >
                     <option value="">-- Select Player 1 --</option>
-                    {employees.map((e) => (
+                    {activeEmployees.map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.full_name || e.display_name} ({e.skill_rating.toFixed(2)})
                       </option>
@@ -587,7 +589,7 @@ export function StaffCourtMonitor({
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
                     >
                       <option value="">-- Select Player 2 --</option>
-                      {employees.map((e) => (
+                      {activeEmployees.map((e) => (
                         <option key={e.id} value={e.id}>
                           {e.full_name || e.display_name} ({e.skill_rating.toFixed(2)})
                         </option>
@@ -606,7 +608,7 @@ export function StaffCourtMonitor({
                     className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
                   >
                     <option value="">-- Select Player 1 --</option>
-                    {employees.map((e) => (
+                    {activeEmployees.map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.full_name || e.display_name} ({e.skill_rating.toFixed(2)})
                       </option>
@@ -620,7 +622,7 @@ export function StaffCourtMonitor({
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:border-emerald-500 focus:outline-none font-mono"
                     >
                       <option value="">-- Select Player 2 --</option>
-                      {employees.map((e) => (
+                      {activeEmployees.map((e) => (
                         <option key={e.id} value={e.id}>
                           {e.full_name || e.display_name} ({e.skill_rating.toFixed(2)})
                         </option>

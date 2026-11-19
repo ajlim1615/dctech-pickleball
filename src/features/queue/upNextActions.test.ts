@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const rpc = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// Outside a request there is no "after the response"; run the deferred card rebuild now.
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => void cb() }));
 vi.mock("@/lib/security/authGuard", () => ({ requireAdminUser: async () => ({ context: { userId: "admin-1" } }) }));
 vi.mock("@/features/activity/server/logEvent", () => ({ recordSessionEvent: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({

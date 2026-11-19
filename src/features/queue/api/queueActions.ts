@@ -22,6 +22,8 @@ import {
   BREAK_USED_MESSAGE,
   NO_LIMITS_USED,
   REJOIN_USED_MESSAGE,
+  SELF_BREAKS_ENABLED,
+  SELF_BREAKS_PAUSED_MESSAGE,
   canRejoin,
   canTakeBreak,
   type QueueLimits,
@@ -237,15 +239,16 @@ export async function bulkAddPlayersToQueue(sessionId: string, playerIds: string
 
   const isRankedSession = parseSessionMetadata(sessionRow?.description).isRanked;
 
-  // Exclude system admin (and guests in Ranked sessions) from bulk queue
+  // Exclude system admin, deactivated accounts (and guests in Ranked sessions) from bulk queue
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, email, is_guest")
+    .select("id, email, is_guest, is_active")
     .in("id", playerIds);
   const blockedIds = new Set(
     profiles
       ?.filter(
         (p) =>
+          !p.is_active ||
           p.email?.toLowerCase() === "admin@dctechmicro.com" ||
           (isRankedSession && isGuestProfile(p))
       )
@@ -755,6 +758,7 @@ export async function setQueueBreak(sessionId: string, onBreak: boolean, playerI
   }
   const isSelf = targetPlayerId === user.id;
 
+  if (onBreak && isSelf && !SELF_BREAKS_ENABLED) return { error: SELF_BREAKS_PAUSED_MESSAGE };
   if (onBreak && isSelf && !canTakeBreak(await loadQueueLimits(supabase, sessionId, user.id))) {
     return { error: BREAK_USED_MESSAGE };
   }

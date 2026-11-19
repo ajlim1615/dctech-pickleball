@@ -127,6 +127,10 @@ export function CourtMatrix({
     );
   }
 
+  function handleCourtRemoved(courtId: string) {
+    setCourts((prev) => prev.filter((c) => c.id !== courtId));
+  }
+
   function handleCourtNameChange(courtSlot: number, name: string) {
     setLocalCourtNames((prev) => ({ ...prev, [String(courtSlot)]: name }));
   }
@@ -198,6 +202,7 @@ export function CourtMatrix({
               courtSlot={court.sort_order ?? index + 1}
               onStatusChange={handleCourtStatusChange}
               onNameChange={handleCourtNameChange}
+              onRemoved={syncArenaList && courtsToDisplay.length > 1 ? handleCourtRemoved : undefined}
               queue={queue}
               cards={isAdministrator && sessionId ? cards : undefined}
               freeCourtIds={freeCourtIds}

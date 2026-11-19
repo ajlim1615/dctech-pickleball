@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/security/authGuard";
 import { parseSessionMetadata } from "@/lib/utils";
@@ -23,6 +24,17 @@ async function loadCards(supabase: Supabase, sessionId: string): Promise<UpNextC
     supabase.from("up_next_players").select("card_id, player_id, team, slot, player:profiles ( full_name, display_name )").eq("session_id", sessionId),
   ]);
   return toUpNextCards((cards ?? []) as UpNextCardRow[], (players ?? []) as unknown as UpNextPlayerRow[]);
+}
+
+/** Rebuilds the auto cards once the response is sent, so the admin's tap returns right away. */
+function refreshUpNextLater(sessionId: string) {
+  after(async () => {
+    try {
+      await refreshUpNext(sessionId);
+    } catch (err) {
+      console.error("refreshUpNext failed:", err);
+    }
+  });
 }
 
 function rpcError(out: unknown, error: { message: string } | null, label: string): string | null {
@@ -146,7 +158,7 @@ export async function saveUpNextCard(
     subjectIds: [...teamA, ...teamB],
     details: { cardId: out.card_id },
   });
-  await refreshUpNext(sessionId);
+  refreshUpNextLater(sessionId);
   revalidatePath(`/sessions/${sessionId}`);
   return { success: true, cardId: out.card_id, unpaired: out.unpaired ?? [] };
 }
@@ -158,7 +170,7 @@ export async function deleteUpNextCard(sessionId: string, cardId: string): Promi
   const { data, error } = await supabase.rpc("delete_up_next_card", { p_card_id: cardId });
   const failed = rpcError(data, error, "delete_up_next_card");
   if (failed) return { error: failed };
-  await refreshUpNext(sessionId);
+  refreshUpNextLater(sessionId);
   revalidatePath(`/sessions/${sessionId}`);
   return { success: true };
 }
@@ -208,7 +220,7 @@ async function startOnCourt(
   await logGameStarted(supabase, sessionId, courtId, matchId, auth.context!.userId);
   // Several starts in a row (Fill open courts) refresh once at the end instead, so the
   // remaining cards keep their ids.
-  if (options.refresh !== false) await refreshUpNext(sessionId);
+  if (options.refresh !== false) refreshUpNextLater(sessionId);
   revalidatePath(`/sessions/${sessionId}`);
   revalidatePath(`/courts/${courtId}/monitor`);
   revalidatePath("/");

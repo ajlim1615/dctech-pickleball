@@ -120,15 +120,22 @@ export function SessionConsoleBar({
                 {isFilling ? "Starting…" : <><span className="sm:hidden">Fill courts</span><span className="hidden sm:inline">Fill open courts</span></>}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onEnd}
-                className="font-semibold h-11 px-2.5 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+              {/* A session ends only once every court is free; the wrapper keeps the reason visible on hover. */}
+              <span
+                className={inPlay > 0 ? "cursor-not-allowed" : undefined}
+                title={inPlay > 0 ? "Finish the games in play first, then end the session." : undefined}
               >
-                <Square className="h-3.5 w-3.5 mr-1.5" />
-                End<span className="hidden sm:inline">&nbsp;session</span>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onEnd}
+                  disabled={inPlay > 0}
+                  className="font-semibold h-11 px-2.5 sm:px-3 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
+                >
+                  <Square className="h-3.5 w-3.5 mr-1.5" />
+                  End<span className="hidden sm:inline">&nbsp;session</span>
+                </Button>
+              </span>
             </>
           )}
         </div>

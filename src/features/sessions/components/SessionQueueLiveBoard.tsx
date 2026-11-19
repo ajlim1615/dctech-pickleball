@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, Shuffle, HelpCircle, ChevronDown } from "lucide-react";
+import { Plus, UserPlus, X, CheckCircle2, Users, Coffee, UserMinus, Shuffle, HelpCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { WaitTimer } from "@/components/ui/wait-timer";
@@ -16,7 +16,7 @@ import {
   type PastGame,
 } from "@/features/queue/matchmaking";
 import { previewCourtId } from "@/features/queue/api/matchmakingData";
-import { joinQueue, leaveQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
+import { joinQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features/queue/api/queueActions";
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
 import type { ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
@@ -24,8 +24,8 @@ import { WaitCard } from "@/features/activity/components/WaitCard";
 import {
   NO_LIMITS_USED,
   canRejoin,
+  SELF_BREAKS_ENABLED,
   canTakeBreak as breakAllowed,
-  leaveIsFinal,
   type QueueLimits,
 } from "@/features/queue/utils/queueLimits";
 
@@ -58,6 +58,9 @@ interface SessionQueueLiveBoardProps {
   gamesPlayed?: Record<string, number>;
   /** Session check-in timestamps per player (ISO strings). */
   arrivedAtByPlayer?: Record<string, string>;
+  /** Check yourself out (same as the session's Check out). Shown while self breaks are paused. */
+  onCheckOut?: () => void;
+  checkingOut?: boolean;
 }
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
@@ -140,6 +143,8 @@ export function SessionQueueLiveBoard({
   isSessionActive = true,
   isSessionScheduled = false,
   onOpenBulkQueue,
+  onCheckOut,
+  checkingOut = false,
   readOnly = false,
   matchingMode = "balanced",
   courts = EMPTY_COURTS,
@@ -173,7 +178,6 @@ export function SessionQueueLiveBoard({
   const calledCourtName = calledAlert ? courtLabel(courts.find((c) => c.id === calledAlert.courtId)) : undefined;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showMatchingInfo, setShowMatchingInfo] = useState(false);
   const [joinMode, setJoinMode] = useState<"solo" | "coworker" | "guest">("solo");
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
@@ -182,7 +186,6 @@ export function SessionQueueLiveBoard({
   const [tookBreak, setTookBreak] = useState(false);
   const canTakeBreak = breakAllowed(queueLimits) && !tookBreak;
   const canJoinAgain = canRejoin(queueLimits);
-  const finalLeave = leaveIsFinal(queueLimits);
 
   const isUserInQueue = Boolean(myEntry);
   const joinedAtByPlayerId = useMemo(
@@ -291,17 +294,6 @@ export function SessionQueueLiveBoard({
     }
   }
 
-  async function handleLeave() {
-    if (!sessionId || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      await leaveQueue(sessionId);
-      setShowLeaveConfirm(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   const [pendingRemove, setPendingRemove] = useState<{ entryId: string; name: string } | null>(null);
 
   async function handleConfirmAdminRemove(alsoCheckOut: boolean) {
@@ -394,28 +386,7 @@ export function SessionQueueLiveBoard({
               You&apos;re playing on {courtLabel(myCourt)}. You rejoin the line after the game.
             </p>
           ) : isUserInQueue ? (
-            showLeaveConfirm ? (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {finalLeave ? "Leave for good?" : "Leave and lose your spot?"}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {finalLeave
-                      ? "You already left once, so only an admin can add you back."
-                      : "You can rejoin once, at the back of the line."}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setShowLeaveConfirm(false)} disabled={isSubmitting} className="h-11 cursor-pointer">
-                    Stay
-                  </Button>
-                  <Button type="button" variant="destructive" onClick={handleLeave} disabled={isSubmitting} className="h-11 font-semibold cursor-pointer">
-                    {isSubmitting ? "Leaving…" : "Leave queue"}
-                  </Button>
-                </div>
-              </div>
-            ) : isMeOnBreak ? (
+            isMeOnBreak ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
                   <Coffee className="h-4 w-4 shrink-0" />
@@ -431,15 +402,6 @@ export function SessionQueueLiveBoard({
                   >
                     {isSubmitting ? "Saving…" : "I'm back"}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setShowLeaveConfirm(true)}
-                    disabled={isSubmitting}
-                    className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
-                  >
-                    Leave
-                  </Button>
                 </div>
               </div>
             ) : (
@@ -454,7 +416,21 @@ export function SessionQueueLiveBoard({
                   </span>
                 </p>
                 <div className="flex gap-1">
-                  {canTakeBreak && (
+                  {/* Take a break is paused (SELF_BREAKS_ENABLED); Check out stands in for it. */}
+                  {!SELF_BREAKS_ENABLED && onCheckOut && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onCheckOut}
+                      disabled={isSubmitting || checkingOut}
+                      title="Check out of this session and leave the line"
+                      className="h-11 px-3 font-semibold cursor-pointer"
+                    >
+                      <UserMinus className="h-4 w-4 mr-1.5" />
+                      {checkingOut ? "Checking out…" : "Check out"}
+                    </Button>
+                  )}
+                  {SELF_BREAKS_ENABLED && canTakeBreak && (
                     <Button
                       type="button"
                       variant="outline"
@@ -467,17 +443,8 @@ export function SessionQueueLiveBoard({
                       Take a break
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setShowLeaveConfirm(true)}
-                    disabled={isSubmitting}
-                    className="h-11 px-3 font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
-                  >
-                    Leave
-                  </Button>
                 </div>
-                {!canTakeBreak && !isSessionScheduled && (
+                {SELF_BREAKS_ENABLED && !canTakeBreak && !isSessionScheduled && (
                   <p className="basis-full flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <Coffee className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     You&apos;ve used your break for this session.

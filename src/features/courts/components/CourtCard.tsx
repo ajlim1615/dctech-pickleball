@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
 import { Trophy, CheckCircle2, Zap, RotateCcw, AlertCircle, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { useSharedNow } from "@/components/ui/wait-timer";
 import { courtTimerTone, elapsedSeconds, formatClockDuration, type CourtTimerTone } from "@/lib/duration";
 import { useFlashMessage } from "@/hooks/useFlashMessage";
 import { finalizeMatch, updateMatchScore } from "@/features/matches/api/matchActions";
-import { toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
+import { removeSessionCourt, toggleCourtStatus, updateSessionCourtName } from "@/features/admin/api/adminActions";
 import { canSaveResult, canSendCard, cardForFreeCourt } from "@/features/courts/utils/courtRules";
 import type { UpNextCard } from "@/features/queue/upNext/types";
 import type { CourtActions } from "@/features/courts/hooks/useCourtActions";
@@ -69,6 +69,8 @@ export interface CourtCardProps {
   courtSlot?: number;
   onStatusChange?: (courtId: string, status: CourtStatus) => void;
   onNameChange?: (courtSlot: number, name: string) => void;
+  /** Live session with more than one court: the x removes this court when no game is on it. */
+  onRemoved?: (courtId: string) => void;
   /** This session's line (for picking players). */
   queue?: QueueEntryWithPlayer[];
   /** Up Next cards and the free courts, so a free court can show its card. */
@@ -94,6 +96,7 @@ export function CourtCard({
   courtSlot,
   onStatusChange,
   onNameChange,
+  onRemoved,
   queue,
   cards,
   freeCourtIds,
@@ -101,6 +104,8 @@ export function CourtCard({
   gamesPlayed,
 }: CourtCardProps) {
   const [isPending, startTransition] = useTransition();
+  const savingResult = useRef(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const isAdministrator = !readOnly && (isAdmin ?? (userRole === "admin"));
 
@@ -159,7 +164,10 @@ export function CourtCard({
   const teamsFull = hasPlayersOnCourt && canSaveResult(activeTeamAPlayers.map((p) => p.id), activeTeamBPlayers.map((p) => p.id), perSide);
 
   // Live-court player actions (admins): which sheet is open, for whom.
-  const canManagePlayers = Boolean(isAdministrator && hasPlayersOnCourt && activeMatch && actions && !pendingWinner);
+  // Locked while any court change or result is saving, so a second tap can't act on players that are about to move.
+  const canManagePlayers = Boolean(
+    isAdministrator && hasPlayersOnCourt && activeMatch && actions && !actions.pending && !isPending && !pendingWinner
+  );
   const waiting = (queue ?? []).filter((q) => q.status === "waiting");
   const [sheet, setSheet] = useState<
     | { kind: "player"; player: Profile; team: ScoringTeam }
@@ -244,15 +252,22 @@ export function CourtCard({
       ? `${finalA > finalB ? "Team 1" : "Team 2"} win`
       : `${finalA}-${finalB}`;
 
+    // A second tap before the button greys out would only get "already saved"; ignore it.
+    if (savingResult.current) return;
+    savingResult.current = true;
     startTransition(async () => {
-      const res = await finalizeMatch(activeMatch.id, finalA, finalB);
-      if (res?.error) {
-        flashCard("error", res.error);
-      } else {
-        flashCard("success", `Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
-        setScoreA(0);
-        setScoreB(0);
-        setPendingWinner(null);
+      try {
+        const res = await finalizeMatch(activeMatch.id, finalA, finalB);
+        if (res?.error) {
+          flashCard("error", res.error);
+        } else {
+          flashCard("success", `Saved ${saved}. Players are back in the queue. Tap Start when the next match is ready.`);
+          setScoreA(0);
+          setScoreB(0);
+          setPendingWinner(null);
+        }
+      } finally {
+        savingResult.current = false;
       }
     });
   }
@@ -282,6 +297,24 @@ export function CourtCard({
         flashCard("error", res.error);
       } else {
         onStatusChange?.(court.id, nextStatus);
+      }
+    });
+  }
+
+  // Only an empty court can be removed; a game in play (or players on it) hides the x.
+  const canRemoveCourt =
+    isAdministrator && Boolean(sessionId) && Boolean(onRemoved) && !hasPlayersOnCourt && court.status !== "occupied" && !activeMatch;
+
+  function handleRemoveCourt() {
+    if (!canRemoveCourt || !sessionId || isPending) return;
+    clearCardFlash();
+    startTransition(async () => {
+      const res = await removeSessionCourt(sessionId, court.id);
+      if (res?.error) {
+        flashCard("error", res.error);
+        setConfirmingRemove(false);
+      } else {
+        onRemoved?.(court.id);
       }
     });
   }
@@ -378,19 +411,65 @@ export function CourtCard({
             </>
           )}
         </div>
-        {isAdministrator && !isClosed && (
+        {isAdministrator && (!isClosed || canRemoveCourt) && (
           <div className="flex items-center">
-          <Link
-            href={`/courts/${court.id}/monitor`}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
-            title={`Open the full-screen umpire view for ${cleanCourtName}`}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">Umpire</span>
-          </Link>
+          {!isClosed && (
+            <Link
+              href={`/courts/${court.id}/monitor`}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-500"
+              title={`Open the full-screen umpire view for ${cleanCourtName}`}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Umpire</span>
+            </Link>
+          )}
+          {canRemoveCourt && !isEditingName && (
+            <IconButton
+              label={`Remove ${cleanCourtName}`}
+              onClick={() => {
+                clearCardFlash();
+                setConfirmingRemove(true);
+              }}
+              disabled={isPending}
+            >
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
           </div>
         )}
       </header>
+
+      {confirmingRemove && canRemoveCourt && (
+        <div
+          role="alertdialog"
+          aria-label={`Remove ${cleanCourtName}?`}
+          className="mx-4 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 px-3 py-2"
+        >
+          <span className="text-sm font-medium text-rose-800 dark:text-rose-200">Remove {cleanCourtName}?</span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmingRemove(false)}
+              disabled={isPending}
+              className="h-9 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={handleRemoveCourt}
+              disabled={isPending}
+              className="h-9 cursor-pointer"
+            >
+              {isPending ? "Removing…" : "Remove court"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* The court itself, seen from above: Team 1 | net | Team 2 */}
       <div className="px-4">
@@ -418,7 +497,6 @@ export function CourtCard({
             pickDisabled={isPending}
             slots={perSide}
             onPlayerTap={canManagePlayers ? (p) => setSheet({ kind: "player", player: p, team: "A" }) : undefined}
-            onRemove={canManagePlayers ? (p) => actions!.remove(activeMatch!.id, p.id, nameOf(p)) : undefined}
             onAddSlot={canManagePlayers ? () => setSheet({ kind: "fill", team: "A" }) : undefined}
           />
 
@@ -444,7 +522,6 @@ export function CourtCard({
             pickDisabled={isPending}
             slots={perSide}
             onPlayerTap={canManagePlayers ? (p) => setSheet({ kind: "player", player: p, team: "B" }) : undefined}
-            onRemove={canManagePlayers ? (p) => actions!.remove(activeMatch!.id, p.id, nameOf(p)) : undefined}
             onAddSlot={canManagePlayers ? () => setSheet({ kind: "fill", team: "B" }) : undefined}
           />
 
