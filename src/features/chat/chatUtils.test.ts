@@ -130,6 +130,32 @@ describe("chatUtils", () => {
     expect(findFirstUnreadMessageId(list, "user-1", lastSeenAt)).toBe("4");
   });
 
+  it("compares real times, not strings, when REST (+08:00) and realtime (UTC) offsets mix", () => {
+    // Read while open: last message arrived over realtime, stored in UTC.
+    const lastSeenAt = "2026-11-19T02:39:20.13253+00:00";
+    // After logging back in, the same history is refetched over REST in Manila time.
+    const alreadyRead: ClubMessage = {
+      ...makeMsg("1", "2026-11-19T10:39:20.13253+08:00", "already read"),
+      sender_id: "user-2",
+    };
+    const older: ClubMessage = {
+      ...makeMsg("0", "2026-11-19T10:30:00+08:00", "older"),
+      sender_id: "user-3",
+    };
+    const reallyNew: ClubMessage = {
+      ...makeMsg("2", "2026-11-19T02:41:00.5+00:00", "really new"),
+      sender_id: "user-2",
+    };
+
+    expect(countUnreadChatMessages([older, alreadyRead], "user-1", lastSeenAt)).toBe(0);
+    expect(findFirstUnreadMessageId([older, alreadyRead], "user-1", lastSeenAt)).toBeNull();
+    expect(countUnreadChatMessages([older, alreadyRead, reallyNew], "user-1", lastSeenAt)).toBe(1);
+
+    // A live UTC message must sort after earlier Manila-offset history, not before it.
+    const merged = mergeChatMessages([older, alreadyRead], [reallyNew]);
+    expect(merged.map((m) => m.id)).toEqual(["0", "1", "2"]);
+  });
+
   it("maps PostgreSQL rate limit and unsend triggers to friendly messages", () => {
     expect(friendlyChatError("ERROR: rate_limit_exceeded")).toBe(
       "Please wait 2 seconds between messages."

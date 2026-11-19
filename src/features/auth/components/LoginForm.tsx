@@ -2,14 +2,25 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { signInWithEmail } from "../api/authActions";
 
+const COMPANY_DOMAIN = "dctechmicro.com";
+
+/** "juan" -> "juan@dctechmicro.com"; a full address (typed or autofilled) is sent as-is for the server to check. */
+function toCompanyEmail(value: string) {
+  const trimmed = value.trim();
+  return trimmed.includes("@") ? trimmed : `${trimmed}@${COMPANY_DOMAIN}`;
+}
+
 export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [username, setUsername] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const showDomainSuffix = !username.includes("@");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -17,6 +28,7 @@ export function LoginForm() {
     setMessage(null);
 
     const formData = new FormData(e.currentTarget);
+    formData.set("email", toCompanyEmail(username));
 
     try {
       const res = await signInWithEmail(formData);
@@ -38,7 +50,7 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-2xl backdrop-blur-xl">
+    <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
       <CardHeader className="space-y-3 text-center pb-6 border-b border-slate-200 dark:border-slate-800/80">
         <div className="mx-auto relative h-13 w-13 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center p-1 shadow-sm transition-colors">
           <Image
@@ -79,41 +91,69 @@ export function LoginForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <label
+              htmlFor="login-email"
+              className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
+            >
               <Mail className="h-3.5 w-3.5 text-slate-400" />
-              Company Email (@dctechmicro.com)
+              Company email
             </label>
-            <input
-              type="text"
-              inputMode="email"
-              name="email"
-              autoComplete="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-              placeholder="username@dctechmicro.com"
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
-            />
-            <p className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
-              Only @dctechmicro.com corporate email addresses are authorized.
-            </p>
+            <div className="flex items-stretch rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 transition-colors focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500">
+              <input
+                id="login-email"
+                type="text"
+                inputMode="email"
+                name="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="your.name"
+                aria-describedby={showDomainSuffix ? "login-email-domain" : undefined}
+                className="min-w-0 flex-1 rounded-lg bg-transparent px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
+              />
+              {showDomainSuffix && (
+                <span
+                  id="login-email-domain"
+                  className="flex items-center rounded-r-lg border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 text-sm text-slate-500 dark:text-slate-400 select-none"
+                >
+                  @{COMPANY_DOMAIN}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <label
+              htmlFor="login-password"
+              className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
+            >
               <Lock className="h-3.5 w-3.5 text-slate-400" />
               Password
             </label>
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              placeholder="••••••••••••"
-              minLength={6}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
+            <div className="relative">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
+                required
+                minLength={6}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-2.5 pl-3.5 pr-11 text-sm text-slate-900 dark:text-slate-100 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:text-emerald-600 cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <Button
@@ -145,8 +185,8 @@ export function LoginForm() {
               </code>
             </p>
             <p className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-1">
-              <ShieldAlert className="h-3 w-3 text-amber-500 shrink-0" />
-              Player accounts are created and managed exclusively by administrators.
+              <LifeBuoy className="h-3 w-3 text-slate-400 shrink-0" />
+              Can&apos;t sign in? Ask the Solution Department to reset your password.
             </p>
           </div>
         </div>

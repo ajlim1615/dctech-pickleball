@@ -67,6 +67,23 @@ export function countActiveChatMessages(
 }
 
 /**
+ * Parses a timestamp to epoch ms. REST rows arrive in the database's Manila
+ * offset ("…10:39:20.13253+08:00") while realtime rows arrive in UTC
+ * ("…02:39:20.13253+00:00"), so timestamps must never be compared as strings.
+ */
+export function timestampMs(value: string | null | undefined): number {
+  if (!value) return Number.NaN;
+  return new Date(value).getTime();
+}
+
+/** True when `createdAt` is strictly later than `lastSeenAt` (or nothing has been seen yet). */
+function isAfterLastSeen(createdAt: string, lastSeenAt: string | null): boolean {
+  const seenMs = timestampMs(lastSeenAt);
+  if (Number.isNaN(seenMs)) return true;
+  return timestampMs(createdAt) > seenMs;
+}
+
+/**
  * Counts active messages from other players created after `lastSeenAt`.
  * If `lastSeenAt` is null (user has never opened chat on this device),
  * all active messages from other players count as unread.
@@ -82,7 +99,7 @@ export function countUnreadChatMessages(
   let count = 0;
   for (const m of messages) {
     if (m.is_unsent || m.sender_id === currentUserId) continue;
-    if (!lastSeenAt || m.created_at > lastSeenAt) {
+    if (isAfterLastSeen(m.created_at, lastSeenAt)) {
       count += 1;
     }
   }
@@ -104,7 +121,7 @@ export function findFirstUnreadMessageId(
   if (!currentUserId) return null;
   for (const m of messages) {
     if (m.is_unsent || m.sender_id === currentUserId) continue;
-    if (!lastSeenAt || m.created_at > lastSeenAt) {
+    if (isAfterLastSeen(m.created_at, lastSeenAt)) {
       return m.id;
     }
   }
@@ -127,8 +144,8 @@ export function mergeChatMessages(
   for (const msg of incoming) {
     if (msg?.id) byId.set(msg.id, msg);
   }
-  const sorted = Array.from(byId.values()).toSorted((a, b) =>
-    a.created_at.localeCompare(b.created_at)
+  const sorted = Array.from(byId.values()).toSorted(
+    (a, b) => timestampMs(a.created_at) - timestampMs(b.created_at)
   );
   if (sorted.length <= limit) return sorted;
   return sorted.slice(sorted.length - limit);

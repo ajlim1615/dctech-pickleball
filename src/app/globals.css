@@ -203,12 +203,13 @@ button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"])
   0%, 100% { transform: translate3d(0, 0, 0); }
   50% { transform: translate3d(-10px, 8px, 0); }
 }
+/* Hit points come from each court layout (--rally-N-x/y set in PickleballCourtBackground) */
 @keyframes pickleball-rally {
-  0% { transform: translate(160px, 240px) rotate(0deg) scale(1); }
-  25% { transform: translate(1020px, 530px) rotate(220deg) scale(1.08); }
-  50% { transform: translate(175px, 540px) rotate(440deg) scale(1); }
-  75% { transform: translate(1015px, 225px) rotate(660deg) scale(1.08); }
-  100% { transform: translate(160px, 240px) rotate(880deg) scale(1); }
+  0% { transform: translate(var(--rally-0-x), var(--rally-0-y)) rotate(0deg) scale(1); }
+  25% { transform: translate(var(--rally-1-x), var(--rally-1-y)) rotate(220deg) scale(1.08); }
+  50% { transform: translate(var(--rally-2-x), var(--rally-2-y)) rotate(440deg) scale(1); }
+  75% { transform: translate(var(--rally-3-x), var(--rally-3-y)) rotate(660deg) scale(1.08); }
+  100% { transform: translate(var(--rally-0-x), var(--rally-0-y)) rotate(880deg) scale(1); }
 }
 @keyframes paddle-tl-swing {
   0%, 100% { transform: translate3d(0, 0, 0) rotate(-4deg); }
@@ -246,6 +247,11 @@ button:active:not(:disabled), [role="button"]:active:not([aria-disabled="true"])
 }
 .pickleball-rally {
   animation: pickleball-rally 8s ease-in-out infinite;
+}
+/* Players live inside the court SVG: swing around their own centre, not the SVG origin */
+.rally-player {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 .paddle-tl-swing {
   animation: paddle-tl-swing 8s ease-in-out infinite;
