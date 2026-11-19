@@ -20,6 +20,7 @@ import { joinQueue, adminRemovePlayerFromQueue, setQueueBreak } from "@/features
 import { QueueCallupAlert, requestCallupNotifications } from "@/features/queue/components/QueueCallupAlert";
 import { formatRating } from "@/lib/utils";
 import type { ActiveCourtView, QueueEntryWithPlayer, Profile, SessionEvent } from "@/types";
+import type { UpNextCard } from "@/features/queue/upNext/types";
 import { WaitCard } from "@/features/activity/components/WaitCard";
 import {
   NO_LIMITS_USED,
@@ -61,7 +62,12 @@ interface SessionQueueLiveBoardProps {
   /** Check yourself out (same as the session's Check out). Shown while self breaks are paused. */
   onCheckOut?: () => void;
   checkingOut?: boolean;
+  /** The real Up Next 1 card. When set, "Up next" shows it instead of working out its own preview. */
+  upNextCard?: UpNextCard;
 }
+
+/** How many later groups show before "Show everyone in line". */
+const GROUPS_SHOWN = 2;
 
 /** Styles where the real call-up shuffles players, so the teams shown are only a preview. */
 const SHUFFLED_STYLES: MatchingStyle[] = ["social_mixer", "club_wars", "mixed_doubles"];
@@ -145,6 +151,7 @@ export function SessionQueueLiveBoard({
   onOpenBulkQueue,
   onCheckOut,
   checkingOut = false,
+  upNextCard,
   readOnly = false,
   matchingMode = "balanced",
   courts = EMPTY_COURTS,
@@ -238,9 +245,39 @@ export function SessionQueueLiveBoard({
       ...teamStats(decision, ratingOf),
     };
   }, [courts, queue, history, skillSpread, style, arrivedAtByPlayer]);
-  const nextMatchup = preview && preview.hold === null ? preview : null;
-  const waitingForSkillMatch = preview?.hold === "no_skill_match";
-  const isPreviewOnly = SHUFFLED_STYLES.includes(style);
+  // A live session with Up Next cards shows the real Up Next 1, so this panel and the
+  // cards always agree on who plays next.
+  const realNext = useMemo(() => {
+    if (!isSessionActive || !upNextCard) return null;
+    const byId = new Map(queue.map((q) => [q.player_id, q]));
+    const profileOf = (id: string) =>
+      (byId.get(id)?.player ?? { id, full_name: upNextCard.names[id] ?? "Player", skill_rating: null }) as Profile;
+    const ratingOf = (id: string) => byId.get(id)?.player?.skill_rating ?? 2.0;
+    return {
+      position: upNextCard.position,
+      ids: new Set([...upNextCard.teamA, ...upNextCard.teamB]),
+      teamA: upNextCard.teamA.map(profileOf),
+      teamB: upNextCard.teamB.map(profileOf),
+      ...teamStats(upNextCard, ratingOf),
+    };
+  }, [isSessionActive, upNextCard, queue]);
+
+  const nextMatchup = realNext ?? (preview && preview.hold === null ? preview : null);
+  const waitingForSkillMatch = !realNext && preview?.hold === "no_skill_match";
+  const isPreviewOnly = !realNext && SHUFFLED_STYLES.includes(style);
+
+  // Everyone else in line, in groups of four, numbered by their real place in line.
+  const placeInLine = useMemo(() => new Map(queue.map((q, i) => [q.id, i + 1])), [queue]);
+  const laterPods = useMemo(() => {
+    if (!realNext) return pods.slice(1);
+    const rest = queue.filter((q) => !realNext.ids.has(q.player_id));
+    const chunked: QueueEntryWithPlayer[][] = [];
+    for (let i = 0; i < rest.length; i += 4) chunked.push(rest.slice(i, i + 4));
+    return chunked;
+  }, [realNext, pods, queue]);
+  const [showAllGroups, setShowAllGroups] = useState(false);
+  const shownPods = showAllGroups ? laterPods : laterPods.slice(0, GROUPS_SHOWN);
+  const hiddenPlayers = laterPods.slice(GROUPS_SHOWN).reduce((n, pod) => n + pod.length, 0);
 
   async function handleQuickJoinSolo() {
     if (!sessionId || isSystemAdmin || isSubmitting) return;
@@ -517,7 +554,12 @@ export function SessionQueueLiveBoard({
       {/* Up next: the first group of four */}
       <div className="px-4 pb-4">
         <div className="flex items-baseline justify-between gap-2 pb-2">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Up next</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Up next
+            {realNext && (
+              <span className="ml-1.5 font-normal text-slate-500 dark:text-slate-400">· Up Next {realNext.position}</span>
+            )}
+          </h3>
           {nextMatchup && (
             <span className="text-xs text-slate-500 dark:text-slate-400">
               {isPreviewOnly && "Preview · "}
@@ -597,10 +639,10 @@ export function SessionQueueLiveBoard({
         )}
       </div>
 
-      {/* Later groups */}
-      {pods.length > 1 && (
+      {/* Later groups: the next few, then the rest behind "Show everyone in line" */}
+      {laterPods.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-800 px-4 pt-3 pb-4 space-y-3">
-          {pods.slice(1).map((pod, i) => {
+          {shownPods.map((pod, i) => {
             const podIndex = i + 1;
             return (
               <div key={podIndex}>
@@ -617,7 +659,7 @@ export function SessionQueueLiveBoard({
                   {pod.map((item, idx) => (
                     <QueueRow
                       key={item.id || idx}
-                      position={podIndex * 4 + idx + 1}
+                      position={placeInLine.get(item.id) ?? podIndex * 4 + idx + 1}
                       name={playerName(item.player)}
                       rating={item.player?.skill_rating}
                       isMe={item.player_id === currentUserId}
@@ -632,6 +674,17 @@ export function SessionQueueLiveBoard({
               </div>
             );
           })}
+          {hiddenPlayers > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllGroups((v) => !v)}
+              aria-expanded={showAllGroups}
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
+            >
+              {showAllGroups ? "Show fewer" : `Show everyone in line (${hiddenPlayers} more)`}
+              <ChevronDown className={`h-4 w-4 transition-transform ${showAllGroups ? "rotate-180" : ""}`} />
+            </button>
+          )}
         </div>
       )}
 
@@ -926,13 +979,29 @@ function PlayerLine({
   const showTimer = Boolean(showWait && joinedAt);
   const showMeta = showGames || showTimer;
 
+  // Admins tap the name to remove or check out (no x on every row, so a stray tap can't hit it).
+  const NameTag = onRemove ? "button" : "div";
   return (
-    <li className={`flex min-h-11 items-center gap-3 ${onRemove ? "pl-3 pr-0" : "px-3"}`}>
+    <li className="flex min-h-11 items-center gap-3 px-3">
       {leading}
-      <div className="min-w-0 flex-1 py-1.5">
+      <NameTag
+        {...(onRemove
+          ? {
+              type: "button" as const,
+              onClick: onRemove,
+              title: `Remove or check out ${name}`,
+              "aria-label": `${name}: remove or check out`,
+            }
+          : {})}
+        className={`min-w-0 flex-1 py-1.5 text-left ${
+          onRemove
+            ? "group cursor-pointer rounded-md focus-visible:outline-2 focus-visible:outline-emerald-500"
+            : ""
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           <span
-            className={`block truncate text-sm font-medium ${
+            className={`block truncate text-sm font-medium underline-offset-2 ${onRemove ? "group-hover:underline" : ""} ${
               muted ? "text-slate-700 dark:text-slate-300" : "text-slate-900 dark:text-slate-100"
             }`}
           >
@@ -959,21 +1028,10 @@ function PlayerLine({
             )}
           </div>
         )}
-      </div>
+      </NameTag>
       <span className="shrink-0 font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
         {formatRating(rating ?? 2.0)}
       </span>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove or check out ${name}`}
-          title="Remove or check out"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-950/30 cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
     </li>
   );
 }

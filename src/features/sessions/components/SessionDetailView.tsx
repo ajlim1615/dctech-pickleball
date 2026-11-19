@@ -1716,7 +1716,17 @@ export function SessionDetailView({
 
         {/* Live Queue Station Card */}
         {/* Players care most about their place in line, so on phones it comes before the courts. */}
-        <div id="live-queue-station" className={`scroll-mt-20 ${isAdmin ? "" : "order-first lg:order-none"}`}>
+        {/* Wide screens: the queue stays in view beside the courts and scrolls inside its own
+            box, so a long line no longer pushes the standings and logs far down the page.
+            It sits below the sticky header (65px) and, for admins, the console bar (90px). */}
+        <div
+          id="live-queue-station"
+          className={`scroll-mt-20 lg:sticky lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:rounded-2xl ${
+            isAdmin
+              ? "lg:top-[168px] lg:max-h-[calc(100dvh-184px)]"
+              : "order-first lg:order-none lg:top-20 lg:max-h-[calc(100dvh-96px)]"
+          }`}
+        >
           <SessionQueueLiveBoard
             initialQueue={initialQueue}
             sessionId={session.id}
@@ -1742,6 +1752,7 @@ export function SessionDetailView({
                 : undefined
             }
             checkingOut={checkingOutPlayerId === currentUserId}
+            upNextCard={upNextCards.toSorted((a, b) => a.position - b.position)[0]}
           />
         </div>
       </div>
