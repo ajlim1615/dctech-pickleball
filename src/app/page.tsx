@@ -87,12 +87,25 @@ export default async function HomePage() {
     <div className="mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-8 pb-24 sm:pb-12">
       {/* STADIUM ATMOSPHERE HERO (Double-Bezel Architecture) */}
       <section className="relative rounded-[2rem] p-1.5 sm:p-2 border border-slate-800/80 bg-gradient-to-b from-slate-900/90 via-slate-950/90 to-[#070b12] text-white shadow-2xl overflow-hidden backdrop-blur-xl">
-        {/* Subtle Ambient Stadium Radial Glow */}
-        <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
+        {/* Subtle Ambient Stadium Radial Glow + Faint Court Lines */}
+        <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 right-1/4 h-80 w-80 rounded-full bg-[#d4e938]/10 blur-3xl" />
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 400 220"
+          fill="none"
+          className="pointer-events-none absolute -right-10 -top-6 h-56 w-80 text-emerald-400/[0.07] rotate-[-10deg]"
+        >
+          <rect x="8" y="8" width="384" height="204" rx="8" stroke="currentColor" strokeWidth="2" />
+          <line x1="140" y1="8" x2="140" y2="212" stroke="currentColor" strokeWidth="1.75" />
+          <line x1="260" y1="8" x2="260" y2="212" stroke="currentColor" strokeWidth="1.75" />
+          <line x1="200" y1="0" x2="200" y2="220" stroke="currentColor" strokeWidth="2" strokeDasharray="6 5" />
+          <line x1="8" y1="110" x2="140" y2="110" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="260" y1="110" x2="392" y2="110" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
 
         {/* Inner Core */}
-        <div className="relative z-10 rounded-[1.6rem] border border-white/10 bg-slate-950/60 p-5 sm:p-8 space-y-6">
+        <div className="relative z-10 rounded-[1.6rem] border border-white/10 bg-slate-950/60 p-4 sm:p-7 space-y-5 sm:space-y-6">
           {/* Top Eyebrow & Status Strip */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -150,7 +163,7 @@ export default async function HomePage() {
           {/* Hero Main Content & Nested CTA Hub */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight text-balance">
                 {heroSession ? heroSession.title : "DCTECH Open Play & Arena Matrix"}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 font-normal leading-relaxed">
@@ -228,28 +241,34 @@ export default async function HomePage() {
 
           {/* Stadium Telemetry Bento Grid */}
           <div className="pt-4 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 font-mono">
-            {/* 1. Arena Mode */}
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 space-y-1">
+            {/* 1. Session Status */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] transition-colors p-3.5 space-y-1">
               <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>ARENA STATUS</span>
-                <span className={`h-2 w-2 rounded-full ${activeSession ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                <span>SESSION STATUS</span>
+                <span className={`h-2 w-2 rounded-full ${activeSession ? "bg-emerald-400 animate-pulse" : nextSession ? "bg-[#d4e938]" : "bg-amber-400"}`} />
               </div>
-              <div className={`text-base sm:text-lg font-black ${activeSession ? "text-emerald-400" : "text-amber-400"}`}>
-                {activeSession ? "LIVE ACTIVE" : "STANDBY"}
+              <div className={`text-base sm:text-lg font-black ${activeSession ? "text-emerald-400" : nextSession ? "text-[#d4e938]" : "text-amber-400"}`}>
+                {activeSession ? "LIVE NOW" : nextSession ? "UP NEXT" : "STANDBY"}
               </div>
-              <div className="text-[10px] text-slate-500 truncate">
-                {activeSession ? "Rotations Running" : "Awaiting Organizer"}
+              <div className="text-[10px] text-slate-400 truncate">
+                {activeSession
+                  ? "Matches in progress"
+                  : nextSession
+                    ? `${formatPHTDate(nextSession.start_time)} · ${formatPHTTime(nextSession.start_time)}`
+                    : "No session scheduled yet"}
               </div>
             </div>
 
-            {/* 2. Court Capacity */}
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 space-y-1">
+            {/* 2. Courts */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] transition-colors p-3.5 space-y-1">
               <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>COURT LOAD</span>
+                <span>COURTS</span>
                 <Activity className="h-3 w-3 text-emerald-400" />
               </div>
-              <div className="text-base sm:text-lg font-black text-white">
-                {activeCourtsCount} / {totalCourtsCount} Courts
+              <div className="text-base sm:text-lg font-black text-white tabular-nums">
+                {activeSession
+                  ? `${activeCourtsCount} / ${totalCourtsCount} In Use`
+                  : `${totalCourtsCount} Ready`}
               </div>
               {/* Mini court visual indicator */}
               <div className="flex items-center gap-1 pt-0.5">
@@ -264,19 +283,25 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* 3. Queue Velocity */}
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 space-y-1">
+            {/* 3. Queue / RSVP Velocity */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] transition-colors p-3.5 space-y-1">
               <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>QUEUE ROTATION</span>
+                <span>{activeSession ? "QUEUE ROTATION" : "NEXT SESSION RSVPS"}</span>
                 <Users className="h-3 w-3 text-[#d4e938]" />
               </div>
-              <div className="text-base sm:text-lg font-black text-[#d4e938]">
-                {activeSession ? `${rawQueue.length} in Line` : "0 Waiting"}
+              <div className="text-base sm:text-lg font-black text-[#d4e938] tabular-nums">
+                {activeSession
+                  ? `${rawQueue.length} in Line`
+                  : nextSession
+                    ? `${rsvpCounts[nextSession.id] || 0} Going`
+                    : "0 Waiting"}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
                 {activeSession && rawQueue.length > 0
                   ? `${Math.ceil(rawQueue.length / 4)} Pod${Math.ceil(rawQueue.length / 4) !== 1 ? "s" : ""} on deck`
-                  : "Queue open for check-in"}
+                  : nextSession
+                    ? "RSVP open before check-in"
+                    : "Queue open for check-in"}
               </div>
             </div>
           </div>
@@ -375,54 +400,91 @@ export default async function HomePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {upcomingSessions.slice(0, 4).map((session) => (
-                    <div
-                      key={session.id}
-                      className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-4 flex flex-col justify-between space-y-3 hover:border-emerald-500/40 transition-all shadow-2xs"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5 flex-wrap">
-                            <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40">
-                              SCHEDULED
-                            </Badge>
-                            <RankedBadge description={session.description} />
-                            <CourtsBadge description={session.description} />
-                          </span>
-                          <span className="text-[11px] font-mono text-slate-500">
-                            {formatPHTTime(session.start_time)}
-                          </span>
+                  {upcomingSessions.slice(0, 4).map((session, idx) => {
+                    const isNextUp = idx === 0;
+                    const goingCount = rsvpCounts[session.id] || 0;
+                    const isGoing = myRsvps.includes(session.id);
+
+                    return (
+                      <div
+                        key={session.id}
+                        className={`group rounded-2xl border p-4 flex flex-col justify-between gap-3.5 transition-all hover:-translate-y-0.5 hover:shadow-sm shadow-2xs ${
+                          isNextUp
+                            ? "border-emerald-400/50 dark:border-emerald-500/35 bg-gradient-to-br from-emerald-50/70 via-white to-white dark:from-emerald-950/25 dark:via-slate-950/75 dark:to-slate-950/60"
+                            : "border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 hover:border-emerald-500/40"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 flex-wrap">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-mono ${
+                                  isNextUp
+                                    ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60"
+                                    : "border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40"
+                                }`}
+                              >
+                                {isNextUp ? "UP NEXT" : "SCHEDULED"}
+                              </Badge>
+                              <RankedBadge description={session.description} />
+                              <CourtsBadge description={session.description} />
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              <Clock className="h-3 w-3 text-emerald-500" />
+                              {formatPHTTime(session.start_time)}
+                            </span>
+                          </div>
+
+                          <div>
+                            <Link href={`/sessions/${session.id}`} className="block">
+                              <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-slate-100 line-clamp-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                {session.title}
+                              </h4>
+                            </Link>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="h-3 w-3 text-emerald-500 shrink-0" />
+                                {formatPHTDate(session.start_time)}
+                              </span>
+                              <span className="inline-flex items-center gap-1 truncate max-w-44">
+                                <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
+                                <span className="truncate">{session.location || "DCTECH Sports Arena"}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                            {cleanSessionDescription(session.description) || "DCTECH open play on all arena courts."}
+                          </p>
                         </div>
-                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 line-clamp-1">
-                          {session.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                          {cleanSessionDescription(session.description) || "DCTECH open play on all arena courts."}
-                        </p>
-                      </div>
 
-                      {!isSystemAdmin && (
-                        <RsvpButton
-                          sessionId={session.id}
-                          going={myRsvps.includes(session.id)}
-                          count={rsvpCounts[session.id] || 0}
-                        />
-                      )}
+                        <div className="pt-2.5 border-t border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {!isSystemAdmin && (
+                              <RsvpButton
+                                sessionId={session.id}
+                                going={isGoing}
+                                count={goingCount}
+                              />
+                            )}
+                            {goingCount > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                                <Users className="h-3 w-3 text-emerald-500" />
+                                {goingCount} going
+                              </span>
+                            )}
+                          </div>
 
-                      <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-emerald-500" />
-                          {formatPHTDate(session.start_time)}
-                          {rsvpCounts[session.id] ? ` · ${rsvpCounts[session.id]} going` : ""}
-                        </span>
-                        <Link href={`/sessions/${session.id}`}>
-                          <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs font-mono font-bold">
-                            Details <ArrowRight className="h-3 w-3 ml-1" />
-                          </Button>
-                        </Link>
+                          <Link href={`/sessions/${session.id}`}>
+                            <Button variant="outline" size="sm" className="h-8 px-3 text-xs font-mono font-bold">
+                              Details <ArrowRight className="h-3 w-3 ml-1" />
+                            </Button>
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -453,43 +515,100 @@ export default async function HomePage() {
               {/* Top 3 Player List */}
               <div className="space-y-2.5 flex-1">
                 {topPlayers.length === 0 && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono py-6 text-center">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 font-mono py-6 text-center">
                     {`No one is ranked yet. Players need ${RATING_RULES.qualifyGames} ranked games.`}
                   </p>
                 )}
-                {topPlayers.map((player) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-950/60 shadow-2xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        title={player.tied ? `Tied for #${player.rank}` : undefined}
-                        className={`h-7 min-w-7 px-1 rounded-full flex items-center justify-center font-mono font-extrabold text-xs shadow-2xs ${
-                          player.rank === 1
-                            ? "bg-amber-400 text-slate-950"
-                            : player.rank === 2
-                            ? "bg-slate-300 text-slate-900 dark:bg-slate-700 dark:text-slate-100"
-                            : "bg-amber-700/60 text-amber-100"
-                        }`}
-                      >
-                        {player.tied ? "T" : "#"}{player.rank}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate max-w-28">
-                          {player.full_name || player.display_name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {player.games_won}W - {player.games_lost}L ({player.win_rate}%)
-                        </div>
-                      </div>
-                    </div>
+                {topPlayers.map((player) => {
+                  const name = player.full_name || player.display_name || "Player";
+                  const initials = name
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase() ?? "")
+                    .join("");
+                  const isFirst = player.rank === 1;
+                  const isSecond = player.rank === 2;
+                  const cardTone = isFirst
+                    ? "border-amber-400/45 dark:border-amber-500/35 bg-gradient-to-r from-amber-50/90 via-white to-white dark:from-amber-950/30 dark:via-slate-950/75 dark:to-slate-950/60"
+                    : isSecond
+                    ? "border-slate-300/80 dark:border-slate-700/80 bg-slate-50/90 dark:bg-slate-950/70"
+                    : "border-orange-300/50 dark:border-orange-900/50 bg-orange-50/40 dark:bg-slate-950/60";
+                  const rankPillTone = isFirst
+                    ? "bg-amber-400 text-slate-950 ring-2 ring-white dark:ring-slate-900"
+                    : isSecond
+                    ? "bg-slate-300 text-slate-900 dark:bg-slate-600 dark:text-white ring-2 ring-white dark:ring-slate-900"
+                    : "bg-amber-700 text-amber-50 ring-2 ring-white dark:ring-slate-900";
+                  const avatarRingTone = isFirst
+                    ? "ring-2 ring-amber-400/80"
+                    : isSecond
+                    ? "ring-2 ring-slate-300 dark:ring-slate-600"
+                    : "ring-2 ring-amber-700/60";
 
-                    <Badge variant="secondary" className="font-mono text-xs font-bold px-2 py-0.5">
-                      ★ {formatRating(player.skill_rating)}
-                    </Badge>
-                  </div>
-                ))}
+                  return (
+                    <Link
+                      key={player.id}
+                      href="/rankings"
+                      title={player.tied ? `Tied for #${player.rank} — View full rankings` : `Rank #${player.rank} — View full rankings`}
+                      className={`group flex items-center justify-between gap-3 p-3 rounded-2xl border shadow-2xs transition-all hover:-translate-y-0.5 hover:shadow-sm ${cardTone}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {/* Avatar + Rank Badge */}
+                        <div className="relative shrink-0">
+                          <div
+                            className={`h-10 w-10 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-mono font-extrabold text-xs text-slate-700 dark:text-slate-200 ${avatarRingTone}`}
+                          >
+                            {player.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={player.avatar_url}
+                                alt=""
+                                width={40}
+                                height={40}
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              initials || "P"
+                            )}
+                          </div>
+                          <span
+                            className={`absolute -bottom-1 -right-1 h-5 min-w-5 px-1 rounded-full flex items-center justify-center font-mono font-black text-[10px] shadow-xs ${rankPillTone}`}
+                          >
+                            {player.tied ? "T" : "#"}{player.rank}
+                          </span>
+                        </div>
+
+                        {/* Name + Record + Win-Rate Micro-Bar */}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {name}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-600 dark:text-slate-400 font-mono tabular-nums whitespace-nowrap">
+                              {player.games_won}W-{player.games_lost}L · {player.win_rate}%
+                            </span>
+                            <div className="hidden sm:block h-1.5 flex-1 max-w-16 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  isFirst ? "bg-amber-400" : "bg-emerald-500"
+                                }`}
+                                style={{ width: `${Math.max(8, Math.min(100, player.win_rate))}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge
+                        variant={isFirst ? "volt" : "secondary"}
+                        className="font-mono text-xs font-extrabold tabular-nums px-2.5 py-1 shrink-0"
+                      >
+                        ★ {formatRating(player.skill_rating)}
+                      </Badge>
+                    </Link>
+                  );
+                })}
               </div>
 
               <Link href="/rankings" className="w-full pt-2">
