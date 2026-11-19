@@ -1,5 +1,6 @@
 import { RATING_RULES } from "@/features/rankings/ratingConfig";
 import { formatRating } from "@/lib/utils";
+import { SELF_BREAKS_ENABLED } from "@/features/queue/utils/queueLimits";
 
 const LAST_NEW_PLAYER_GAMES =
   RATING_RULES.newPlayerSchedule[RATING_RULES.newPlayerSchedule.length - 1].beforeGames;
@@ -70,7 +71,7 @@ export const CORE_RULES: CoreRuleItem[] = [
     bullets: [
       "Paddle contact must be below the waist (navel level).",
       "Swing must move in an upward arc; paddle head below wrist.",
-      "Feet must stay behind baseline until ball is struck.",
+      "Feet must stay behind the baseline, between the center line and sideline, until the ball is struck.",
       "Must land diagonally crosscourt past the 7ft Kitchen line.",
       "Drop Serve is allowed (dropped from natural height, struck off bounce).",
     ],
@@ -84,7 +85,7 @@ export const CORE_RULES: CoreRuleItem[] = [
       "Bounce 1: Receiving team must let the serve bounce.",
       "Bounce 2: Serving team must let the return bounce.",
       "After both bounces, both teams may hit volleys out of the air or play off the bounce.",
-      "Volleying the 2nd or 3rd shot is an immediate fault!",
+      "Volleying the serve or the return before it bounces is a fault. From the 3rd shot on, volleys are allowed.",
     ],
   },
   {
@@ -96,7 +97,7 @@ export const CORE_RULES: CoreRuleItem[] = [
       "7-foot zone on both sides of the net (Non-Volley Zone).",
       "You cannot touch the kitchen or kitchen line while volleying in the air.",
       "Momentum carrying you into the kitchen after a volley is a fault.",
-      "Yes, you can enter the kitchen: You CAN step in anytime IF the ball bounces first.",
+      "You can stand in the kitchen any time. You just can't volley there: step in to play a ball that has bounced.",
     ],
   },
   {
@@ -108,6 +109,7 @@ export const CORE_RULES: CoreRuleItem[] = [
       "Only the serving team can score points.",
       "In doubles, Server 1 serves until losing a rally, then Server 2 serves.",
       "When Server 2 loses the rally, a Side-Out occurs and the opponents serve.",
+      "At the start of a game, the first serving team gets only one server (the score is called 0-0-2).",
       "Servers switch right/left courts only upon winning a point.",
     ],
   },
@@ -199,7 +201,7 @@ export const PLAYER_FLOW_STEPS: FlowStep[] = [
     step: "03",
     title: "Wait Estimate, Activity & Call-Up",
     description:
-      "Track your queue position, live wait timer, session game count, estimated wait-time card, and live session activity feed. When a court opens, you'll get a live call-up alert with your assigned court.",
+      "Track your queue position, live wait timer, session game count, estimated wait-time card, and live session activity feed. When an admin starts your game, you'll get a live call-up alert with your court.",
     href: "/sessions",
     ctaLabel: "Check Session",
     accent: "sky",
@@ -281,7 +283,13 @@ export const PLAYER_FAQS: FaqItem[] = [
   {
     question: "What if I am called to a court but need a minute (tying shoes / arriving)?",
     answer:
-      "Ask an organizer or click the Bump / Play Next button on your paddle card in the queue on the session page. It shifts you down so ready players play immediately and you take the court in the next rotation.",
+      "Tell an admin right away. Before the first point is played, they can swap the next person in line in for you, so the court doesn't wait. You go back into the line and play in a later game.",
+  },
+  {
+    question: "How do I leave the session or step away?",
+    answer: SELF_BREAKS_ENABLED
+      ? "Tap Take a break to skip games without losing your place (one break per session), then I'm back when you return. To go home, tap Check out: it takes you out of the line. You can check back in once, at the back of the line. You can't check out in the middle of a game."
+      : "To go home, tap Check out: it takes you out of the line. You can check back in once, at the back of the line; after that, ask an admin. You can't check out in the middle of a game. Need a short break instead? Ask an admin to put you on one so you keep your place.",
   },
   {
     question: "Can I pair up with a specific colleague for Doubles?",
@@ -324,13 +332,13 @@ export const STAFF_GUIDE_SECTIONS: RoleGuideSection[] = [
     title: "Court Monitor & Live Umpiring",
     badge: "STAFF / UMPIRE",
     description:
-      "Stationed staff manage live match flow, scoring, and timeouts from the dedicated Court Monitor view (/courts/[id]/monitor).",
+      "Stationed staff manage live match flow and scoring from the court's Umpire view.",
     href: "/",
     ctaLabel: "Open Live Courts",
     items: [
       {
         label: "Access Umpire Mode",
-        detail: "Open your assigned court from Live Courts or Admin and launch Monitor mode.",
+        detail: "Tap Umpire on your court's card on the session page to open its full-screen scoring view.",
       },
       {
         label: "Live Scoring & Side-Out",
@@ -338,13 +346,9 @@ export const STAFF_GUIDE_SECTIONS: RoleGuideSection[] = [
           "Increment Team A / Team B points in real time; public scoreboards update immediately via live subscriptions.",
       },
       {
-        label: "60-Second Timeout Timer",
-        detail: "Trigger the built-in countdown timer when a team calls a timeout.",
-      },
-      {
         label: "Admin Score & Queue Handoff",
         detail:
-          "Staff handle live point tracking and timeouts in Court Monitor; finalizing official match scores, fixing saved results, and calling the next 4 players are admin-only actions.",
+          "Staff handle live point tracking in Court Monitor; finalizing official match scores, fixing saved results, and calling the next 4 players are admin-only actions.",
       },
     ],
   },
@@ -385,9 +389,9 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
     ctaLabel: "Manage Operations",
     items: [
       {
-        label: "Rented Courts & Overrides",
+        label: "Courts",
         detail:
-          "Set the active rented court count and toggle individual courts between Available, Occupied, Maintenance, or Reserved.",
+          "Add a court (you'll name it) or remove an empty one with its ×. Set a free court to Open, Maintenance or Reserved; a court shows In play by itself while a game is on it.",
       },
       {
         label: "Staff Assignment",
@@ -396,7 +400,7 @@ export const ADMIN_GUIDE_SECTIONS: RoleGuideSection[] = [
       {
         label: "Live Queue Tools & No-Show Swaps",
         detail:
-          "Bulk-add checked-in players, bump positions, swap two queued players, replace, remove or switch players on a live court (with Undo), edit the Up Next matches, start them on open courts, or reset the queue. Saving a result never starts the next game by itself.",
+          "Add players to the line, tap a name in the line to remove or check them out, and tap a player on a live court to replace them, switch teams or mark a no-show (with Undo). Tap a name on an Up Next match to swap that player, then start it on an open court. Saving a result never starts the next game by itself.",
       },
       {
         label: "Result Correction & Activity Audit",
