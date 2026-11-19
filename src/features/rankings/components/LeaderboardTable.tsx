@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Trophy, Search } from "lucide-react";
+import { Trophy, Search, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getPlayerMatchHistory } from "@/features/players/api/playerActions";
 import type { RankedPlayer } from "../api/rankingActions";
@@ -11,6 +11,7 @@ import { RankingsPodium } from "./RankingsPodium";
 import { RankingsLadder, type SortField, type SortOrder } from "./RankingsLadder";
 import { NewPlayersList } from "./NewPlayersList";
 import { PlayerStatsModal } from "./PlayerStatsModal";
+import { ThroneRoomModal } from "./ThroneRoomModal";
 
 interface LeaderboardTableProps {
   initialRankings?: RankedPlayer[];
@@ -27,6 +28,7 @@ export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [showThrone, setShowThrone] = useState(false);
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -131,6 +133,16 @@ export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false
             totalPlayers={rankings.length}
             onView={handleViewPlayer}
             onPhoto={openPhoto}
+            action={
+              <button
+                type="button"
+                onClick={() => setShowThrone(true)}
+                className="inline-flex h-11 shrink-0 items-center gap-2 self-start sm:self-auto rounded-xl border border-[#f5c84c]/40 bg-[#f5c84c]/10 px-4 text-sm font-bold text-[#f5c84c] hover:bg-[#f5c84c]/20 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#f5c84c]"
+              >
+                <Crown className="h-4 w-4" aria-hidden />
+                Throne room
+              </button>
+            }
           />
 
           {/* Everyone else */}
@@ -203,6 +215,8 @@ export function LeaderboardTable({ initialRankings = [], canRemovePhotos = false
           setSelectedPlayer((prev) => (prev && prev.id === id ? { ...prev, avatar_url: null } : prev));
         }}
       />
+
+      <ThroneRoomModal isOpen={showThrone} onClose={() => setShowThrone(false)} players={rankings} />
 
       <PlayerStatsModal
         player={selectedPlayer}

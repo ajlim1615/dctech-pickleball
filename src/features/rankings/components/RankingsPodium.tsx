@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Crown, Eye } from "lucide-react";
 import { formatRating } from "@/lib/utils";
 import type { RankedPlayer } from "../api/rankingActions";
@@ -193,12 +194,15 @@ export function RankingsPodium({
   totalPlayers,
   onView,
   onPhoto,
+  action,
 }: {
   /** Always three entries, 1st to 3rd; null is an open spot. */
   slots: (RankedPlayer | null)[];
   totalPlayers: number;
   onView: (p: RankedPlayer) => void;
   onPhoto: (p: RankedPlayer) => void;
+  /** Shown at the top right of the header (the Throne room button). */
+  action?: ReactNode;
 }) {
   const hasOpenSpot = slots.some((p) => p === null);
   // Rise order: 3rd, 2nd, then 1st last for the payoff.
@@ -222,6 +226,7 @@ export function RankingsPodium({
             {totalPlayers} players. Ratings move after every ranked game; casual games don&apos;t count.
           </p>
         </div>
+        {action}
       </div>
 
       <ol className="mt-8 grid grid-cols-3 items-end gap-x-2 sm:gap-x-6 max-w-3xl mx-auto">
