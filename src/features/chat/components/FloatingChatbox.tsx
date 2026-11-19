@@ -11,7 +11,6 @@ import {
   CHAT_COOLDOWN_MS,
   CHAT_HISTORY_LIMIT,
   CHAT_IDLE_DISCONNECT_MS,
-  countActiveChatMessages,
   countUnreadChatMessages,
   DEFAULT_CHAT_ROOM,
   findFirstUnreadMessageId,
@@ -229,7 +228,6 @@ export function FloatingChatbox() {
 
   const isSuperAdmin = isSuperAdminChatEmail(userProfile.email);
   const storedLastSeenAt = readStoredLastSeenAt(userProfile.id);
-  const activeMessageCount = countActiveChatMessages(messages);
   const unreadMessageCount = isOpen
     ? 0
     : countUnreadChatMessages(messages, userProfile.id, storedLastSeenAt);
@@ -571,17 +569,13 @@ export function FloatingChatbox() {
               ? `Open chat (${unreadMessageCount} unread ${
                   unreadMessageCount === 1 ? "message" : "messages"
                 })`
-              : activeMessageCount > 0
-                ? `Open chat (${activeMessageCount} ${
-                    activeMessageCount === 1 ? "message" : "messages"
-                  })`
-                : "Open chat"
+              : "Open chat"
           }
           className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-slate-900/95 dark:bg-emerald-600 text-white px-4 py-2.5 text-xs font-extrabold shadow-lg backdrop-blur-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
         >
           <MessageCircle className="h-4 w-4 text-[#d4e938] dark:text-white" />
           <span>Chat</span>
-          {unreadMessageCount > 0 ? (
+          {unreadMessageCount > 0 && (
             <span
               title={`${unreadMessageCount} unread ${
                 unreadMessageCount === 1 ? "message" : "messages"
@@ -590,17 +584,6 @@ export function FloatingChatbox() {
             >
               {unreadMessageCount}
             </span>
-          ) : (
-            activeMessageCount > 0 && (
-              <span
-                title={`${activeMessageCount} ${
-                  activeMessageCount === 1 ? "message" : "messages"
-                } in chat`}
-                className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-white/15 dark:bg-slate-950/40 text-white px-1.5 text-[10px] font-mono font-bold tabular-nums"
-              >
-                {activeMessageCount}
-              </span>
-            )
           )}
         </button>
       )}
