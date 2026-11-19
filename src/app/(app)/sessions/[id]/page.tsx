@@ -44,7 +44,7 @@ export default async function SessionDetailPage({
   );
 
   // Fallback demo session if running locally without connected DB
-  const session: Session & { checkins?: any[] } = sessionData || {
+  const session: Session & { checkins?: any[]; checkedOutCount?: number } = sessionData || {
     id,
     title: "Wednesday Night Open Play",
     description: "Indoor Courts at DCTECH Sports Arena. 4-on / 4-off paddle rotation queue active.",

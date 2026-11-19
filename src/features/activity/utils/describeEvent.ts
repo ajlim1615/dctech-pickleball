@@ -198,8 +198,24 @@ export function describeEvent(
         return `${actor} added ${who(d.in)} to ${court ?? "a court"}`;
       case "court_change_undone":
         return `${actor} undid a change on ${court ?? "a court"}`;
-      case "up_next_edited":
-        return `${actor} changed Up Next`;
+      case "up_next_edited": {
+        // Older events only stored the card id.
+        const card = typeof d.position === "number" ? `Up Next ${d.position}` : "Up Next";
+        const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+        const added = ids(d.added);
+        const removed = ids(d.removed);
+        const matchup =
+          ids(d.teamA).length > 0 || ids(d.teamB).length > 0
+            ? `${team(ids(d.teamA)) || "open"} vs ${team(ids(d.teamB)) || "open"}`
+            : null;
+        if (d.isNew) return `${actor} set up ${card}${matchup ? `: ${matchup}` : ""}`;
+        if (added.length === 1 && removed.length === 1) {
+          return `${actor} put ${who(added[0])} in for ${who(removed[0])} on ${card}`;
+        }
+        if (added.length > 0 && removed.length === 0) return `${actor} added ${formatNameList(added, who)} to ${card}`;
+        if (removed.length > 0 && added.length === 0) return `${actor} took ${formatNameList(removed, who)} off ${card}`;
+        return matchup ? `${actor} changed ${card}: ${matchup}` : `${actor} changed ${card}`;
+      }
       default:
         return "Something changed";
     }

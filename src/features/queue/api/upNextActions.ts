@@ -138,6 +138,11 @@ export async function saveUpNextCard(
   if (auth.error) return { error: auth.error };
   const supabase = await createClient();
 
+  // Who was on the card before, so the activity feed can say exactly who came in or out.
+  const before = cardId
+    ? (await supabase.from("up_next_players").select("player_id").eq("card_id", cardId)).data?.map((r) => r.player_id) ?? []
+    : [];
+
   const { data, error } = await supabase.rpc("save_up_next_card", {
     p_session_id: sessionId,
     p_card_id: cardId,
@@ -150,13 +155,26 @@ export async function saveUpNextCard(
   if (failed) return { error: failed };
   const out = data as { card_id: string; unpaired?: string[] };
 
-  recordSessionEvent({
-    sessionId,
-    type: "up_next_edited",
-    actorId: auth.context!.userId,
-    actorRole: "admin",
-    subjectIds: [...teamA, ...teamB],
-    details: { cardId: out.card_id },
+  const after = [...teamA, ...teamB];
+  recordSessionEvent(async () => {
+    // Read after the response: the card's number in the Up Next list.
+    const { data: card } = await supabase.from("up_next_matches").select("position").eq("id", out.card_id).maybeSingle();
+    return {
+      sessionId,
+      type: "up_next_edited",
+      actorId: auth.context!.userId,
+      actorRole: "admin",
+      subjectIds: after,
+      details: {
+        cardId: out.card_id,
+        position: card?.position ?? null,
+        isNew: !cardId,
+        teamA,
+        teamB,
+        added: after.filter((id) => !before.includes(id)),
+        removed: before.filter((id) => !after.includes(id)),
+      },
+    };
   });
   refreshUpNextLater(sessionId);
   revalidatePath(`/sessions/${sessionId}`);

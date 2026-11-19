@@ -65,7 +65,7 @@ import { CourtCapacityStrip } from "./CourtCapacityStrip";
 import { WhosGoing, type GoingPlayer } from "./WhosGoing";
 
 interface SessionDetailViewProps {
-  session: Session & { checkins?: any[] };
+  session: Session & { checkins?: any[]; checkedOutCount?: number };
   userRole?: string;
   userEmail?: string;
   currentUserId?: string;
@@ -174,6 +174,12 @@ export function SessionDetailView({
 
   const [activeCheckins, setActiveCheckins] = useState<any[]>(session.checkins || []);
   const [checkingOutPlayerId, setCheckingOutPlayerId] = useState<string | null>(null);
+  // Players who checked out of this session. Counted up right away on a check-out here;
+  // the refreshed page brings the true number (including other screens' check-outs).
+  const [checkedOutCount, setCheckedOutCount] = useState(session.checkedOutCount ?? 0);
+  useEffect(() => {
+    setCheckedOutCount(session.checkedOutCount ?? 0);
+  }, [session.checkedOutCount]);
 
   useEffect(() => {
     setActiveCheckins(session.checkins || []);
@@ -322,6 +328,10 @@ export function SessionDetailView({
         : previewCourts(courts || [], displayCourtCount),
     [currentStatus, courts, displayCourtCount]
   );
+  // The court cards keep their courts live; Up Next and the queue use the same copy, so
+  // "No free court" and "You're playing" follow games starting and ending on any screen.
+  const [liveCourts, setLiveCourts] = useState<ActiveCourtView[] | null>(null);
+  const panelCourts = currentStatus === "active" && liveCourts ? liveCourts : shownCourts;
 
   // One live Up Next subscription per session page, shared by Courts and Up Next.
   const upNextCards = useLiveUpNext(currentStatus === "active" ? session.id : undefined);
@@ -362,9 +372,24 @@ export function SessionDetailView({
     );
   }, [employees, sessionMeta.isRanked]);
 
+  // Players on a court right now. Their line entry is "playing", which the queue list
+  // leaves out, so without this they'd look free to add.
+  const onCourtIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of panelCourts) {
+      if (c.current_match?.status !== "in_progress") continue;
+      for (const p of c.current_match.players ?? []) {
+        const id = p.player_id ?? (p as { player?: { id?: string } }).player?.id;
+        if (id) ids.add(id);
+      }
+    }
+    return ids;
+  }, [panelCourts]);
+
+  // Already in line or on a court: can't be added again.
   const currentlyQueuedIds = useMemo(() => {
-    return new Set(initialQueue.map((q) => q.player_id));
-  }, [initialQueue]);
+    return new Set([...initialQueue.map((q) => q.player_id), ...onCourtIds]);
+  }, [initialQueue, onCourtIds]);
 
   const filteredEmployees = useMemo(() => {
     const query = bulkSearch.trim().toLowerCase();
@@ -527,6 +552,7 @@ export function SessionDetailView({
             (c) => c.player_id !== targetPlayerId && c.player?.id !== targetPlayerId
           )
         );
+        setCheckedOutCount((n) => n + 1);
         if (isSelf) {
           setIsCheckedIn(false);
         }
@@ -734,17 +760,24 @@ export function SessionDetailView({
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     You&apos;re checked in
                   </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleCheckOutPlayer(currentUserId!, "yourself")}
-                    disabled={checkingOutPlayerId === currentUserId}
-                    className="h-11 px-3 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
-                    title="Check out and leave the queue"
-                  >
-                    <UserMinus className="h-4 w-4 mr-1.5" />
-                    {checkingOutPlayerId === currentUserId ? "Checking out…" : "Check out"}
-                  </Button>
+                  {/* No checking out mid-game: the game would be left a player short. */}
+                  {currentUserId && onCourtIds.has(currentUserId) ? (
+                    <span className="px-3 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                      On court · check out after your game
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => handleCheckOutPlayer(currentUserId!, "yourself")}
+                      disabled={checkingOutPlayerId === currentUserId}
+                      className="h-11 px-3 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer"
+                      title="Check out and leave the queue"
+                    >
+                      <UserMinus className="h-4 w-4 mr-1.5" />
+                      {checkingOutPlayerId === currentUserId ? "Checking out…" : "Check out"}
+                    </Button>
+                  )}
                 </div>
               ) : currentStatus === "active" ? (
                 <div className="flex items-center gap-2 w-full md:w-auto">
@@ -1127,7 +1160,15 @@ export function SessionDetailView({
                             </Badge>
                           ) : null}
 
-                          {(isAdmin || isCurrentUser) && (
+                          {(isAdmin || isCurrentUser) && onCourtIds.has(c.player_id || c.player?.id) ? (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 text-[10px] font-mono text-slate-500 border-slate-300 dark:border-slate-700"
+                              title="In a game right now. Check out after it's finished."
+                            >
+                              On Court
+                            </Badge>
+                          ) : (isAdmin || isCurrentUser) && (
                             <Button
                               type="button"
                               variant="outline"
@@ -1335,7 +1376,7 @@ export function SessionDetailView({
                           <div className="flex items-center gap-2 shrink-0">
                             {isQueued ? (
                               <Badge variant="outline" className="text-[10px] font-mono text-slate-400 border-slate-300 dark:border-slate-700">
-                                Already Queued
+                                {onCourtIds.has(emp.id) ? "On Court" : "Already Queued"}
                               </Badge>
                             ) : emp.skill_rating ? (
                               <Badge variant="outline" className="text-[10px] font-mono font-bold">
@@ -1568,6 +1609,7 @@ export function SessionDetailView({
           courts={shownCourts}
           waitingCount={initialQueue.filter((q) => q.status === "waiting").length}
           checkedInCount={checkins.length}
+          checkedOutCount={checkedOutCount}
           onStart={openStartConfirm}
           isStarting={statusLoading}
           onAddPlayers={openAddPlayers}
@@ -1616,6 +1658,7 @@ export function SessionDetailView({
           )}
           <CourtMatrix
             initialCourts={shownCourts}
+            onLiveCourts={currentStatus === "active" ? setLiveCourts : undefined}
             userRole={userRole}
             isAdmin={isAdmin && currentStatus === "active"}
             allowCourtRename={isAdmin && (currentStatus === "active" || currentStatus === "scheduled")}
@@ -1634,7 +1677,7 @@ export function SessionDetailView({
             <div className="mt-6">
               <UpNextPanel
                 sessionId={session.id}
-                courts={shownCourts}
+                courts={panelCourts}
                 queue={initialQueue}
                 cards={upNextCards}
                 isAdmin={isAdmin}
@@ -1737,7 +1780,7 @@ export function SessionDetailView({
             isSessionActive={currentStatus === "active"}
             isSessionScheduled={currentStatus === "scheduled"}
             matchingMode={sessionMeta.matchingMode}
-            courts={shownCourts}
+            courts={panelCourts}
             history={history}
             skillSpread={sessionMeta.skillSpread}
             allowPartners={sessionMeta.allowPartners}

@@ -77,6 +77,8 @@ interface CourtMatrixProps {
   courtNames?: Record<string, string>;
   syncArenaList?: boolean;
   gamesPlayed?: Record<string, number>;
+  /** Hands the live courts to the page, so other panels (the queue) see games start and end live. */
+  onLiveCourts?: (courts: ActiveCourtView[]) => void;
 }
 
 export function CourtMatrix({
@@ -95,6 +97,7 @@ export function CourtMatrix({
   courtNames,
   syncArenaList = false,
   gamesPlayed,
+  onLiveCourts,
 }: CourtMatrixProps) {
   const [filter, setFilter] = useState<"all" | "occupied" | "available">("all");
   const [localCourtNames, setLocalCourtNames] = useState<Record<string, string>>(courtNames ?? {});
@@ -117,6 +120,9 @@ export function CourtMatrix({
     initialCourts ?? NO_COURTS,
     syncArenaList
   );
+  useEffect(() => {
+    onLiveCourts?.(liveCourts);
+  }, [liveCourts, onLiveCourts]);
 
   // Admin screens: shared court actions and one Undo toast (Up Next cards are passed down from the page).
   const courtActions = useCourtActions(sessionId);

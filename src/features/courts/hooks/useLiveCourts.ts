@@ -19,7 +19,7 @@ async function fetchCourtViews(supabase: ReturnType<typeof createClient>): Promi
     supabase
       .from("matches")
       .select(
-        "id, session_id, court_id, format, match_type, status, team_a_score, team_b_score, winning_team, started_at, ended_at, players:match_players (id, team, player:profiles (id, full_name, display_name, skill_rating))"
+        "id, session_id, court_id, format, match_type, status, team_a_score, team_b_score, winning_team, started_at, ended_at, players:match_players (id, player_id, team, player:profiles (id, full_name, display_name, skill_rating))"
       )
       .eq("status", "in_progress"),
   ]);

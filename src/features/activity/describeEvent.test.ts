@@ -160,6 +160,26 @@ describe("live-court and Up Next events", () => {
     [{ type: "court_slot_filled", subject_ids: ["joy"], details: { courtName: "Court 2", in: "joy" } }, "Ana added Joy Ramos to Court 2"],
     [{ type: "court_change_undone", subject_ids: [], details: { courtName: "Court 2" } }, "Ana undid a change on Court 2"],
     [{ type: "up_next_edited", subject_ids: [], details: {} }, "Ana changed Up Next"],
+    [
+      { type: "up_next_edited", subject_ids: [], details: { position: 1, teamA: ["mark", "joy"], teamB: ["rico", "ana"], added: ["joy"], removed: ["bea"] } },
+      "Ana put Joy Ramos in for Bea Villanueva on Up Next 1",
+    ],
+    [
+      { type: "up_next_edited", subject_ids: [], details: { position: 2, isNew: true, teamA: ["mark", "joy"], teamB: ["rico", "ana"], added: ["mark", "joy", "rico", "ana"], removed: [] } },
+      "Ana set up Up Next 2: Mark Aquino & Joy Ramos vs Rico Tan & Ana Lim",
+    ],
+    [
+      { type: "up_next_edited", subject_ids: [], details: { position: 2, isNew: true, teamA: ["mark"], teamB: [], added: ["mark"], removed: [] } },
+      "Ana set up Up Next 2: Mark Aquino vs open",
+    ],
+    [
+      { type: "up_next_edited", subject_ids: [], details: { position: 2, teamA: ["mark", "joy"], teamB: ["rico"], added: ["rico"], removed: [] } },
+      "Ana added Rico Tan to Up Next 2",
+    ],
+    [
+      { type: "up_next_edited", subject_ids: [], details: { position: 3, teamA: ["mark"], teamB: ["rico"], added: [], removed: ["joy"] } },
+      "Ana took Joy Ramos off Up Next 3",
+    ],
   ] as const)("%o", (partial, text) => {
     const e = { ...ev({ ...(partial as unknown as Partial<SessionEvent>), actor_role: admin.actor_role }), actor_name: admin.actor_name };
     expect(describeEvent(e, names)).toBe(text);

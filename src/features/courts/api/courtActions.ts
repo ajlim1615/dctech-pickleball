@@ -45,6 +45,7 @@ const readCourts = cache(async (): Promise<ActiveCourtView[]> => {
         ended_at,
         players:match_players (
           id,
+          player_id,
           team,
           player:profiles (
             id,

@@ -15,6 +15,8 @@ interface SessionConsoleBarProps {
   courts: ActiveCourtView[];
   waitingCount: number;
   checkedInCount: number;
+  /** Players who checked out of this session. */
+  checkedOutCount?: number;
   onStart: () => void;
   isStarting: boolean;
   onAddPlayers: () => void;
@@ -31,6 +33,7 @@ export function SessionConsoleBar({
   courts,
   waitingCount,
   checkedInCount,
+  checkedOutCount = 0,
   onStart,
   isStarting,
   onAddPlayers,
@@ -86,6 +89,7 @@ export function SessionConsoleBar({
             <Stat label={`of ${courts.length} in play`} value={inPlay} />
             <Stat label="open" value={open} />
             <Stat label="checked in" value={checkedInCount} className="hidden sm:flex" />
+            <Stat label="checked out" value={checkedOutCount} className="hidden sm:flex" />
           </dl>
         </div>
 

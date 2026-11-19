@@ -46,7 +46,7 @@ export async function getSessions(): Promise<Session[]> {
 export async function getSessionById(id: string) {
   const supabase = await createClient();
 
-  const [sessionRes, checkinsRes] = await Promise.all([
+  const [sessionRes, checkinsRes, checkedOutRes] = await Promise.all([
     supabase
       .from("sessions")
       .select("*")
@@ -71,6 +71,12 @@ export async function getSessionById(id: string) {
       `)
       .eq("session_id", id)
       .eq("status", "checked_in"),
+    // Just the number of players who checked out (no rows), for the admin bar.
+    supabase
+      .from("session_checkins")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", id)
+      .eq("status", "checked_out"),
   ]);
 
   if (sessionRes.error || !sessionRes.data) return null;
@@ -78,6 +84,7 @@ export async function getSessionById(id: string) {
   return {
     ...sessionRes.data,
     checkins: checkinsRes.data || [],
+    checkedOutCount: checkedOutRes.count ?? 0,
   };
 }
 
@@ -559,6 +566,23 @@ export async function checkOutOfSession(sessionId: string, playerId?: string) {
     if (auth.error) {
       return { error: auth.error };
     }
+  }
+
+  // A player in a game can't check out mid-game: the game would be left a player short.
+  const { data: liveGame } = await supabase
+    .from("match_players")
+    .select("match_id, matches!inner(status, session_id)")
+    .eq("player_id", targetPlayerId)
+    .eq("matches.status", "in_progress")
+    .eq("matches.session_id", sessionId)
+    .limit(1);
+  if (liveGame && liveGame.length > 0) {
+    return {
+      error:
+        targetPlayerId === user.id
+          ? "You're in a game right now. Check out after it's finished."
+          : "This player is in a game right now. Check them out after it's finished.",
+    };
   }
 
   // 1. Mark session check-in as checked_out
