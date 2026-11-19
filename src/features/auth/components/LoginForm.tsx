@@ -95,7 +95,7 @@ export function LoginForm() {
               placeholder="username@dctechmicro.com"
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
             />
-            <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400/80">
+            <p className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
               Only @dctechmicro.com corporate email addresses are authorized.
             </p>
           </div>
@@ -138,13 +138,13 @@ export function LoginForm() {
         {/* Access & Password Policy Info */}
         <div className="pt-2 flex flex-col items-center gap-2 border-t border-slate-100 dark:border-slate-800/80 text-xs">
           <div className="text-center space-y-1.5">
-            <p className="text-slate-500 dark:text-slate-400">
+            <p className="text-slate-600 dark:text-slate-400">
               Default password for DCTECH colleagues:{" "}
-              <code className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+              <code className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
                 dctech123
               </code>
             </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-1">
               <ShieldAlert className="h-3 w-3 text-amber-500 shrink-0" />
               Player accounts are created and managed exclusively by administrators.
             </p>

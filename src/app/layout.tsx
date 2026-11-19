@@ -40,8 +40,6 @@ export const viewport: Viewport = {
   themeColor: "#090d14",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -72,7 +70,7 @@ export default function RootLayout({
           <main className="flex-1 pb-20 lg:pb-0">{children}</main>
           <MobileBottomNav />
           <PWAInstallBanner />
-          <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-[#070a10] py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+          <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-[#070a10] py-6 text-center text-xs text-slate-600 dark:text-slate-400">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
               <span>© 2026 DCTECH | Pickleball</span>
             </div>
